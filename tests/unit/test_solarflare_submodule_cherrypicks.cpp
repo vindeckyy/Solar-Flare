@@ -24,24 +24,28 @@ namespace {
   // The test binary's CWD is build/tests/ (2 levels deep), so we
   // need to walk up twice to reach the source root.
   std::string find_source_root() {
+    // Start with "." (test CWD = build/tests/). On each iteration,
+    // if .gitmodules is not found in the current path, go up one
+    // directory (strip the last path component).
     std::string path = ".";
-    while (true) {
+    for (int i = 0; i < 10; ++i) {  // hard cap at 10 levels to be safe
       if (!read_file(path + "/.gitmodules").empty()) {
         return path;
       }
-      // Go up: strip the last "/" to drop the current dir.
-      auto slash = path.find_last_of('/');
-      if (slash == std::string::npos) {
-        // We started at "." and there's no "/" — try "/" and stop.
-        return read_file("/.gitmodules").empty() ? "" : "/";
+      // Go up: strip the last "/" component.
+      // Special case: "." -> ".."
+      if (path == ".") {
+        path = "..";
+        continue;
       }
-      if (slash == 0) {
-        // We're at "/" already.
+      auto slash = path.find_last_of('/');
+      if (slash == std::string::npos || slash == 0) {
+        // At root, give up.
         return read_file("/.gitmodules").empty() ? "" : "/";
       }
       path = path.substr(0, slash);
-      if (path.empty()) path = "/";
     }
+    return "";
   }
 
   bool is_lower_hex_40(const std::string &s) {
