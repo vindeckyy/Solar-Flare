@@ -165,7 +165,7 @@ TEST(SolarflareSubmoduleCherryPicks, GitmodulesHasBumpedShas) {
       if (head.empty()) return "";
       // HEAD is "ref: refs/heads/<branch>" or a 40-char SHA. We
       // only care about the SHA case.
-      if (head.size() >= 40 && head[40] == '\n') {
+      if (head.size() >= 40 && all_chars_hex(head.substr(0, 40))) {
         return head.substr(0, 40);
       }
       // Detached HEAD: read the SHA from refs/heads/<branch> file.
