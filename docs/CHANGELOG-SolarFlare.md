@@ -131,6 +131,8 @@ queue reviewable.
 
 
 
+### Cherry-picked from upstream (round 7/8 additions)
+
 - `e40d355f fix(video): fix video stream freezing on capture re-init (e.g. pipewire display switch) (#5249)` — auto-merged.
 - `a84735d1 fix(web-ui): don't open ui automatically on app start (#5329)` — auto-merged.
 - `3266c341 feat(web-ui): UI consistency / layout uplifts (#5225)` — manual conflict resolution: kept fork's `SolarFlare Dark` and `SolarFlare Light` theme CSS, re-added fork's theme button in the new Dark Themes group, added `navbar.theme_solarflare_light = "SolarFlare Light"` to en.json.
