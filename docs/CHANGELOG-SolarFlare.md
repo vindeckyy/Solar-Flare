@@ -131,9 +131,10 @@ queue reviewable.
 
 
 
-### Cherry-picked from upstream (round 7/8 additions)
+
+
 ## See also
-### Cherry-picked from upstream (round 7/8 additions)
+
 
 - `e40d355f fix(video): fix video stream freezing on capture re-init (e.g. pipewire display switch) (#5249)` — auto-merged.
 - `a84735d1 fix(web-ui): don't open ui automatically on app start (#5329)` — auto-merged.
@@ -168,6 +169,8 @@ any runtime bugs).
   lines / +426 / -22 (was 569 / +379 / -2 in round 3, 646 / +414 / -11
   in round 5). Verified to apply cleanly to LizardByte/Sunshine @
   1fce18d9 with 0 conflicts.
+
+## See also
 
 - [docs/PORTING.md](PORTING.md) — multi-distro build instructions.
 - [docs/CONFIGURATION.md](CONFIGURATION.md) — fork-specific config
