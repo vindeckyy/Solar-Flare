@@ -398,9 +398,21 @@ namespace platf {
     }
 
     if (!success) {
-      // This will run on FreeBSD OR Linux if RTKit failed/was missing
+      // This will run on FreeBSD OR Linux if RTKit failed/was missing.
+      // On a non-root desktop the setpriority() call will fail with EPERM
+      // because regular users cannot decrease their nice value below 0.
+      // That's expected on a wall-powered desktop where the fork's
+      // cpu_pinning SCHED_RR path below is what actually matters for
+      // capture-thread latency; log it once at info-level on first
+      // failure per process instead of spamming a warning every thread.
+      static bool setpriority_noted = false;
       if (setpriority(PRIO_PROCESS, 0, linux_nice) == -1) {
-        BOOST_LOG(warning) << "setpriority failed for nice "sv << linux_nice << ": "sv << strerror(errno);
+        if (errno == EPERM && !setpriority_noted) {
+          BOOST_LOG(info) << "nice adjustments skipped (no CAP_SYS_NICE); capture-thread priority comes from cpu_pinning."sv;
+          setpriority_noted = true;
+        } else if (errno != EPERM) {
+          BOOST_LOG(warning) << "setpriority failed for nice "sv << linux_nice << ": "sv << strerror(errno);
+        }
       } else {
         BOOST_LOG(debug) << "setpriority success for nice "sv << linux_nice;
       }

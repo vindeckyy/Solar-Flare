@@ -40,11 +40,18 @@ else()
                 RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
                 OUTPUT_STRIP_TRAILING_WHITESPACE
         )
-        # Gather current commit
+        # Gather current commit (short form, e.g. "a1b2c3d")
         execute_process(
                 COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
                 OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
                 RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        # Gather current commit (long form, used for PROJECT_VERSION_COMMIT)
+        execute_process(
+                COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+                OUTPUT_VARIABLE GIT_COMMIT_FULL
+                RESULT_VARIABLE GIT_COMMIT_FULL_ERROR
                 OUTPUT_STRIP_TRAILING_WHITESPACE
         )
         # Check if Dirty
@@ -65,6 +72,13 @@ else()
             endif()
         else()
             MESSAGE(ERROR ": Got git error while fetching tags: ${GIT_DESCRIBE_ERROR_CODE}")
+        endif()
+        # Fall back to git HEAD when COMMIT/GITHUB_COMMIT env vars aren't set
+        # (local builds don't have them). PROJECT_VERSION_COMMIT is exposed in
+        # src/main.cpp via the "Sunshine version: ... commit: ..." log line,
+        # so leaving it blank prints a bare "commit: " which looks broken.
+        if(NOT GIT_COMMIT_FULL_ERROR AND NOT "${GIT_COMMIT_FULL}" STREQUAL "")
+            set(GITHUB_COMMIT "${GIT_COMMIT_FULL}")
         endif()
     else()
         MESSAGE(WARNING ": Git not found, cannot find git version")

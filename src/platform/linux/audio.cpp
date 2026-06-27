@@ -496,9 +496,17 @@ namespace platf {
       }
 
       ~server_t() override {
-        unload_null(index.stereo);
-        unload_null(index.surround51);
-        unload_null(index.surround71);
+        // If the PulseAudio context already disconnected (e.g. client
+        // disconnect path ran pa_context_disconnect first), the three
+        // unload_null() calls below would each fail with PA_ERR_NOENTITY
+        // and spam the log with three "Couldn't unload null-sink"
+        // errors that don't actually indicate a real problem -- the
+        // sinks are already gone. Guard against it.
+        if (ctx && pa_context_get_state(ctx.get()) == PA_CONTEXT_READY) {
+          unload_null(index.stereo);
+          unload_null(index.surround51);
+          unload_null(index.surround71);
+        }
 
         if (worker.joinable()) {
           pa_context_disconnect(ctx.get());
