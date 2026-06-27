@@ -77,23 +77,37 @@ TEST(SolarflareBuildDrmCherryPick, DrmBlocksNestedInEnableDrm) {
   const std::string kmsgrab_line = find_line(content, "kmsgrab.cpp");
   const std::string egl_line = find_line(content, "EGL_NO_X11=1");
 
-  EXPECT_TRUE(drm_def_line.find("SUNSHINE_ENABLE_DRM") != std::string::npos)
-    << "The 'add_compile_definitions(SUNSHINE_BUILD_DRM)' line is "
-       "not nested inside 'if(SUNSHINE_ENABLE_DRM)'. The a3552a43 "
-       "cherry-pick nested it so the DRM compile def is only set "
-       "when DRM is actually enabled. Re-apply the cherry-pick.";
+  // Use a windowed search to verify each DRM-only block is inside
+  // an 'if(SUNSHINE_ENABLE_DRM)' gate. The 'if' may be on a previous
+  // line (in the case of multi-line 'if/endif' blocks), so we look
+  // at the 200 bytes before each marker.
+  auto check_nested_in_drm = [&content](const std::string &marker,
+                                      const char *marker_desc) {
+    const size_t pos = content.find(marker);
+    if (pos == std::string::npos) {
+      return ::testing::AssertionFailure()
+        << "Could not find '" << marker << "' in linux.cmake.";
+    }
+    const size_t window_start = (pos >= 200) ? pos - 200 : 0;
+    const std::string window = content.substr(window_start, pos - window_start);
+    if (window.find("if(SUNSHINE_ENABLE_DRM)") == std::string::npos) {
+      return ::testing::AssertionFailure()
+        << marker_desc << " ('" << marker
+        << "') is not nested inside an 'if(SUNSHINE_ENABLE_DRM)' "
+           "block. The a3552a43 cherry-pick nested all DRM-specific "
+           "code so it can be turned off via -DSUNSHINE_ENABLE_DRM=OFF. "
+           "Re-apply the cherry-pick.\nContext (200 bytes before):\n"
+        << window;
+    }
+    return ::testing::AssertionSuccess();
+  };
 
-  EXPECT_TRUE(kmsgrab_line.find("SUNSHINE_ENABLE_DRM") != std::string::npos)
-    << "The kmsgrab.cpp target_files entry is not nested inside "
-       "'if(SUNSHINE_ENABLE_DRM)'. The a3552a43 cherry-pick nested "
-       "it so the DRM capture source file is only compiled when "
-       "DRM is actually enabled. Re-apply the cherry-pick.";
-
-  EXPECT_TRUE(egl_line.find("SUNSHINE_ENABLE_DRM") != std::string::npos)
-    << "The 'EGL_NO_X11=1' compile def is not nested inside "
-       "'if(SUNSHINE_ENABLE_DRM)'. The a3552a43 cherry-pick nested "
-       "it because the EGL_NO_X11 define is only needed for the "
-       "DRM (KMS) capture path. Re-apply the cherry-pick.";
+  EXPECT_TRUE(check_nested_in_drm("add_compile_definitions(SUNSHINE_BUILD_DRM)",
+                                    "The SUNSHINE_BUILD_DRM compile def"));
+  EXPECT_TRUE(check_nested_in_drm("kmsgrab.cpp",
+                                    "The kmsgrab.cpp target_files entry"));
+  EXPECT_TRUE(check_nested_in_drm("EGL_NO_X11=1",
+                                    "The EGL_NO_X11=1 compile def"));
 }
 
 // =============================================================================
