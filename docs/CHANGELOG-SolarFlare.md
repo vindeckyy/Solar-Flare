@@ -129,20 +129,10 @@ have modified (web UI, doxygen enforcement, OpenSSL tweaks, the
 big docs-doxygen audit) and were skipped to keep the fork's patch
 queue reviewable.
 
-## See also
 
-- [docs/PORTING.md](PORTING.md) — multi-distro build instructions.
-- [docs/CONFIGURATION.md](CONFIGURATION.md) — fork-specific config
-  keys.
-- [docs/configuration.md](configuration.md) `> ## SolarFlare Fork` —
-  fork keys documented in the same format as upstream options.
-- [docs/changelog.md](changelog.md) — upstream changelog (inlined
-  from LizardByte).
-- [README.md](../README.md) — fork entry point.
-- [PUSH-INSTRUCTIONS.md](../PUSH-INSTRUCTIONS.md) — what the original
-  `cachyos-fastpath.patch` covers and what it doesn't.
-- [cachyos-fastpath.patch](../cachyos-fastpath.patch) — the original
-  7-file latency-tuning patch (kept as a historical artifact).
+
+### Cherry-picked from upstream (round 7/8 additions)
+## See also
 ### Cherry-picked from upstream (round 7/8 additions)
 
 - `e40d355f fix(video): fix video stream freezing on capture re-init (e.g. pipewire display switch) (#5249)` — auto-merged.
@@ -178,3 +168,16 @@ any runtime bugs).
   lines / +426 / -22 (was 569 / +379 / -2 in round 3, 646 / +414 / -11
   in round 5). Verified to apply cleanly to LizardByte/Sunshine @
   1fce18d9 with 0 conflicts.
+
+- [docs/PORTING.md](PORTING.md) — multi-distro build instructions.
+- [docs/CONFIGURATION.md](CONFIGURATION.md) — fork-specific config
+  keys.
+- [docs/configuration.md](configuration.md) `> ## SolarFlare Fork` —
+  fork keys documented in the same format as upstream options.
+- [docs/changelog.md](changelog.md) — upstream changelog (inlined
+  from LizardByte).
+- [README.md](../README.md) — fork entry point.
+- [PUSH-INSTRUCTIONS.md](../PUSH-INSTRUCTIONS.md) — what the original
+  `cachyos-fastpath.patch` covers and what it doesn't.
+- [cachyos-fastpath.patch](../cachyos-fastpath.patch) — the original
+  7-file latency-tuning patch (kept as a historical artifact).
