@@ -116,6 +116,7 @@ namespace nvenc {
       NV_ENC_BUFFER_FORMAT buffer_format = NV_ENC_BUFFER_FORMAT_UNDEFINED;
       uint32_t ref_frames_in_dpb = 0;
       bool rfi = false;
+      uint32_t bframes = 0;  ///< B-frames between P-frames (0-4). 0 = no B-frames.
     } encoder_params;
 
     std::string last_nvenc_error_string;

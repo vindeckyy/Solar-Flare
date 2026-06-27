@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import Checkbox from "../../../Checkbox.vue";
 
 const props = defineProps([
@@ -8,10 +8,86 @@ const props = defineProps([
 ])
 
 const config = ref(props.config)
+
+// SolarFlare fork: one-click tuning presets that override the
+// individual knobs below. nvenc_tuning_preset:
+//   -1 = manual (don't touch anything)
+//    0 = latency-optimised  (P1, bframes=0, zerolatency, lookahead=0)
+//    1 = balanced           (P4, bframes=2, lookahead=20, AQ)
+//    2 = quality-optimised  (P7, bframes=4, lookahead=40, full twopass)
+// When the user picks a preset we auto-fill the per-knob fields so the
+// UI shows what the preset will actually do, then re-apply on submit.
+function apply_tuning_preset() {
+  const p = parseInt(config.value.nvenc_tuning_preset, 10);
+  if (p === 0) {  // latency
+    config.value.nvenc_preset = "1";
+    config.value.nvenc_bframes = 0;
+    config.value.nvenc_zerolatency = true;
+    config.value.nvenc_rc_lookahead = 0;
+    config.value.nvenc_twopass = "quarter_res";
+    config.value.nvenc_spatial_aq = false;
+    config.value.nvenc_temporal_aq = false;
+    config.value.nvenc_weighted_prediction = false;
+    config.value.nvenc_enable_min_qp = false;
+    config.value.nvenc_vbv_increase = 0;
+  } else if (p === 1) {  // balanced
+    config.value.nvenc_preset = "4";
+    config.value.nvenc_bframes = 2;
+    config.value.nvenc_zerolatency = false;
+    config.value.nvenc_rc_lookahead = 20;
+    config.value.nvenc_twopass = "quarter_res";
+    config.value.nvenc_spatial_aq = true;
+    config.value.nvenc_aq_strength = 8;
+    config.value.nvenc_temporal_aq = true;
+    config.value.nvenc_weighted_prediction = true;
+    config.value.nvenc_enable_min_qp = false;
+    config.value.nvenc_vbv_increase = 50;
+  } else if (p === 2) {  // quality
+    config.value.nvenc_preset = "7";
+    config.value.nvenc_bframes = 4;
+    config.value.nvenc_zerolatency = false;
+    config.value.nvenc_rc_lookahead = 40;
+    config.value.nvenc_twopass = "full_res";
+    config.value.nvenc_spatial_aq = true;
+    config.value.nvenc_aq_strength = 12;
+    config.value.nvenc_temporal_aq = true;
+    config.value.nvenc_weighted_prediction = true;
+    config.value.nvenc_enable_min_qp = true;
+    config.value.nvenc_min_qp_h264 = 22;
+    config.value.nvenc_min_qp_hevc = 26;
+    config.value.nvenc_min_qp_av1 = 26;
+    config.value.nvenc_vbv_increase = 100;
+  }
+  // p === -1 (manual) or unknown: leave the user's knobs alone
+}
+
+// Re-apply the preset when the dropdown changes, but only when the
+// user picks -2 (i.e. explicitly picks a preset, not the "manual"
+// sentinel that lets them edit knobs freely).
+const PRESET_REAPPLY = -2;
+const lastPresetSeen = ref(config.value.nvenc_tuning_preset);
+watch(() => config.value.nvenc_tuning_preset, (newVal) => {
+  if (newVal !== PRESET_REAPPLY && newVal !== lastPresetSeen.value) {
+    apply_tuning_preset();
+  }
+  lastPresetSeen.value = newVal;
+});
 </script>
 
 <template>
   <div id="nvidia-nvenc-encoder" class="config-page">
+    <!-- SolarFlare fork: tuning preset (one-click latency/balanced/quality) -->
+    <div class="mb-3">
+      <label for="nvenc_tuning_preset" class="form-label">{{ $t('config.nvenc_tuning_preset') }}</label>
+      <select id="nvenc_tuning_preset" class="form-select" v-model="config.nvenc_tuning_preset">
+        <option value="-1">{{ $t('config.nvenc_tuning_preset_manual') }}</option>
+        <option value="0">{{ $t('config.nvenc_tuning_preset_latency') }}</option>
+        <option value="1">{{ $t('config.nvenc_tuning_preset_balanced') }}</option>
+        <option value="2">{{ $t('config.nvenc_tuning_preset_quality') }}</option>
+      </select>
+      <div class="form-text">{{ $t('config.nvenc_tuning_preset_desc') }}</div>
+    </div>
+
     <!-- Performance preset -->
     <div class="mb-3">
       <label for="nvenc_preset" class="form-label">{{ $t('config.nvenc_preset') }}</label>
@@ -57,6 +133,30 @@ const config = ref(props.config)
               default="false"
     ></Checkbox>
 
+    <!-- AQ strength (only meaningful when spatial AQ is on) -->
+    <div class="mb-3" v-if="config.nvenc_spatial_aq">
+      <label for="nvenc_aq_strength" class="form-label">{{ $t('config.nvenc_aq_strength') }}</label>
+      <input type="number" min="1" max="15" class="form-control" id="nvenc_aq_strength" placeholder="8"
+             v-model="config.nvenc_aq_strength" />
+      <div class="form-text">{{ $t('config.nvenc_aq_strength_desc') }}</div>
+    </div>
+
+    <!-- Temporal AQ (SolarFlare fork) -->
+    <Checkbox class="mb-3"
+              id="nvenc_temporal_aq"
+              locale-prefix="config"
+              v-model="config.nvenc_temporal_aq"
+              default="false"
+    ></Checkbox>
+
+    <!-- Weighted prediction (SolarFlare fork: improves fades compression) -->
+    <Checkbox class="mb-3"
+              id="nvenc_weighted_prediction"
+              locale-prefix="config"
+              v-model="config.nvenc_weighted_prediction"
+              default="false"
+    ></Checkbox>
+
     <!-- Single-frame VBV/HRD percentage increase -->
     <div class="mb-3">
       <label for="nvenc_vbv_increase" class="form-label">{{ $t('config.nvenc_vbv_increase') }}</label>
@@ -68,6 +168,30 @@ const config = ref(props.config)
         <a href="https://en.wikipedia.org/wiki/Video_buffering_verifier">VBV/HRD</a>
       </div>
     </div>
+
+    <!-- Rate-control lookahead (SolarFlare fork) -->
+    <div class="mb-3">
+      <label for="nvenc_rc_lookahead" class="form-label">{{ $t('config.nvenc_rc_lookahead') }}</label>
+      <input type="number" min="0" max="31" class="form-control" id="nvenc_rc_lookahead" placeholder="0"
+             v-model="config.nvenc_rc_lookahead" />
+      <div class="form-text">{{ $t('config.nvenc_rc_lookahead_desc') }}</div>
+    </div>
+
+    <!-- B-frames (SolarFlare fork) -->
+    <div class="mb-3">
+      <label for="nvenc_bframes" class="form-label">{{ $t('config.nvenc_bframes') }}</label>
+      <input type="number" min="0" max="4" class="form-control" id="nvenc_bframes" placeholder="0"
+             v-model="config.nvenc_bframes" />
+      <div class="form-text">{{ $t('config.nvenc_bframes_desc') }}</div>
+    </div>
+
+    <!-- Zero-latency tune flag (SolarFlare fork) -->
+    <Checkbox class="mb-3"
+              id="nvenc_zerolatency"
+              locale-prefix="config"
+              v-model="config.nvenc_zerolatency"
+              default="false"
+    ></Checkbox>
 
     <!-- Miscellaneous options -->
     <div class="mb-3 accordion">
@@ -81,6 +205,33 @@ const config = ref(props.config)
         <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
              aria-labelledby="panelsStayOpen-headingOne">
           <div class="accordion-body">
+            <!-- Min-QP clamp (SolarFlare fork; per-codec) -->
+            <Checkbox class="mb-3"
+                      id="nvenc_enable_min_qp"
+                      locale-prefix="config"
+                      v-model="config.nvenc_enable_min_qp"
+                      default="false"
+            ></Checkbox>
+
+            <div class="mb-3" v-if="config.nvenc_enable_min_qp">
+              <label for="nvenc_min_qp_h264" class="form-label">{{ $t('config.nvenc_min_qp_h264') }}</label>
+              <input type="number" min="1" max="51" class="form-control" id="nvenc_min_qp_h264" placeholder="19"
+                     v-model="config.nvenc_min_qp_h264" />
+              <div class="form-text">{{ $t('config.nvenc_min_qp_h264_desc') }}</div>
+            </div>
+            <div class="mb-3" v-if="config.nvenc_enable_min_qp">
+              <label for="nvenc_min_qp_hevc" class="form-label">{{ $t('config.nvenc_min_qp_hevc') }}</label>
+              <input type="number" min="1" max="51" class="form-control" id="nvenc_min_qp_hevc" placeholder="23"
+                     v-model="config.nvenc_min_qp_hevc" />
+              <div class="form-text">{{ $t('config.nvenc_min_qp_hevc_desc') }}</div>
+            </div>
+            <div class="mb-3" v-if="config.nvenc_enable_min_qp">
+              <label for="nvenc_min_qp_av1" class="form-label">{{ $t('config.nvenc_min_qp_av1') }}</label>
+              <input type="number" min="1" max="255" class="form-control" id="nvenc_min_qp_av1" placeholder="23"
+                     v-model="config.nvenc_min_qp_av1" />
+              <div class="form-text">{{ $t('config.nvenc_min_qp_av1_desc') }}</div>
+            </div>
+
             <!-- NVENC Realtime HAGS priority -->
             <Checkbox v-if="platform === 'windows'"
                       class="mb-3"
@@ -117,6 +268,14 @@ const config = ref(props.config)
                       id="nvenc_h264_cavlc"
                       locale-prefix="config"
                       v-model="config.nvenc_h264_cavlc"
+                      default="false"
+            ></Checkbox>
+
+            <!-- Filler data (testing) -->
+            <Checkbox class="mb-3"
+                      id="nvenc_filler_data"
+                      locale-prefix="config"
+                      v-model="config.nvenc_filler_data"
                       default="false"
             ></Checkbox>
           </div>

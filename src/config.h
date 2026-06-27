@@ -53,6 +53,13 @@ namespace config {
     bool nv_opengl_vulkan_on_dxgi;
     bool nv_sunshine_high_power_mode;
 
+    // NVENC tuning preset. -1 = manual (don't touch anything); 0 = latency-
+    // optimised (P1, bframes=0, zerolatency=true, lookahead=0); 1 =
+    // balanced (P4, bframes=2, lookahead=20); 2 = quality-optimised
+    // (P7, bframes=4, lookahead=40, twopass=full). Manual lets every
+    // other nvenc_* key take effect; the presets override them.
+    int nv_preset = -1;
+
     struct {
       int preset;
       int multipass;

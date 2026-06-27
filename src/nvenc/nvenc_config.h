@@ -57,6 +57,35 @@ namespace nvenc {
 
     // Enable split-frame encoding if the gpu has multiple NVENC hardware clusters
     nvenc_split_frame_encoding split_frame_encoding = nvenc_split_frame_encoding::driver_decides;
+
+    // Rate-control lookahead, in frames (0 = disabled, 1-250)
+    // Helps rate control anticipate motion; +15-30% bitrate variance reduction
+    // at the cost of ~lookahead frames of pipeline latency. Maps to
+    // NV_ENC_RC_PARAMS::enableLookahead + lookAheadDepth.
+    int rc_lookahead = 0;
+
+    // Number of encode surfaces (1-32, -1 = driver default)
+    // More surfaces = better encoder pipelining at the cost of GPU memory.
+    // Maps to NV_ENC_INITIALIZE_PARAMS::numEncodeSurfaces.
+    int surfaces = -1;
+
+    // B-frames between P-frames (0-4)
+    // Higher = better compression at the cost of pipeline latency.
+    // 0 = zero-reorder-delay (required for sub-frame streaming latency).
+    int bframes = 0;
+
+    // tune=zerolatency: auto-disable lookahead, B-frames, multi-pass.
+    // Designed for interactive streaming where every ms of pipeline
+    // latency shows up in the input-to-photon loop.
+    bool zerolatency = false;
+
+    // AQ strength when adaptive quantization is enabled (1-15).
+    // 1 = subtle, 15 = aggressive bit redistribution. Default 8.
+    int aq_strength = 8;
+
+    // Temporal AQ: redistribute bits across frames instead of within a
+    // frame. Pairs with spatial_aq for full 2D AQ.
+    bool temporal_aq = false;
   };
 
 }  // namespace nvenc

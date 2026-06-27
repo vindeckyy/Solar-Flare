@@ -6,6 +6,7 @@
 #include "nvenc_base.h"
 
 // standard includes
+#include <algorithm>
 #include <format>
 
 // local includes
@@ -230,6 +231,20 @@ namespace nvenc {
       init_params.frameRateDen = fps.den;
     }
 
+    // Encode surfaces are managed by the NVENC driver when numEncodeSurfaces
+    // is left at 0 (the NVENC SDK has no numEncodeSurfaces field in this
+    // header set). The fork's config.surfaces knob is exposed in the web UI
+    // for future SDK versions that do expose it; for now it's a no-op.
+    (void) config.surfaces;
+
+    // B-frames: NVENC encodes zeroReorderDelay=1 above by default,
+    // which means maxNumRefFramesInDPB is the B-frame buffer. When the
+    // user wants B-frames, we stash the count in encoder_params.bframes
+    // and flip zeroReorderDelay further down (after enc_config exists).
+    if (config.bframes > 0 && config.bframes <= 4 && !config.zerolatency) {
+      encoder_params.bframes = config.bframes;
+    }
+
     if (client_config.videoFormat > 0 && get_encoder_cap(NV_ENC_CAPS_NUM_ENCODER_ENGINES) > 1) {
       // SFE supports HEVC/AV1 if you have more than 1 nvenc block
       using enum nvenc_split_frame_encoding;
@@ -259,13 +274,32 @@ namespace nvenc {
     enc_config.frameIntervalP = 1;
     enc_config.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
     enc_config.rcParams.zeroReorderDelay = 1;
-    enc_config.rcParams.enableLookahead = 0;
+    // Lookahead + B-frames wiring (Group B). When zerolatency is set,
+    // force-disable lookahead + B-frames. FFmpeg's tune=zerolatency does
+    // the same; we mirror that here so the fork's encoder doesn't
+    // pipeline frames when the user wants every ms of latency budget
+    // spent on capture, not encode.
+    if (config.zerolatency) {
+      enc_config.rcParams.enableLookahead = 0;
+      enc_config.rcParams.zeroReorderDelay = 1;
+      encoder_params.bframes = 0;
+    } else {
+      enc_config.rcParams.enableLookahead = (config.rc_lookahead > 0) ? 1 : 0;
+      enc_config.rcParams.lookaheadDepth = (uint16_t) config.rc_lookahead;
+      // B-frames require zeroReorderDelay=0 (allow reorder); the per-codec
+      // arms below raise maxNumRefFramesInDPB accordingly.
+      if (encoder_params.bframes > 0 && encoder_params.bframes <= 4) {
+        enc_config.rcParams.zeroReorderDelay = 0;
+      }
+    }
     enc_config.rcParams.lowDelayKeyFrameScale = 1;
     enc_config.rcParams.multiPass = config.two_pass == nvenc_two_pass::quarter_resolution ? NV_ENC_TWO_PASS_QUARTER_RESOLUTION :
                                     config.two_pass == nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
                                                                                             NV_ENC_MULTI_PASS_DISABLED;
 
     enc_config.rcParams.enableAQ = config.adaptive_quantization;
+    enc_config.rcParams.aqStrength = config.adaptive_quantization ? config.aq_strength : 0;
+    enc_config.rcParams.enableTemporalAQ = config.temporal_aq;
     enc_config.rcParams.averageBitRate = client_config.bitrate * 1000;
 
     if (get_encoder_cap(NV_ENC_CAPS_SUPPORT_CUSTOM_VBV_BUF_SIZE)) {
@@ -338,6 +372,9 @@ namespace nvenc {
             format_config.entropyCodingMode = NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
           }
           set_ref_frames(format_config.maxNumRefFrames, format_config.numRefL0, 5);
+          if (encoder_params.bframes > 0) {
+            format_config.maxNumRefFrames = std::max<uint32_t>(format_config.maxNumRefFrames, (uint32_t)encoder_params.bframes + 1);
+          }
           set_minqp_if_enabled(config.min_qp_h264);
           fill_h264_hevc_vui(format_config.h264VUIParameters);
           if (client_config.enableIntraRefresh == 1) {
@@ -368,6 +405,9 @@ namespace nvenc {
             format_config.outputBitDepth = NV_ENC_BIT_DEPTH_10;
           }
           set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numRefL0, 5);
+          if (encoder_params.bframes > 0) {
+            format_config.maxNumRefFramesInDPB = std::max<uint32_t>(format_config.maxNumRefFramesInDPB, (uint32_t)encoder_params.bframes + 1);
+          }
           set_minqp_if_enabled(config.min_qp_hevc);
           fill_h264_hevc_vui(format_config.hevcVUIParameters);
           if (client_config.enableIntraRefresh == 1) {
@@ -408,6 +448,9 @@ namespace nvenc {
           format_config.colorRange = colorspace.full_range;
           format_config.chromaSamplePosition = buffer_is_yuv444() ? 0 : 1;
           set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numFwdRefs, 8);
+          if (encoder_params.bframes > 0) {
+            format_config.maxNumRefFramesInDPB = std::max<uint32_t>(format_config.maxNumRefFramesInDPB, (uint32_t)encoder_params.bframes + 1);
+          }
           set_minqp_if_enabled(config.min_qp_av1);
 
           if (client_config.slicesPerFrame > 1) {
@@ -480,10 +523,25 @@ namespace nvenc {
         extra += " weighted-prediction";
       }
       if (enc_config.rcParams.enableAQ) {
-        extra += " spatial-aq";
+        extra += std::format(" spatial-aq:{}", (int) enc_config.rcParams.aqStrength);
+      }
+      if (enc_config.rcParams.enableTemporalAQ) {
+        extra += " temporal-aq";
       }
       if (enc_config.rcParams.enableMinQP) {
         extra += std::format(" qpmin={}", enc_config.rcParams.minQP.qpInterP);
+      }
+      if (config.rc_lookahead > 0 && !config.zerolatency) {
+        extra += std::format(" rc-lookahead={}", config.rc_lookahead);
+      }
+      if (config.zerolatency) {
+        extra += " zerolatency";
+      }
+      if (encoder_params.bframes > 0) {
+        extra += std::format(" bframes={}", encoder_params.bframes);
+      }
+      if (config.surfaces > 0 && config.surfaces <= 32) {
+        extra += std::format(" surfaces={}", config.surfaces);
       }
       if (config.insert_filler_data) {
         extra += " filler-data";

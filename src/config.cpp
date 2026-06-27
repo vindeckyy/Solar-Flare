@@ -466,6 +466,7 @@ namespace config {
     true,  // nv_realtime_hags
     true,  // nv_opengl_vulkan_on_dxgi
     true,  // nv_sunshine_high_power_mode
+    -1,  // nv_preset (-1 = manual, 0 = latency, 1 = balanced, 2 = quality)
     {},  // nv_legacy
 
     {
@@ -1124,9 +1125,22 @@ namespace config {
     int_between_f(vars, "nvenc_preset", video.nv.quality_preset, {1, 7});
     int_between_f(vars, "nvenc_vbv_increase", video.nv.vbv_percentage_increase, {0, 400});
     bool_f(vars, "nvenc_spatial_aq", video.nv.adaptive_quantization);
+    bool_f(vars, "nvenc_weighted_prediction", video.nv.weighted_prediction);
+    bool_f(vars, "nvenc_enable_min_qp", video.nv.enable_min_qp);
+    int_between_f(vars, "nvenc_min_qp_h264", (int &) video.nv.min_qp_h264, {1, 51});
+    int_between_f(vars, "nvenc_min_qp_hevc", (int &) video.nv.min_qp_hevc, {1, 51});
+    int_between_f(vars, "nvenc_min_qp_av1", (int &) video.nv.min_qp_av1, {1, 255});
+    bool_f(vars, "nvenc_filler_data", video.nv.insert_filler_data);
     generic_f(vars, "nvenc_twopass", video.nv.two_pass, nv::twopass_from_view);
     bool_f(vars, "nvenc_h264_cavlc", video.nv.h264_cavlc);
     generic_f(vars, "nvenc_split_encode", video.nv.split_frame_encoding, nv::split_encode_from_view);
+    int_between_f(vars, "nvenc_rc_lookahead", video.nv.rc_lookahead, {0, 31});
+    int_f(vars, "nvenc_surfaces", video.nv.surfaces);  // -1 = driver default, 1-32 = explicit
+    int_between_f(vars, "nvenc_bframes", video.nv.bframes, {0, 4});
+    bool_f(vars, "nvenc_zerolatency", video.nv.zerolatency);
+    int_between_f(vars, "nvenc_aq_strength", video.nv.aq_strength, {1, 15});
+    bool_f(vars, "nvenc_temporal_aq", video.nv.temporal_aq);
+    int_between_f(vars, "nvenc_tuning_preset", video.nv_preset, {-1, 2});
     bool_f(vars, "nvenc_realtime_hags", video.nv_realtime_hags);
     bool_f(vars, "nvenc_opengl_vulkan_on_dxgi", video.nv_opengl_vulkan_on_dxgi);
     bool_f(vars, "nvenc_latency_over_power", video.nv_sunshine_high_power_mode);
@@ -1140,6 +1154,60 @@ namespace config {
     video.nv_legacy.aq = video.nv.adaptive_quantization;
     video.nv_legacy.vbv_percentage_increase = video.nv.vbv_percentage_increase;
 #endif
+
+    // NVENC tuning preset (SolarFlare fork). -1 = manual (don't touch the
+    // nvenc_* knobs); 0 = latency-optimised; 1 = balanced;
+    // 2 = quality-optimised. When set, it overrides the relevant nvenc_*
+    // keys below so the user gets one-click tuning without having to
+    // fiddle with each knob.
+    if (video.nv_preset >= 0 && video.nv_preset <= 2) {
+      switch (video.nv_preset) {
+        case 0:  // latency-optimised
+          video.nv.quality_preset = 1;
+          video.nv.bframes = 0;
+          video.nv.zerolatency = true;
+          video.nv.rc_lookahead = 0;
+          video.nv.two_pass = nvenc::nvenc_two_pass::quarter_resolution;
+          video.nv.adaptive_quantization = false;
+          video.nv.temporal_aq = false;
+          video.nv.weighted_prediction = false;
+          video.nv.enable_min_qp = false;
+          video.nv.vbv_percentage_increase = 0;
+          video.nv.surfaces = -1;  // driver default
+          break;
+        case 1:  // balanced
+          video.nv.quality_preset = 4;
+          video.nv.bframes = 2;
+          video.nv.zerolatency = false;
+          video.nv.rc_lookahead = 20;
+          video.nv.two_pass = nvenc::nvenc_two_pass::quarter_resolution;
+          video.nv.adaptive_quantization = true;
+          video.nv.aq_strength = 8;
+          video.nv.temporal_aq = true;
+          video.nv.weighted_prediction = true;
+          video.nv.enable_min_qp = false;
+          video.nv.vbv_percentage_increase = 50;
+          video.nv.surfaces = -1;  // driver default
+          break;
+        case 2:  // quality-optimised
+          video.nv.quality_preset = 7;
+          video.nv.bframes = 4;
+          video.nv.zerolatency = false;
+          video.nv.rc_lookahead = 40;
+          video.nv.two_pass = nvenc::nvenc_two_pass::full_resolution;
+          video.nv.adaptive_quantization = true;
+          video.nv.aq_strength = 12;
+          video.nv.temporal_aq = true;
+          video.nv.weighted_prediction = true;
+          video.nv.enable_min_qp = true;
+          video.nv.min_qp_h264 = 22;
+          video.nv.min_qp_hevc = 26;
+          video.nv.min_qp_av1 = 26;
+          video.nv.vbv_percentage_increase = 100;
+          video.nv.surfaces = -1;  // driver default
+          break;
+      }
+    }
 
     int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
     int_f(vars, "qsv_coder", video.qsv.qsv_cavlc, qsv::coder_from_view);
