@@ -143,3 +143,38 @@ queue reviewable.
   `cachyos-fastpath.patch` covers and what it doesn't.
 - [cachyos-fastpath.patch](../cachyos-fastpath.patch) — the original
   7-file latency-tuning patch (kept as a historical artifact).
+### Cherry-picked from upstream (round 7/8 additions)
+
+- `e40d355f fix(video): fix video stream freezing on capture re-init (e.g. pipewire display switch) (#5249)` — auto-merged.
+- `a84735d1 fix(web-ui): don't open ui automatically on app start (#5329)` — auto-merged.
+- `3266c341 feat(web-ui): UI consistency / layout uplifts (#5225)` — manual conflict resolution: kept fork's `SolarFlare Dark` and `SolarFlare Light` theme CSS, re-added fork's theme button in the new Dark Themes group, added `navbar.theme_solarflare_light = "SolarFlare Light"` to en.json.
+
+The `a991a962 docs(doxygen): enforce warn if undocumented (#5337)` commit
+was ATTEMPTED but aborted: 6 conflict files + 11819 insertions of
+comment-only changes = high risk, low value (the fork already has
+doxygen comments on its key files and the upstream commit doesn't fix
+any runtime bugs).
+
+### Tests
+
+- Extended `tests/unit/test_config_fork_keys.cpp` with a new
+  `SolarflareConfigRuntimeTest` suite (7 tests) that locks in the
+  runtime opt-out behaviour of each fork key:
+  `BusyPollZeroDisablesBusyPolling`, `CpuPinningCanBeDisabled`,
+  `Enet4MibBufferCanBeDisabled`, `RateCapPctBoundaries`,
+  `PipewireLatencyBoundaries`,
+  `DefaultsExactlyMatchPreForkHardcodedValues` (the "vanilla install
+  behaves identically" guarantee).
+- Added a `SolarflareConfigCompileTime` struct-size test (32 bytes max)
+  so drift in the struct size gets caught early.
+- Total fork-config tests: 5 -> 12 (all pass).
+- Overall test suite: 333 -> 341 (329 -> 336 passing, 5 pre-existing
+  skipped, 0 failed).
+
+### Patch regeneration
+
+- `cachyos-fastpath.patch` regenerated against upstream base `1fce18d9`
+  after the round-3/4/7 cherry-picks touched the same 7 files. Now 703
+  lines / +426 / -22 (was 569 / +379 / -2 in round 3, 646 / +414 / -11
+  in round 5). Verified to apply cleanly to LizardByte/Sunshine @
+  1fce18d9 with 0 conflicts.
