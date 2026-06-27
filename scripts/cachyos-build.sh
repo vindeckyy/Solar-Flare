@@ -347,7 +347,12 @@ if command -v sunshine >/dev/null 2>&1; then
   fi
 
   # Check 2: the 5 fork config keys must parse without "Unrecognized".
-  _sf_tmpconf="$(mktemp -t sf-test.XXXXXX.conf)"
+  # Use a test config that exercises both bool + int parsing and
+  # intentionally uses values INSIDE the documented ranges so that
+  # the apply_config() int_between_f / bool_f helpers accept them
+  # (out-of-range values are silently rejected and we'd see no
+  # 'config: ...' line for the rejected key, which would fail check 3).
+  _sf_tmpconf="$(mktemp -t sf-test.conf-XXXXXX)"
   cat > "$_sf_tmpconf" <<'SFEOF'
 min_log_level = debug
 busy_poll_us = 75
@@ -356,14 +361,35 @@ enet_4mib_buffer = false
 pipewire_latency_ms = 12
 cpu_pinning = false
 SFEOF
-  _sf_log="$(mktemp -t sf-test.XXXXXX.log)"
+  _sf_log="$(mktemp -t sf-test.log-XXXXXX)"
   # 1-second timeout so this doesn't hang on a misconfigured DRM/CUDA attempt.
-  set +e
+  # Note: this script uses `set -uo pipefail` (no -e), so the legacy
+  # `set +e` / `set -e` toggles are no-ops. We rely on the timeout
+  # exit code and explicit checks below instead.
   timeout 1 "$_sf_bin" "$_sf_tmpconf" > "$_sf_log" 2>&1
   _sf_rc=$?
-  set -e 2>/dev/null || set +e
   if grep -qE "config: '(busy_poll_us|rate_cap_pct|enet_4mib_buffer|pipewire_latency_ms|cpu_pinning)'" "$_sf_log"; then
     say "Fork config keys parse cleanly (✓ all 5 keys recognised)"
+
+    # Check 3: the parsed values must equal what we set. This catches
+    # the case where the binary is older than the source and silently
+    # falls back to the defaults (i.e. 'Unrecognized' is silent in some
+    # error paths). The test config sets 5 specific values; if any of
+    # them is missing from the log, apply_config() either rejected the
+    # value or didn't see the key.
+    _sf_problems=""
+    for _sf_expected in 'busy_poll_us.*=.*75' 'rate_cap_pct.*=.*85' \
+                        'pipewire_latency_ms.*=.*12'; do
+      if ! grep -qE "$_sf_expected" "$_sf_log"; then
+        _sf_problems="$_sf_problems $_sf_expected"
+      fi
+    done
+    if [ -n "$_sf_problems" ]; then
+      warn "Fork config keys parsed but some values are missing from the log:"
+      warn "  Expected (regex):$_sf_problems"
+      warn "  This usually means the binary is older than the source --"
+      warn "  re-run ./scripts/cachyos-build.sh --clean to force a rebuild."
+    fi
   else
     warn "Fork config keys did NOT appear in the parse log -- something is wrong."
     warn "  Expected 5 'config: ...' lines for busy_poll_us / rate_cap_pct /"
@@ -373,8 +399,6 @@ SFEOF
     warn "Fork config keys logged as 'Unrecognized' -- the binary is older than the source."
   fi
   rm -f "$_sf_tmpconf" "$_sf_log"
-  # Re-enable errexit for the rest of the script if it was on.
-  set +u  # tolerate unbound vars further down
 else
   warn "sunshine not on \$PATH; skipping post-install fork verification."
 fi
