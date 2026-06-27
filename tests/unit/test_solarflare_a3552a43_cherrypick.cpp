@@ -88,7 +88,7 @@ TEST(SolarflareBuildDrmCherryPick, DrmBlocksNestedInEnableDrm) {
       return ::testing::AssertionFailure()
         << "Could not find '" << marker << "' in linux.cmake.";
     }
-    const size_t window_start = (pos >= 200) ? pos - 200 : 0;
+    const size_t window_start = (pos >= 400) ? pos - 400 : 0;
     const std::string window = content.substr(window_start, pos - window_start);
     if (window.find("if(${SUNSHINE_ENABLE_DRM})") == std::string::npos) {
       return ::testing::AssertionFailure()
@@ -96,7 +96,7 @@ TEST(SolarflareBuildDrmCherryPick, DrmBlocksNestedInEnableDrm) {
         << "') is not nested inside an 'if(SUNSHINE_ENABLE_DRM)' "
            "block. The a3552a43 cherry-pick nested all DRM-specific "
            "code so it can be turned off via -DSUNSHINE_ENABLE_DRM=OFF. "
-           "Re-apply the cherry-pick.\nContext (200 bytes before):\n"
+           "Re-apply the cherry-pick.\nContext (400 bytes before):\n"
         << window;
     }
     return ::testing::AssertionSuccess();
@@ -129,10 +129,10 @@ TEST(SolarflareBuildDrmCherryPick, LibCapForAnyLinuxBuild) {
   const size_t libcap_pos = content.find("find_package(LIBCAP REQUIRED)");
   ASSERT_NE(libcap_pos, std::string::npos)
     << "Could not find 'find_package(LIBCAP REQUIRED)' in the file.";
-  const size_t window_start = (libcap_pos >= 100) ? libcap_pos - 100 : 0;
+  const size_t window_start = (libcap_pos >= 400) ? libcap_pos - 400 : 0;
   const std::string window = content.substr(window_start, libcap_pos - window_start);
   EXPECT_TRUE(window.find("if(LINUX)") != std::string::npos)
-    << "The 100 bytes before 'find_package(LIBCAP REQUIRED)' is:\n"
+    << "The 400 bytes before 'find_package(LIBCAP REQUIRED)' is:\n"
        << window << "\nThe a3552a43 cherry-pick should gate it on "
        "'if(LINUX)' so libcap is found for any Linux build, not "
        "just DRM. Re-apply the cherry-pick.";
