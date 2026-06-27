@@ -134,13 +134,63 @@ TEST(SolarflareSubmoduleCherryPicks, GitmodulesHasBumpedShas) {
 
     if (block.empty()) continue;
 
-    // The block should contain the expected SHA prefix.
-    EXPECT_TRUE(contains(block, sm.round6_sha_prefix))
-      << ".gitmodules entry for " << sm.name
-      << " does not contain the expected round-6 SHA prefix '"
-      << sm.round6_sha_prefix << "'. The submodule pointer has "
-         "been reverted or the .gitmodules entry has been "
-         "re-formatted. Re-apply the round-6 cherry-pick.";
+    // Read the on-disk submodule's HEAD pointer. The .git entry
+    // in a submodule is a file (not a directory) containing
+    // "gitdir: ../../.git/modules/<name>". We follow that to
+    // <repo>/.git/modules/<name>/HEAD which contains a 40-char
+    // SHA. If the .git entry is a directory, HEAD is at
+    // <path>/.git/HEAD.
+    auto read_submodule_head_sha = [&](const std::string &path) -> std::string {
+      // Read the submodule's .git file (always a file for nested
+      // submodules, always a directory for the main repo).
+      const std::string dot_git = path + "/.git";
+      const std::string dot_git_contents = read_file(dot_git);
+      if (dot_git_contents.empty()) return "";  // not initialised
+      // Parse the "gitdir: <path>" line.
+      const std::string marker = "gitdir: ";
+      const size_t pos = dot_git_contents.find(marker);
+      if (pos == std::string::npos) return "";
+      // Find end of line.
+      size_t eol = dot_git_contents.find('\n', pos);
+      if (eol == std::string::npos) eol = dot_git_contents.size();
+      std::string gitdir = dot_git_contents.substr(pos + marker.size(),
+                                                   eol - pos - marker.size());
+      // gitdir is relative to the submodule root, so resolve it.
+      // Find the submodule's parent dir.
+      size_t slash = path.find_last_of('/');
+      const std::string parent = (slash == std::string::npos) ? "." : path.substr(0, slash);
+      // gitdir starts with "../../" so resolve to <parent>/<gitdir>.
+      const std::string head_path = parent + "/" + gitdir + "/HEAD";
+      const std::string head = read_file(head_path);
+      if (head.empty()) return "";
+      // HEAD is "ref: refs/heads/<branch>" or a 40-char SHA. We
+      // only care about the SHA case.
+      if (head.size() >= 40 && head[40] == '\n') {
+        return head.substr(0, 40);
+      }
+      // Detached HEAD: read the SHA from refs/heads/<branch> file.
+      // For our case, the submodule is always on a SHA, not a
+      // branch reference, so HEAD should be a 40-char SHA.
+      return "";
+    };
+
+    for (const auto &sm : kSubmodules) {
+      const std::string sha = read_submodule_head_sha(sm.path);
+      EXPECT_FALSE(sha.empty())
+        << "Could not read HEAD SHA for submodule " << sm.name
+        << " (path=" << sm.path << "). The submodule is either "
+           "not checked out or the .git file is malformed. Run "
+           "'git submodule update --init --recursive'.";
+      if (!sha.empty()) {
+        EXPECT_TRUE(contains(sha, sm.round6_sha_prefix))
+          << "Submodule " << sm.name
+          << " is at SHA '" << sha << "', which does not start "
+             "with the expected round-6 prefix '"
+          << sm.round6_sha_prefix
+          << "'. The submodule pointer has been reverted. "
+             "Re-apply the round-6 cherry-pick.";
+      }
+    }
   }
 }
 
