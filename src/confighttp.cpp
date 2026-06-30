@@ -31,6 +31,7 @@
 // local includes
 #include "config.h"
 #include "confighttp.h"
+#include "spice/per_client_input.h"
 #include "crypto.h"
 #include "display_device.h"
 #include "file_handler.h"
@@ -48,6 +49,20 @@
 using namespace std::literals;
 
 namespace confighttp {
+  namespace {
+    std::string json_str_field(const std::string &body, const std::string &field) {
+      auto k = "\"" + field + "\"";
+      auto p = body.find(k);
+      if (p == std::string::npos) return "";
+      p = body.find('"', p + k.size());
+      if (p == std::string::npos) return "";
+      ++p;
+      auto e = body.find('"', p);
+      if (e == std::string::npos) return "";
+      return body.substr(p, e - p);
+    }
+  }
+
   namespace fs = std::filesystem;
 
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
@@ -1721,6 +1736,59 @@ namespace confighttp {
     }
   }
 
+
+  /**
+   * @brief GET /api/per-client-calibrations
+   *
+   * Lists every per-UUID input calibration known to the host.
+   */
+  void getPerClientCalibrations(const resp_https_t &response, const req_https_t &request) {
+    auto map = per_client_input::all_calibrations();
+    nlohmann::json out;
+    out["items"] = nlohmann::json::array();
+    for (auto &[uuid, c] : map) {
+      out["items"].push_back({
+        {"uuid", uuid},
+        {"describe", per_client_input::describe(c)},
+        {"dpi_ratio", c.mouse_dpi_ratio},
+        {"scroll_divisor", c.scroll_divisor},
+        {"swap_buttons", c.swap_buttons},
+        {"deadzone_px", c.deadzone_px}
+      });
+    }
+    send_response(response, out);
+  }
+
+  /**
+   * @brief POST /api/per-client-calibrations
+   *
+   * Body: {"uuid":"...","dpi_ratio":1.5,"scroll_divisor":2,...}
+   *
+   * Registers or updates one per-UUID calibration. Subsequent input
+   * events for that UUID should be passed through
+   * `per_client_input::apply_motion(c, dx, dy)` before forwarding.
+   */
+  void postPerClientCalibrationUpdate(const resp_https_t &response, const req_https_t &request) {
+    auto body = request.body();
+    auto uuid = json_str_field(body, "uuid");
+    if (uuid.empty()) {
+      bad_request(response, request, "missing uuid");
+      return;
+    }
+    per_client_input::input_calibration_t c;
+    auto dpi = json_str_field(body, "dpi_ratio");
+    if (!dpi.empty()) { try { c.mouse_dpi_ratio = std::stod(dpi); } catch (...) {} }
+    auto sd = json_str_field(body, "scroll_divisor");
+    if (!sd.empty()) { try { c.scroll_divisor = std::stoi(sd); } catch (...) {} }
+    auto dz = json_str_field(body, "deadzone_px");
+    if (!dz.empty()) { try { c.deadzone_px = std::stoi(dz); } catch (...) {} }
+    c.swap_buttons = body.find("\"swap_buttons\":true") != std::string::npos;
+    c.invert_pointer_x = body.find("\"invert_x\":true") != std::string::npos;
+    c.invert_pointer_y = body.find("\"invert_y\":true") != std::string::npos;
+    per_client_input::set_calibration(uuid, c);
+    send_response(response, per_client_input::describe(c), "text/plain");
+  }
+
   void start() {
     platf::set_thread_name("confighttp");
     const auto shutdown_event = mail::man->event<bool>(mail::shutdown);
@@ -1775,6 +1843,8 @@ namespace confighttp {
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
     server.resource["^/api/clients/update$"]["POST"] = updateClient;
     server.resource["^/api/config$"]["GET"] = getConfig;
+    server.resource["^/api/per-client-calibrations$"]["GET"] = getPerClientCalibrations;
+    server.resource["^/api/per-client-calibrations$"]["POST"] = postPerClientCalibrationUpdate;
     server.resource["^/api/config$"]["POST"] = saveConfig;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
