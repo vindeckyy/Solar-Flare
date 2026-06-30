@@ -618,6 +618,10 @@ namespace config {
     true,  // cpu_pinning        (SCHED_RR + physical-core affinity)
   };
 
+  // latency_budget fork tunables. Off-by-default; the `enabled`
+  // flag must be true for any observation to occur.
+  latency_budget_t latency_budget {};
+
   bool endline(char ch) {
     return ch == '\r' || ch == '\n';
   }
@@ -1409,6 +1413,43 @@ namespace config {
     bool_f(vars, "enet_4mib_buffer", solarflare.enet_4mib_buffer);
     int_between_f(vars, "pipewire_latency_ms", solarflare.pipewire_latency_ms, {1, 40});
     bool_f(vars, "cpu_pinning", solarflare.cpu_pinning);
+
+    // latency_budget fork tunables (https://github.com/vindeckyy/Solar-Flare).
+    bool_f(vars, "latency_budget_enabled", latency_budget.enabled);
+    int_between_f(vars, "latency_budget_ms", latency_budget.default_ms, {16, 500});
+    // Action allow-list: "warn" or "abort". Anything else reverts to "warn".
+    string_f(vars, "latency_budget_action", latency_budget.action);
+    if (latency_budget.action != "warn" && latency_budget.action != "abort") {
+      BOOST_LOG(warning) << "config: latency_budget_action=" << latency_budget.action
+                          << " is not in {warn, abort}, falling back to "warn"."sv;
+      latency_budget.action = "warn";
+    }
+
+    // Per-app overrides: CSV "uuid-or-name:ms,..."
+    if (auto it = vars.find("latency_budgets"); it != vars.end()) {
+      latency_budget.clear();
+      auto &raw = it->second;
+      std::size_t i = 0;
+      while (i < raw.size()) {
+        auto comma = raw.find(',', i);
+        if (comma == std::string::npos) {
+          comma = raw.size();
+        }
+        auto entry = raw.substr(i, comma - i);
+        auto colon = entry.find(':');
+        if (colon != std::string::npos && colon > 0 && colon + 1 < entry.size()) {
+          try {
+            int ms = std::stoi(entry.substr(colon + 1));
+            if (ms >= 16 && ms <= 500) {
+              latency_budget.overrides_by_app[entry.substr(0, colon)] = ms;
+            }
+          } catch (...) {
+            // ignored
+          }
+        }
+        i = comma + 1;
+      }
+    }
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});

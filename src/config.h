@@ -337,7 +337,41 @@ namespace config {
   extern nvhttp_t nvhttp;
   extern input_t input;
   extern sunshine_t sunshine;
+
+  // ----------------------------------------------------------------------
+  // latency_budget fork (https://github.com/vindeckyy/Solar-Flare)
+  // ----------------------------------------------------------------------
+  // Optional per-app "soft warn" budget for end-to-end stream latency.
+  // When enabled, the stream controller records one sample per encoded
+  // frame and warns (or, if action="abort", tears down the session)
+  // when the rolling-median sample exceeds `default_ms` (or the per-
+  // app override in `overrides_by_app`).
+  //
+  // All keys are off-by-default. A vanilla install of this fork with the
+  // `latency_budget_enabled` key absent behaves identically to
+  // upstream Sunshine.
+  // ----------------------------------------------------------------------
+  struct latency_budget_t {
+    /// Master switch. False = no observation, no warnings.
+    bool enabled = false;
+    /// Action when the rolling median exceeds the budget.
+    /// One of: "warn" (default; logs a one-line warning per breach), "abort"
+    /// (tears down the session, used for competitive-shooter hard caps).
+    std::string action = "warn";
+    /// Default budget (ms). Per-app overrides can be tighter or looser.
+    /// Valid range 16..500.
+    int default_ms = 80;
+    /// Per-app overrides: app name (e.g. "Desktop") or Moonlight UUID
+    /// (the long hex string printed by /api/pin) -> budget in ms.
+    /// Empty overrides mean "use default_ms for every app".
+    std::unordered_map<std::string, int> overrides_by_app;
+
+    /// Reset to "empty" state (cheap; called on every config reload).
+    void clear() { overrides_by_app.clear(); }
+  };
+
   extern solarflare_t solarflare;
+  extern latency_budget_t latency_budget;
 
   int parse(int argc, char *argv[]);
   std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);

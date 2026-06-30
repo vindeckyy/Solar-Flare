@@ -31,6 +31,7 @@
 // local includes
 #include "config.h"
 #include "confighttp.h"
+#include "spice/latency_budget.h"
 #include "crypto.h"
 #include "display_device.h"
 #include "file_handler.h"
@@ -48,6 +49,23 @@
 using namespace std::literals;
 
 namespace confighttp {
+  namespace {
+    /// Pull a string field out of a tiny JSON body. Used for
+    /// endpoints that accept {"key": "value"} without a full
+    /// nlohmann::json parse.
+    std::string json_str_field(const std::string &body, const std::string &field) {
+      auto k = "\"" + field + "\"";
+      auto p = body.find(k);
+      if (p == std::string::npos) return "";
+      p = body.find('"', p + k.size());
+      if (p == std::string::npos) return "";
+      ++p;
+      auto e = body.find('"', p);
+      if (e == std::string::npos) return "";
+      return body.substr(p, e - p);
+    }
+  }
+
   namespace fs = std::filesystem;
 
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
@@ -1721,6 +1739,52 @@ namespace confighttp {
     }
   }
 
+
+  /**
+   * @brief POST /api/latency/eval
+   *
+   * Body:   {"app": "<name-or-uuid>", "samples_us": "50000,47000,..."}
+   * Result: {"within_budget": bool, "median_us": int, "budget_us": int,
+   *          "action": "none"|"warn"|"abort"}
+   *
+   * The latency_budget fork (opt-in via `latency_budget_enabled = true`)
+   * tracks a rolling-30-sample median of per-frame encode duration
+   * per app; this endpoint lets the web UI (or any third-party test
+   * harness) feed it samples and read out the verdict. The endpoint
+   * is read-only with respect to the live stream; it does NOT affect
+   * the currently-streaming session.
+   */
+  void postLatencyEval(const resp_https_t &response, const req_https_t &request) {
+    if (!config::latency_budget.enabled) {
+      send_response(response, "{"enabled":false}");
+      return;
+    }
+    auto body = request.body();
+    auto app = json_str_field(body, "app");
+    auto samples_str = json_str_field(body, "samples_us");
+    std::vector<std::uint64_t> samples;
+    std::size_t i = 0;
+    while (i < samples_str.size()) {
+      auto comma = samples_str.find(',', i);
+      if (comma == std::string::npos) {
+        comma = samples_str.size();
+      }
+      try {
+        samples.push_back(std::stoull(samples_str.substr(i, comma - i)));
+      } catch (...) {
+        // ignored
+      }
+      i = comma + 1;
+    }
+    auto r = latency_budget::evaluate(app, samples);
+    nlohmann::json out;
+    out["within_budget"] = r.within_budget;
+    out["median_us"] = r.median_us;
+    out["budget_us"] = r.budget_us;
+    out["action"] = r.action_taken;
+    send_response(response, out);
+  }
+
   void start() {
     platf::set_thread_name("confighttp");
     const auto shutdown_event = mail::man->event<bool>(mail::shutdown);
@@ -1775,6 +1839,7 @@ namespace confighttp {
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
     server.resource["^/api/clients/update$"]["POST"] = updateClient;
     server.resource["^/api/config$"]["GET"] = getConfig;
+    server.resource["^/api/latency/eval$"]["POST"] = postLatencyEval;
     server.resource["^/api/config$"]["POST"] = saveConfig;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
