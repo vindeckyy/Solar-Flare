@@ -610,6 +610,7 @@ namespace config {
   // and src/platform/linux/misc.cpp so a vanilla install behaves identically
   // to a pre-config-fork build. See README.md > 'Configure' and
   // docs/CONFIGURATION.md for the documented ranges.
+  bitrate_ladder_t bitrate_ladder {};
   solarflare_t solarflare {
     50,  // busy_poll_us       (SO_BUSY_POLL on the ENet socket)
     80,  // rate_cap_pct       (rate-control pacer, % of link speed)
@@ -1409,6 +1410,14 @@ namespace config {
     bool_f(vars, "enet_4mib_buffer", solarflare.enet_4mib_buffer);
     int_between_f(vars, "pipewire_latency_ms", solarflare.pipewire_latency_ms, {1, 40});
     bool_f(vars, "cpu_pinning", solarflare.cpu_pinning);
+
+    // bitrate_ladder fork tunables (https://github.com/vindeckyy/Solar-Flare).
+    bool_f(vars, "bitrate_ladder_enabled", bitrate_ladder.enabled);
+    int_between_f(vars, "bitrate_drop_pct", bitrate_ladder.drop_pct, {1, 90});
+    int_between_f(vars, "bitrate_drop_window", bitrate_ladder.drop_window, {1, 120});
+    int_between_f(vars, "bitrate_up_hold_s", bitrate_ladder.up_hold_s, {1, 600});
+    int_between_f(vars, "bitrate_target_fps", bitrate_ladder.target_fps, {24, 144});
+    string_f(vars, "bitrate_ladder_rungs", bitrate_ladder.rungs);
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});

@@ -338,6 +338,36 @@ namespace config {
   extern input_t input;
   extern sunshine_t sunshine;
   extern solarflare_t solarflare;
+  extern bitrate_ladder_t bitrate_ladder;
+
+  // ----------------------------------------------------------------------
+  // bitrate_ladder fork (https://github.com/vindeckyy/Solar-Flare)
+  // ----------------------------------------------------------------------
+  // Adaptive bitrate ladder. When enabled, the encoder queries
+  // `bitrate_ladder::tick(kbps, encode_us, dropped)` per frame; the
+  // returned `kbps` may be one rung up or down the configured ladder.
+  // Six rungs by default (4 Mbps / 480p30 ... 45 Mbps / 4K60); users
+  // can override via CSV `bitrate_ladder_rungs = "4000,8000,..."`.
+  // Off by default; opt-in via `bitrate_ladder_enabled = true`.
+  // ----------------------------------------------------------------------
+  struct bitrate_ladder_t {
+    bool enabled = false;
+    /// Drop a rung when encode EWMA exceeds budget by this %.
+    /// Valid 1..90. Default 25.
+    int drop_pct = 25;
+    /// Require this many consecutive ticks of pressure before stepping down.
+    /// Valid 1..120. Default 30.
+    int drop_window = 30;
+    /// Require this many seconds of healthy encode before stepping up.
+    /// Valid 1..600. Default 30.
+    int up_hold_s = 30;
+    /// Streaming FPS used for budget normalisation. Valid 24..144. Default 60.
+    int target_fps = 60;
+    /// Optional override ladder as CSV kbps values.
+    /// Empty means: use the built-in 6-rung ladder.
+    std::string rungs;
+  };
+
 
   int parse(int argc, char *argv[]);
   std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);

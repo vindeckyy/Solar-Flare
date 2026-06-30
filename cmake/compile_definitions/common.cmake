@@ -252,6 +252,10 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.cpp"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.h"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.c"
+
+        # bitrate_ladder fork (https://github.com/vindeckyy/Solar-Flare)
+        "${CMAKE_SOURCE_DIR}/src/spice/bitrate_ladder.h"
+        "${CMAKE_SOURCE_DIR}/src/spice/bitrate_ladder.cpp"
         ${PLATFORM_TARGET_FILES})
 
 if(NOT SUNSHINE_ASSETS_DIR_DEF)

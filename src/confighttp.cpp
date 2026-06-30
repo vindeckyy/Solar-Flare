@@ -31,6 +31,7 @@
 // local includes
 #include "config.h"
 #include "confighttp.h"
+#include "spice/bitrate_ladder.h"
 #include "crypto.h"
 #include "display_device.h"
 #include "file_handler.h"
@@ -1721,6 +1722,33 @@ namespace confighttp {
     }
   }
 
+
+  /**
+   * @brief GET /api/bitrate-ladder
+   *
+   * Returns the bitrate_ladder fork's current rung, EWMA, and the
+   * configured ladder. Off-by-default; returns {"enabled":false}
+   * when the master switch is off.
+   */
+  void getBitrateLadder(const resp_https_t &response, const req_https_t &request) {
+    if (!config::bitrate_ladder.enabled) {
+      send_response(response, "{\"enabled\":false}");
+      return;
+    }
+    auto s = bitrate_ladder::state();
+    auto l = bitrate_ladder::ladder();
+    nlohmann::json out;
+    out["enabled"] = true;
+    out["current_index"] = s.index;
+    out["current_kbps"] = s.current_kbps;
+    out["ewma_us"] = s.ewma_us;
+    out["rungs"] = nlohmann::json::array();
+    for (auto &rr : l) {
+      out["rungs"].push_back({{"kbps", rr.kbps}, {"label", rr.label}});
+    }
+    send_response(response, out);
+  }
+
   void start() {
     platf::set_thread_name("confighttp");
     const auto shutdown_event = mail::man->event<bool>(mail::shutdown);
@@ -1775,6 +1803,7 @@ namespace confighttp {
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
     server.resource["^/api/clients/update$"]["POST"] = updateClient;
     server.resource["^/api/config$"]["GET"] = getConfig;
+    server.resource["^/api/bitrate-ladder$"]["GET"] = getBitrateLadder;
     server.resource["^/api/config$"]["POST"] = saveConfig;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
