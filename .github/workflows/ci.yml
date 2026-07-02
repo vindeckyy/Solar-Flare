@@ -16,12 +16,14 @@ concurrency:
 jobs:
   github-env:
     name: GitHub Env Debug
+    if: startsWith(github.repository, 'LizardByte/')
     permissions:
       contents: read
     uses: LizardByte/.github/.github/workflows/__call-github-env.yml@master
 
   release-setup:
     name: Release Setup
+    if: startsWith(github.repository, 'LizardByte/')
     outputs:
       publish_release: ${{ steps.release-setup.outputs.publish_release }}
       release_body: ${{ steps.release-setup.outputs.release_body }}

@@ -17,7 +17,7 @@ jobs:
   lint:
     name: Common Lint
     uses: LizardByte/.github/.github/workflows/__call-common-lint.yml@master
-    if: ${{ github.repository != 'LizardByte/.github' }}
+    if: startsWith(github.repository, 'LizardByte/')
     permissions:
       contents: read
       pull-requests: read

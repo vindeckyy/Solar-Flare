@@ -22,7 +22,7 @@ jobs:
   call-codeql:
     name: CodeQL
     uses: LizardByte/.github/.github/workflows/__call-codeql.yml@master
-    if: ${{ github.repository != 'LizardByte/.github' }}
+    if: startsWith(github.repository, 'LizardByte/')
     permissions:
       actions: read
       contents: read
