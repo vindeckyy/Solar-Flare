@@ -105,7 +105,7 @@ Full rationale, defaults, ranges, and measurement methodology: [`docs/CONFIGURAT
 
 ### 2026-07-02 — Per-game presets, DSCP QoS, GPU governor, headless display
 
-Four "ponytail-grade" features — minimal code, measurable wins, Linux-first.
+Four low-overhead features — minimal code, measurable wins, Linux-first.
 
 #### 🏷️ Per-game NVENC presets
 
