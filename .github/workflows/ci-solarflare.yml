@@ -60,15 +60,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Fix git ownership and install build deps
+      - name: Fix git ownership
         shell: bash
         run: |
-          # GitHub Actions container runs as a different user than the
-          # checked-out repo, causing "dubious ownership" errors.
           git config --global --add safe.directory /__w/Solar-Flare/Solar-Flare
-          # Install build tools and web UI dependencies.
-          pacman -Syy --disable-download-timeout --needed --noconfirm \
-            cmake ninja nodejs npm
 
       - name: Run cachyos-build.sh
         shell: bash
@@ -77,7 +72,7 @@ jobs:
           cp scripts/cachyos-build.sh scripts/cachyos-build.ci.sh
           sed -i 's,-DBUILD_TESTS=OFF,-DBUILD_TESTS=ON,g' scripts/cachyos-build.ci.sh
           chmod +x scripts/cachyos-build.ci.sh
-          bash ./scripts/cachyos-build.ci.sh --no-pacman 2>&1 | tee build.log
+          bash ./scripts/cachyos-build.ci.sh 2>&1 | tee build.log
 
       - name: Verify fork branding
         shell: bash
