@@ -77,7 +77,7 @@ sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/suns
 systemctl --user enable --now sunshine.service
 ```
 
-The build script detects your distribution from `/etc/os-release` and installs the correct packages. Tested on Arch, CachyOS, Manjaro, EndeavourOS, Ubuntu, Debian, Pop!_OS, Fedora, Nobara, and openSUSE.
+The build script detects your distribution from `/etc/os-release` and installs the correct packages. Tested on Arch, CachyOS, Manjaro, EndeavourOS, Ubuntu, Debian, Pop!_OS, Fedora, Nobara, Bazzite, and openSUSE.
 
 **After installing:**
 

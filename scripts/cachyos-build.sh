@@ -70,10 +70,29 @@ step "1/7  Platform check"
 if [[ "$(uname -s)" != "Linux" ]]; then
   die "This script is for Linux. Sunshine builds on macOS and Windows too; use the upstream docs for those."
 fi
-if ! command -v pacman >/dev/null 2>&1; then
-  die "pacman not found. This script targets CachyOS / Arch / Manjaro. On Debian/Ubuntu use the upstream install.sh (apt)."
+
+# Detect distro early so we know which package manager to check for.
+detect_distro() {
+  if [[ -f /etc/os-release ]]; then
+    . /etc/os-release
+    echo "${ID:-unknown}"
+  elif command -v lsb_release >/dev/null 2>&1; then
+    lsb_release -is | tr '[:upper:]' '[:lower:]'
+  else
+    echo unknown
+  fi
+}
+DISTRO_ID="$(detect_distro)"
+say "Linux: ✓ ($(. /etc/os-release && echo "$PRETTY_NAME"))"
+say "Detected distro: ${DISTRO_ID}"
+
+# Bazzite is Fedora-based but uses rpm-ostree instead of dnf.
+# Flag it early so later steps know to use the right package manager.
+IS_BAZZITE=0
+if [[ "$DISTRO_ID" == "bazzite" ]] || [[ -f /run/ostree-booted ]]; then
+  IS_BAZZITE=1
+  say "Bazzite / rpm-ostree detected. Will use rpm-ostree for package installs."
 fi
-say "Linux + pacman: ✓ ($(. /etc/os-release && echo "$PRETTY_NAME"))"
 
 # ---------------------------------------------------------------------------
 # 2. Submodules
@@ -131,22 +150,25 @@ say "Submodule check: ✓"
 step "3/7  Build dependencies"
 if [[ "$RUN_PACMAN" -eq 0 ]]; then
   say "Skipping package install (--no-pacman / --no-install)."
-else
-  # Auto-detect distro / package manager from /etc/os-release.
-  # Falls back to "unknown" + skipping the install if we can't tell.
-  detect_distro() {
-    if [[ -f /etc/os-release ]]; then
-      . /etc/os-release
-      echo "${ID:-unknown}"
-    elif command -v lsb_release >/dev/null 2>&1; then
-      lsb_release -is | tr '[:upper:]' '[:lower:]'
-    else
-      echo unknown
-    fi
-  }
-  DISTRO_ID="$(detect_distro)"
-  say "Detected distro: ${DISTRO_ID}"
+elif [[ "$IS_BAZZITE" -eq 1 ]]; then
+  say "Bazzite uses rpm-ostree for package layering. Installing build deps..."
+  say "NOTE: rpm-ostree layers packages into the next boot. You must reboot after this step."
 
+  if ! rpm-ostree install --apply-live --allow-inactive \
+        gcc-c++ cmake ninja-build git pkgconfig \
+        openssl-devel libcurl-devel pulseaudio-libs-devel libdrm-devel libva-devel \
+        libX11-devel libXfixes-devel libXrandr-devel libxcb-devel libxkbcommon-devel \
+        libevdev-devel opus-devel \
+        pipewire-devel libportal-devel \
+        wayland-devel wayland-protocols-devel \
+        systemd-devel libcap-devel libnatpmp-devel \
+        vulkan-devel glslang-devel \
+        boost-devel miniupnpc-devel json-devel \
+        libpng-devel libXext-devel libXtst-devel nodejs npm 2>&1; then
+    warn "rpm-ostree install returned non-zero. Continuing. The build will tell us if anything's actually missing."
+  fi
+  say "Packages layered. If this is the first run, reboot with: systemctl reboot"
+else
   case "${DISTRO_ID}" in
     cachyos|arch|manjaro|endeavouros|arco|garuda)
       say "Installing build deps via pacman --needed (CachyOS/Arch path)..."
@@ -183,7 +205,7 @@ else
         warn "apt-get returned non-zero. Continuing. The build will tell us if anything's actually missing."
       fi
       ;;
-    fedora|nobara|rocky|almalinux|rhel|centos)
+    fedora|nobara|rocky|almalinux|rhel|centos|bazzite)
       say "Installing build deps via dnf (Fedora/Nobara path)..."
       if ! sudo dnf install -y \
             gcc-c++ cmake ninja-build git pkgconfig \
