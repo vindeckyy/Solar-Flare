@@ -35,11 +35,11 @@ jobs:
     env:
       BRANCH: ${{ github.head_ref || github.ref_name }}
     steps:
-      - name: Update keyring
+      - name: Update keyring and install git
         shell: bash
         run: |
           pacman -Syy --disable-download-timeout --needed --noconfirm \
-            archlinux-keyring
+            archlinux-keyring git
           pacman -Syu --disable-download-timeout --noconfirm
           pacman -Scc --noconfirm
 
