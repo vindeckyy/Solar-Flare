@@ -8,7 +8,6 @@ const props = defineProps([
   'config'
 ])
 
-const config = ref(props.config)
 const outputNamePlaceholder = (props.platform === 'windows') ? '{de9bb7e2-186e-505b-9e93-f48793333810}' : '0'
 </script>
 

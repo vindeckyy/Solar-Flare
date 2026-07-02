@@ -14,7 +14,6 @@ const props = defineProps([
   'currentTab'
 ])
 
-const config = ref(props.config)
 </script>
 
 <template>

@@ -7,7 +7,6 @@ const props = defineProps([
   'config',
 ])
 
-const config = ref(props.config)
 </script>
 
 <template>

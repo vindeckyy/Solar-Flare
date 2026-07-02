@@ -8,23 +8,22 @@ const props = defineProps({
   platform: String,
   config: Object
 })
-const config = ref(props.config)
 
 const REFRESH_RATE_ONLY = "refresh_rate_only"
 const RESOLUTION_ONLY = "resolution_only"
 const MIXED = "mixed"
 
 function canBeRemapped() {
-  return (config.value.dd_resolution_option === "auto" || config.value.dd_refresh_rate_option === "auto")
-    && config.value.dd_configuration_option !== "disabled";
+  return (props.config.dd_resolution_option === "auto" || props.config.dd_refresh_rate_option === "auto")
+    && props.config.dd_configuration_option !== "disabled";
 }
 
 function getRemappingType() {
   // Assuming here that at least one setting is set to "auto" if other is not
-  if (config.value.dd_resolution_option !== "auto") {
+  if (props.config.dd_resolution_option !== "auto") {
     return REFRESH_RATE_ONLY;
   }
-  if (config.value.dd_refresh_rate_option !== "auto") {
+  if (props.config.dd_refresh_rate_option !== "auto") {
     return RESOLUTION_ONLY;
   }
   return MIXED;
@@ -44,7 +43,7 @@ function addRemappingEntry() {
     template["final_resolution"] = "";
   }
 
-  config.value.dd_mode_remapping[type].push(template);
+  props.config.dd_mode_remapping[type].push(template);
 }
 </script>
 

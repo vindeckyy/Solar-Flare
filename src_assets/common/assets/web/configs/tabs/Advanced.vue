@@ -8,7 +8,6 @@ const props = defineProps([
   'global_prep_cmd'
 ])
 
-const config = ref(props.config)
 </script>
 
 <template>
