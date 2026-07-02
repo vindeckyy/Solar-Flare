@@ -60,22 +60,24 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Fix git ownership and install build deps
+        shell: bash
+        run: |
+          # GitHub Actions container runs as a different user than the
+          # checked-out repo, causing "dubious ownership" errors.
+          git config --global --add safe.directory /__w/Solar-Flare/Solar-Flare
+          # Install build tools and web UI dependencies.
+          pacman -Syy --disable-download-timeout --needed --noconfirm \
+            cmake ninja nodejs npm
+
       - name: Run cachyos-build.sh
         shell: bash
         run: |
-          # Reconfigure for tests so we get test_sunshine in the build
-          # (the script defaults BUILD_TESTS=OFF; flip it on for CI).
           export _CI_BUILD_TESTS=ON
-          # The fork build script auto-detects distro from /etc/os-release
-          # and runs pacman --needed to install the right package set.
-          # We patch the script's cmake call to add -DBUILD_TESTS=ON.
           cp scripts/cachyos-build.sh scripts/cachyos-build.ci.sh
           sed -i 's,-DBUILD_TESTS=OFF,-DBUILD_TESTS=ON,g' scripts/cachyos-build.ci.sh
           chmod +x scripts/cachyos-build.ci.sh
           bash ./scripts/cachyos-build.ci.sh --no-pacman 2>&1 | tee build.log
-          echo "::group::install summary"
-          bash ./scripts/cachyos-build.ci.sh --no-pacman 2>&1 | tail -25 || true
-          echo "::endgroup::"
 
       - name: Verify fork branding
         shell: bash
