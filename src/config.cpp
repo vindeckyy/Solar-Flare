@@ -1812,6 +1812,8 @@ namespace config {
   void start_config_watcher() {
     if (config_watcher_running.exchange(true)) return;  // already running
 
+    BOOST_LOG(info) << "Config watcher started, monitoring "sv << sunshine.config_file;
+
     config_watcher_thread = std::thread([]() {
       platf::set_thread_name("cfgwatch");
       namespace fs = std::filesystem;
