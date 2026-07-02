@@ -38,21 +38,8 @@ SolarFlare is a souped-up version of [Sunshine](https://github.com/LizardByte/Su
 
 You have a powerful gaming PC in one room. You want to play those games on your living room TV, or your laptop in bed, or your phone while travelling. Game streaming makes this possible:
 
-```
-Your Gaming PC                  Your TV / Laptop / Phone
-┌──────────────┐                ┌──────────────┐
-│  Game runs   │  ──WiFi/LAN──▶ │  Video +     │
-│  here        │                │  Audio plays │
-│  (SolarFlare)│  ◀──WiFi/LAN── │  here         │
-│              │                │  (Moonlight)  │
-│  Captures    │   Controller   │  Sends your  │
-│  screen +    │   input sent   │  button      │
-│  audio       │   back         │  presses     │
-└──────────────┘                └──────────────┘
-```
-
-- **SolarFlare** runs on your gaming PC. It captures the screen and audio, then sends them over your network.
-- **Moonlight** runs on whatever device you're playing on. It receives the stream and sends back your controller/keyboard input.
+- **SolarFlare** runs on your gaming PC. It captures the screen and audio, sends them over your network, and receives your button presses in return.
+- **Moonlight** runs on whatever device you're playing on. It receives the stream and shows it on screen, while sending your controller or keyboard input back to the PC.
 
 The whole thing happens in real time — usually fast enough that you can play competitive shooters without noticing the delay.
 
