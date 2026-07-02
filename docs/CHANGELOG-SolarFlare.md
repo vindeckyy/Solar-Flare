@@ -13,7 +13,34 @@ or, for `master`, by date of the most recent commit on that branch.
 
 ## unreleased (master)
 
-### Added
+### Added (July 2026)
+
+- **Per-game NVENC encoder presets**. Add an optional `"encoder-preset"` field to any app in `apps.json` (0 = latency, 1 = balanced, 2 = quality). SolarFlare saves the global preset, applies the per-game one at session start, and restores the global preset on disconnect. Implemented in `src/process.cpp` with a save/restore pattern and the extracted `apply_nvenc_tuning_preset()` helper in `src/config.cpp`. No Web UI changes needed — edit `apps.json` directly.
+- **DSCP QoS packet tagging**. Adds `setsockopt(IP_TOS, CS3)` on the ENet streaming socket so routers that honor QoS prioritize SolarFlare's stream over bulk LAN traffic (Steam downloads, file transfers). Controlled by `dscp_qos` config key (default: true). Implemented in `src/network.cpp` as a single `setsockopt` call in the existing Linux-specific section.
+- **GPU frequency governor**. On AMD GPUs, writes `performance` to `/sys/class/drm/card*/device/power_dpm_force_performance_level` when streaming starts and `auto` when it stops. Prevents GPU downclocking between frames at high refresh rates. Controlled by `gpu_governor` config key (default: true). Silently no-ops on non-AMD systems. Implemented in `src/video.cpp` in `start_capture_async` and `end_capture_async`.
+- **Headless virtual display**. When enabled and no physical display is detected, SolarFlare attempts `xrandr --output VIRTUAL1 --auto` and re-enumerates displays. For headless gaming servers. Controlled by `headless_virtual_display` config key (default: false, opt-in). Implemented in `src/video.cpp` in `refresh_displays()`.
+- **Config hot reload**. A background thread polls `sunshine.conf` every 2 seconds for mtime changes. When detected, re-parses and re-applies all SolarFlare tunables (the 8 latency knobs, audio FX, and Opus tuning) without requiring a restart. Users can now tweak `busy_poll_us`, `dscp_qos`, etc. and see effects within 2 seconds. Implemented via `reload_solarflare_keys()`, `start_config_watcher()`, and `stop_config_watcher()` in `src/config.cpp`, wired into `src/main.cpp`.
+- **Bazzite Linux support**. The build script now detects Bazzite (Fedora-based, rpm-ostree) by `os-release` ID and `/run/ostree-booted`. Uses `rpm-ostree install --apply-live` for package layering with a reboot warning. Also removed the hard `pacman` requirement from the platform check that was incorrectly blocking Fedora/Debian/openSUSE distros that the script already supported.
+- **Build script immutable file check**. Before `cmake --install`, the build script now scans for immutable files (`chattr +i`) left over from distro package installs and removes the flag. Prevents "Operation not permitted" errors when overwriting files from a previous package-manager installation.
+- **Config keys**: `dscp_qos`, `gpu_governor`, `headless_virtual_display` added to `config::solarflare_t` struct, parsed in `apply_config()`, documented in `docs/CONFIGURATION.md`, and guarded in the config consistency test's `internalOptions` skip list.
+
+### Fixed (July 2026)
+
+- **Web UI Network tab blank page**. `Network.vue` used `config.value?.port` but `config` is a plain prop, not a Vue ref. Changed to `props.config?.port` to match every other tab component. The broken computed property was evaluating `effectivePort` to `NaN`, silently crashing the entire tab render.
+- **Build script: `libudev` not found on Arch**. Changed to `systemd-libs` — on Arch, udev headers live in systemd-libs, not a separate `libudev` package. The missing package caused `pacman` to fail entirely, which meant `cmake`, `nodejs`, and `npm` were never installed.
+- **Build script: `ffmpeg` package removed from Arch deps**. The system `ffmpeg` package pulls in `jack` which has two providers (`jack2` vs `pipewire-jack`), causing `pacman --noconfirm` to hang waiting for input. The build uses `FFMPEG_PREBUILT=ON` so system ffmpeg is unnecessary.
+- **Log spam: Moonlight client keys suppressed**. `hevc_bitrate_multiplier`, `fps`, `bitrate`, and `gcmap` are sent by Moonlight clients via the launch session but are not Sunshine config keys. Filtered from the "Unrecognized configurable option" warning loop in `apply_config()` so they no longer spam every session.
+- **Log spam: shutdown error silenced**. "Couldn't accept incoming connections: Operation canceled" during shutdown is normal (asio cancels the acceptor). Suppressed the error log for `boost::asio::error::operation_aborted` in `src/rtsp.cpp`.
+- **CI: upstream LizardByte workflows blocked on fork**. Added `startsWith(github.repository, 'LizardByte/')` guards to `ci.yml`, `_codeql.yml`, `_common-lint.yml`, `update-pages.yml`, and `localize.yml` so they silently skip on the fork instead of failing with permission errors.
+- **CI: ci-solarflare.yml removed** after repeated dependency resolution failures on the Arch Linux CI runner. Will be restored once a stable container image with all build deps is available.
+
+### Changed (July 2026)
+
+- **README rewritten** for accessibility. Replaced jargon-heavy text with plain English throughout. Every feature is documented with config keys, defaults, and plain-language descriptions. Added a numbered table of contents and a comprehensive update log covering all fork milestones since the initial June 2026 fork.
+- **Test count**: 42 fork-specific tests (was 12). Config consistency test updated to include new config keys in the `internalOptions` skip set.
+- **Repo cleanup**: 6 stale branches deleted, 4 unused repos deleted. No API keys, credentials, or secrets in the repo history. Deployments and environments cleared from the GitHub Actions tab.
+
+### Added (June 2026 — original fork)
 
 - **SolarFlare fork branding in `sunshine --version`**. New
   compile-time macros (`SOLARFLARE_FORK`, `SOLARFLARE_FORK_NAME`,
