@@ -413,6 +413,18 @@ namespace config {
    */
   void apply_nvenc_tuning_preset();
 
+  /**
+   * @brief Start watching sunshine.conf for changes and reload solarflare
+   *        tunables automatically. Runs a background thread that polls every
+   *        2 seconds. Call after initial config load.
+   */
+  void start_config_watcher();
+
+  /**
+   * @brief Stop the config file watcher thread. Call during shutdown.
+   */
+  void stop_config_watcher();
+
   extern video_t video;
   extern audio_t audio;
   extern stream_t stream;

@@ -4,6 +4,8 @@
  */
 // standard includes
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -1749,4 +1751,92 @@ namespace config {
         break;
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Config hot reload: watches sunshine.conf for changes and re-applies
+  // SolarFlare tunables without restarting.
+  // ponytail: one stat() poll + key re-parse, ~30 lines.
+  // ---------------------------------------------------------------------------
+
+  namespace {
+    std::atomic<bool> config_watcher_running {false};
+    std::thread config_watcher_thread;
+  }
+
+  static void reload_solarflare_keys() {
+    try {
+      auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
+
+      // Re-apply only the 8 SolarFlare tunables + audio_fx.
+      int_between_f(vars, "busy_poll_us", solarflare.busy_poll_us, {0, 10000});
+      int_between_f(vars, "rate_cap_pct", solarflare.rate_cap_pct, {50, 95});
+      bool_f(vars, "enet_4mib_buffer", solarflare.enet_4mib_buffer);
+      int_between_f(vars, "pipewire_latency_ms", solarflare.pipewire_latency_ms, {1, 40});
+      bool_f(vars, "cpu_pinning", solarflare.cpu_pinning);
+      bool_f(vars, "dscp_qos", solarflare.dscp_qos);
+      bool_f(vars, "gpu_governor", solarflare.gpu_governor);
+      bool_f(vars, "headless_virtual_display", solarflare.headless_virtual_display);
+
+      auto &af = solarflare.audio_fx;
+      bool_f(vars, "sf_audio_agc", af.enable_agc);
+      bool_f(vars, "sf_audio_vad", af.enable_vad);
+      bool_f(vars, "sf_audio_ducking", af.enable_ducking);
+      bool_f(vars, "sf_audio_noise_gate", af.enable_noise_gate);
+      float_between_f(vars, "sf_audio_noise_gate_db", af.noise_gate_threshold_db, {-90.0f, -10.0f});
+      float_between_f(vars, "sf_audio_agc_target_db", af.agc_target_rms_db, {-40.0f, -6.0f});
+      float_between_f(vars, "sf_audio_agc_max_gain_db", af.agc_max_gain_db, {0.0f, 30.0f});
+      float_between_f(vars, "sf_audio_agc_min_gain_db", af.agc_min_gain_db, {-30.0f, 0.0f});
+      float_between_f(vars, "sf_audio_agc_attack_ms", af.agc_attack_ms, {1.0f, 500.0f});
+      float_between_f(vars, "sf_audio_agc_hold_ms", af.agc_hold_ms, {0.0f, 5000.0f});
+      float_between_f(vars, "sf_audio_agc_release_ms", af.agc_release_ms, {1.0f, 5000.0f});
+      float_between_f(vars, "sf_audio_vad_threshold_db", af.vad_threshold_db, {-80.0f, -10.0f});
+      float_between_f(vars, "sf_audio_vad_hysteresis_db", af.vad_hysteresis_db, {0.0f, 30.0f});
+      float_between_f(vars, "sf_audio_vad_min_speech_ms", af.vad_min_speech_ms, {10.0f, 2000.0f});
+      float_between_f(vars, "sf_audio_vad_min_silence_ms", af.vad_min_silence_ms, {10.0f, 5000.0f});
+      float_between_f(vars, "sf_audio_ducker_attenuation_db", af.ducker_target_attenuation_db, {-40.0f, 0.0f});
+      float_between_f(vars, "sf_audio_ducker_attack_ms", af.ducker_attack_ms, {1.0f, 2000.0f});
+      float_between_f(vars, "sf_audio_ducker_release_ms", af.ducker_release_ms, {1.0f, 5000.0f});
+      int_between_f(vars, "sf_opus_application", af.opus_application, {0, 2});
+      int_between_f(vars, "sf_opus_vbr", af.opus_vbr, {0, 2});
+      int_between_f(vars, "sf_opus_complexity", af.opus_complexity, {0, 10});
+      bool_f(vars, "sf_opus_fec", af.opus_fec);
+      int_between_f(vars, "sf_opus_expected_loss_pct", af.opus_expected_loss_pct, {0, 100});
+      bool_f(vars, "sf_opus_bandwidth_extension", af.opus_bandwidth_extension);
+
+      BOOST_LOG(info) << "SolarFlare config reloaded from "sv << sunshine.config_file;
+    } catch (const std::exception &e) {
+      BOOST_LOG(warning) << "Config reload failed: "sv << e.what();
+    }
+  }
+
+  void start_config_watcher() {
+    if (config_watcher_running.exchange(true)) return;  // already running
+
+    config_watcher_thread = std::thread([]() {
+      platf::set_thread_name("cfgwatch");
+      namespace fs = std::filesystem;
+      auto last_write = fs::last_write_time(sunshine.config_file);
+
+      while (config_watcher_running) {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        try {
+          auto current = fs::last_write_time(sunshine.config_file);
+          if (current != last_write) {
+            last_write = current;
+            reload_solarflare_keys();
+          }
+        } catch (...) {
+          // File might be temporarily inaccessible; just retry next cycle.
+        }
+      }
+    });
+  }
+
+  void stop_config_watcher() {
+    config_watcher_running = false;
+    if (config_watcher_thread.joinable()) {
+      config_watcher_thread.join();
+    }
+  }
+
 }  // namespace config
