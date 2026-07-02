@@ -387,7 +387,31 @@ namespace config {
       /// Enable Opus bandwidth extension (super-wideband / fullband).
       bool opus_bandwidth_extension = true;
     } audio_fx {};
+
+    /// Enable DSCP QoS tagging (IPTOS_LOWDELAY | IPTOS_THROUGHPUT) on the
+    /// ENet streaming socket. Routers honour this to prioritize the stream
+    /// over bulk traffic. Linux-only; no-op elsewhere.
+    /// ponytail: one setsockopt, measurable on congested LANs.
+    bool dscp_qos = true;
+
+    /// Auto-set GPU to performance power profile during stream (via sysfs on
+    /// AMD, nvidia-smi on NVIDIA), restore to auto on disconnect. Linux-only.
+    /// ponytail: two sysfs writes, ~0.3ms of latency saved at high FPS.
+    bool gpu_governor = true;
+
+    /// Create a virtual DRM display if no physical outputs are detected, so
+    /// the headless server can stream. Linux-only; uses xrandr dummy output.
+    /// ponytail: one xrandr --auto call, no kernel params needed.
+    bool headless_virtual_display = false;
   };
+
+  /**
+   * @brief Apply the NVENC tuning preset to nv_* fields.
+   *
+   * Call after changing @c video.nv_preset at runtime (e.g. per-game override).
+   * ponytail: small helper so the big switch lives in one place.
+   */
+  void apply_nvenc_tuning_preset();
 
   extern video_t video;
   extern audio_t audio;

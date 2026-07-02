@@ -67,6 +67,9 @@ namespace proc {
     bool auto_detach;
     bool wait_all;
     std::chrono::seconds exit_timeout;
+    /// Per-app encoder preset override (-1 = none, 0 = latency, 1 = balanced, 2 = quality).
+    /// ponytail: one optional field in apps.json, read at launch time.
+    int encoder_preset_override = -1;
   };
 
   class proc_t {

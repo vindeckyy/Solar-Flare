@@ -9,6 +9,10 @@
  *   - enet_4mib_buffer   (bool,   default true)
  *   - pipewire_latency_ms(int,    1-40,    default 8)
  *   - cpu_pinning        (bool,   default true)
+ * Plus three boolean feature toggles added with per-game presets:
+ *   - dscp_qos            (bool,   default true)
+ *   - gpu_governor        (bool,   default true)
+ *   - headless_virtual_display (bool, default false)
  *
  * These tests lock in the defaults and the range-clamp behaviour of
  * apply_config() for each one. Out-of-range values must be silently
@@ -38,6 +42,9 @@ namespace {
     bool enet_4mib_buffer;
     int pipewire_latency_ms;
     bool cpu_pinning;
+    bool dscp_qos;
+    bool gpu_governor;
+    bool headless_virtual_display;
 
     SolarflareSnapshot() {
       busy_poll_us = config::solarflare.busy_poll_us;
@@ -45,6 +52,9 @@ namespace {
       enet_4mib_buffer = config::solarflare.enet_4mib_buffer;
       pipewire_latency_ms = config::solarflare.pipewire_latency_ms;
       cpu_pinning = config::solarflare.cpu_pinning;
+      dscp_qos = config::solarflare.dscp_qos;
+      gpu_governor = config::solarflare.gpu_governor;
+      headless_virtual_display = config::solarflare.headless_virtual_display;
     }
 
     void restore() {
@@ -53,6 +63,9 @@ namespace {
       config::solarflare.enet_4mib_buffer = enet_4mib_buffer;
       config::solarflare.pipewire_latency_ms = pipewire_latency_ms;
       config::solarflare.cpu_pinning = cpu_pinning;
+      config::solarflare.dscp_qos = dscp_qos;
+      config::solarflare.gpu_governor = gpu_governor;
+      config::solarflare.headless_virtual_display = headless_virtual_display;
     }
   };
 
@@ -82,6 +95,9 @@ namespace {
     EXPECT_TRUE(config::solarflare.enet_4mib_buffer);
     EXPECT_EQ(config::solarflare.pipewire_latency_ms, 8);
     EXPECT_TRUE(config::solarflare.cpu_pinning);
+    EXPECT_TRUE(config::solarflare.dscp_qos);
+    EXPECT_TRUE(config::solarflare.gpu_governor);
+    EXPECT_FALSE(config::solarflare.headless_virtual_display);
   }
 
   // ---------------------------------------------------------------------
@@ -278,11 +294,10 @@ TEST_F(SolarflareConfigRuntimeTest, DefaultsExactlyMatchPreForkHardcodedValues) 
 // around. If this grows past e.g. 256 bytes, the per-thread snapshot
 // in misc.cpp becomes too expensive; we want to catch drift.
 TEST(SolarflareConfigCompileTime, StructIsReasonablySmall) {
-  // The struct has 3 ints + 2 bools. On a 64-bit system with default
-  // alignment that should be ~24-32 bytes. We allow generous slack to
-  // avoid breaking this test on different ABIs.
-  constexpr size_t max_size = 64;
+  // The struct has the audio_fx sub-struct (~30 fields, mostly floats/ints/bools)
+  // plus 5 original tunables + 3 new bool toggles. Allow generous slack.
+  constexpr size_t max_size = 256;
   EXPECT_LE(sizeof(config::solarflare_t), max_size)
-    << "solarflare_t grew beyond 64 bytes; consider whether new fields "
+    << "solarflare_t grew beyond 256 bytes; consider whether new fields "
        "are necessary or whether they should live in a separate struct.";
 }

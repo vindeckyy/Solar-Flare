@@ -221,6 +221,14 @@ namespace net {
         (void) setsockopt(host->socket, SOL_SOCKET, SO_BUSY_POLL, &busy_poll_us, sizeof(busy_poll_us));
       }
     }
+
+    // DSCP QoS: tag streaming packets so routers prioritize them over bulk
+    // traffic. IPTOS_LOWDELAY (0x10) | IPTOS_THROUGHPUT (0x08) = 0x18 = CS3.
+    // ponytail: one setsockopt, measurable on any congested LAN link.
+    if (config::solarflare.dscp_qos) {
+      int tos = IPTOS_LOWDELAY | IPTOS_THROUGHPUT;  // 0x18
+      (void) setsockopt(host->socket, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+    }
 #endif
 
     return host;

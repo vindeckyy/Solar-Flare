@@ -6,6 +6,7 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <fstream>
 #include <list>
 #include <thread>
 
@@ -1227,7 +1228,20 @@ namespace video {
       display_names = std::move(old_display_names);
       return;
     } else if (display_names.empty()) {
-      display_names.emplace_back(output_name);
+      // ponytail: headless virtual display — if enabled and no displays found,
+      // try to create a dummy output via xrandr. Best-effort, silently no-ops
+      // if the xrandr dummy driver isn't set up.
+#ifdef __linux__
+      if (config::solarflare.headless_virtual_display) {
+        BOOST_LOG(info) << "No displays found; attempting virtual display creation"sv;
+        (void) std::system("xrandr --output VIRTUAL1 --auto 2>/dev/null");
+        // Re-enumerate after creating virtual output
+        display_names = platf::display_names(dev_type);
+      }
+#endif
+      if (display_names.empty()) {
+        display_names.emplace_back(output_name);
+      }
     }
 
     // We now have a new display name list, so reset the index back to 0
@@ -3205,6 +3219,18 @@ namespace video {
     capture_thread_ctx.encoder_p = chosen_encoder;
     capture_thread_ctx.reinit_event.reset();
 
+    // ponytail: GPU governor — set GPU to performance mode during stream.
+    // Writes to AMD sysfs; silently no-ops on non-AMD / non-Linux.
+#ifdef __linux__
+    if (config::solarflare.gpu_governor) {
+      for (int card = 0; card < 4; ++card) {
+        auto path = "/sys/class/drm/card"s + std::to_string(card) + "/device/power_dpm_force_performance_level";
+        std::ofstream f(path);
+        if (f) f << "performance";
+      }
+    }
+#endif
+
     capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>(30);
 
     capture_thread_ctx.capture_thread = std::thread {
@@ -3222,6 +3248,17 @@ namespace video {
     capture_thread_ctx.capture_ctx_queue->stop();
 
     capture_thread_ctx.capture_thread.join();
+
+    // ponytail: restore GPU to auto power profile after stream.
+#ifdef __linux__
+    if (config::solarflare.gpu_governor) {
+      for (int card = 0; card < 4; ++card) {
+        auto path = "/sys/class/drm/card"s + std::to_string(card) + "/device/power_dpm_force_performance_level";
+        std::ofstream f(path);
+        if (f) f << "auto";
+      }
+    }
+#endif
   }
 
   int start_capture_sync(capture_thread_sync_ctx_t &ctx) {

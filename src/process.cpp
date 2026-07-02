@@ -45,6 +45,10 @@ namespace proc {
 
   proc_t proc;
 
+  /// ponytail: saved encoder preset for per-game override restore.
+  static int g_saved_nv_preset = -99;
+  static bool g_nv_preset_overridden = false;
+
   class deinit_t: public platf::deinit_t {
   public:
     ~deinit_t() {
@@ -152,6 +156,16 @@ namespace proc {
     _app = *iter;
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
+
+    // ponytail: per-game encoder preset override. If the app has one set,
+    // stash the global preset and apply the per-game one for this session.
+    if (_app.encoder_preset_override >= 0) {
+      g_saved_nv_preset = config::video.nv_preset;
+      config::video.nv_preset = _app.encoder_preset_override;
+      config::apply_nvenc_tuning_preset();
+      g_nv_preset_overridden = true;
+      BOOST_LOG(info) << "App ["sv << _app.name << "] overrides encoder preset to "sv << _app.encoder_preset_override;
+    }
 
     // Add Stream-specific environment variables
     _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
@@ -349,6 +363,15 @@ namespace proc {
 #endif
 
       display_device::revert_configuration();
+    }
+
+    // ponytail: restore the global encoder preset if a per-game override was active.
+    if (g_nv_preset_overridden) {
+      config::video.nv_preset = g_saved_nv_preset;
+      config::apply_nvenc_tuning_preset();
+      g_nv_preset_overridden = false;
+      g_saved_nv_preset = -99;
+      BOOST_LOG(info) << "Restored encoder preset to "sv << config::video.nv_preset;
     }
 
     _app_id = -1;
@@ -719,6 +742,10 @@ namespace proc {
         ctx.auto_detach = auto_detach.value_or(true);
         ctx.wait_all = wait_all.value_or(true);
         ctx.exit_timeout = std::chrono::seconds {exit_timeout.value_or(5)};
+
+        /// @brief Per-app encoder preset override. -1 = none, 0-2 = override.
+        auto encoder_preset = app_node.get_optional<int>("encoder-preset"s);
+        ctx.encoder_preset_override = encoder_preset.value_or(-1);
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {
