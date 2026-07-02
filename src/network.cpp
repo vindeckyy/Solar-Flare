@@ -226,7 +226,11 @@ namespace net {
     // traffic. IPTOS_LOWDELAY (0x10) | IPTOS_THROUGHPUT (0x08) = 0x18 = CS3.
     // ponytail: one setsockopt, measurable on any congested LAN link.
     if (config::solarflare.dscp_qos) {
-      int tos = IPTOS_LOWDELAY | IPTOS_THROUGHPUT;  // 0x18
+      // ponytail: define constants inline — <netinet/ip.h> isn't universally
+      // available on all Linux toolchains (missing on some musl/glibc versions).
+      constexpr int kIPTOS_LOWDELAY = 0x10;
+      constexpr int kIPTOS_THROUGHPUT = 0x08;
+      int tos = kIPTOS_LOWDELAY | kIPTOS_THROUGHPUT;  // 0x18 = CS3
       (void) setsockopt(host->socket, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
     }
 #endif
