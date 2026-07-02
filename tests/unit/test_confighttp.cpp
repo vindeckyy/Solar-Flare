@@ -27,6 +27,7 @@
 #include <src/config.h>
 #include <src/confighttp.h>
 #include <src/crypto.h>
+#include <src/file_handler.h>
 #include <src/httpcommon.h>
 #include <src/network.h>
 #include <src/utility.h>
@@ -105,6 +106,12 @@ protected:
   std::filesystem::path cert_file;
   std::filesystem::path key_file;
   std::filesystem::path web_dir_test_file;
+  // Members used by the save-config tests. The route handler redirects
+  // confighttp::saveConfig's read/write target through config_file so we can
+  // assert on the on-disk file without disturbing the user's real config.
+  std::filesystem::path test_config_file;
+  std::filesystem::path save_config_test_dir;
+  std::string saved_config_file;
 
   void SetUp() override {
     // Save current config
@@ -113,6 +120,24 @@ protected:
     saved_salt = config::sunshine.salt;
     saved_locale = config::sunshine.locale;
     saved_csrf_allowed_origins = config::sunshine.csrf_allowed_origins;
+    saved_config_file = config::sunshine.config_file;
+
+    // Create a fresh on-disk config that saveConfig will write into. The
+    // file is intentionally pre-populated so the empty-payload tests can
+    // assert that an "everything wiped" save does NOT destroy this content
+    // (the user-visible "config save not working" bug).
+    save_config_test_dir = platf::appdata() / "tests" / "save_config";
+    std::error_code ec;
+    std::filesystem::remove_all(save_config_test_dir, ec);
+    std::filesystem::create_directories(save_config_test_dir, ec);
+    test_config_file = save_config_test_dir / "sunshine.conf";
+    {
+      std::ofstream pre(test_config_file);
+      pre << "bitrate = 200000\n";
+      pre << "sunshine_name = hayden\n";
+      pre << "nvenc_tuning_preset = 0\n";
+    }
+    config::sunshine.config_file = test_config_file.string();
 
     // Set up test credentials
     config::sunshine.username = "testuser";
@@ -308,6 +333,16 @@ protected:
       confighttp::browseDirectory(response, request);
     };
 
+    // Add a route to exercise the real confighttp::saveConfig. The fixture's
+    // SetUp redirects config::sunshine.config_file at a per-test temp file,
+    // so each test can POST bodies and assert on the file contents.
+    server->resource["^/save-config-test$"]["POST"] = [](
+                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                      ) {
+      confighttp::saveConfig(response, request);
+    };
+
     // Start server
     server_thread = std::thread([this]() {  // NOSONAR(cpp:S6168) - jthread not available on FreeBSD 14.3 libc++
       server->start([this](const unsigned short assigned_port) {
@@ -345,6 +380,7 @@ protected:
     config::sunshine.salt = saved_salt;
     config::sunshine.locale = saved_locale;
     config::sunshine.csrf_allowed_origins = saved_csrf_allowed_origins;
+    config::sunshine.config_file = saved_config_file;
 
     // Clean up test HTML file from WEB_DIR
     if (std::filesystem::exists(web_dir_test_file)) {
@@ -354,11 +390,41 @@ protected:
     if (std::filesystem::exists(test_web_dir)) {
       std::filesystem::remove_all(test_web_dir);
     }
+    if (std::filesystem::exists(save_config_test_dir)) {
+      std::error_code ec;
+      std::filesystem::remove_all(save_config_test_dir, ec);
+    }
   }
 
   static std::string create_auth_header(const std::string &username, const std::string &password) {
     return "Basic " + SimpleWeb::Crypto::Base64::encode(username + ":" + password);
   }
+
+  /**
+   * @brief Fetch a freshly-issued CSRF token using the test credentials.
+   * @return The token string from /csrf-token-test.
+   */
+  std::string fetch_csrf_token();
+
+  /**
+   * @brief POST a JSON body to the /save-config-test endpoint with valid
+   *        auth + CSRF token, returning the client response.
+   * @param body The JSON body to send verbatim.
+   */
+  std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response>
+  post_save_config(const std::string &body);
+
+  /**
+   * @brief Read the current on-disk test config file as a string.
+   */
+  std::string read_test_config_file();
+
+  /**
+   * @brief The exact contents the fixture pre-populates into test_config_file.
+   *        Useful for asserting that "shouldn't-wipe" saves truly preserved
+   *        the original config.
+   */
+  std::string pristine_config_contents();
 
   static void assert_security_headers(const std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response> &response) {
     const auto x_frame = response->header.find("X-Frame-Options");
@@ -735,6 +801,203 @@ TEST_F(ConfigHttpTest, GetLocaleReturnsJson) {
   const std::string body = response->content.string();
   ASSERT_TRUE(body.find("\"status\":true") != std::string::npos || body.find("\"status\": true") != std::string::npos);
   ASSERT_TRUE(body.find("\"locale\":\"en\"") != std::string::npos || body.find("\"locale\": \"en\"") != std::string::npos);
+}
+
+/**
+ * @brief Helper: fetch a fresh CSRF token using the test credentials.
+ *
+ * saveConfig (and any other state-mutating endpoint registered by the real
+ * Sunshine web UI) requires a valid CSRF token in cross-origin browser
+ * requests. The test fixture exposes a /csrf-token-test endpoint that we
+ * reuse here so saveConfig tests don't reinvent CSRF plumbing.
+ */
+std::string ConfigHttpTest::fetch_csrf_token() {
+  SimpleWeb::CaseInsensitiveMultimap auth_headers;
+  auth_headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  const auto response = client->request("GET", "/csrf-token-test", "", auth_headers);
+  EXPECT_EQ(response->status_code, "200 OK");
+  const std::string body = response->content.string();
+  nlohmann::json json_body = nlohmann::json::parse(body);
+  EXPECT_TRUE(json_body.contains("csrf_token"));
+  return json_body["csrf_token"].get<std::string>();
+}
+
+/**
+ * @brief Helper: POST a saveConfig body and return the HTTP response. Adds
+ *        the test user/pass and a freshly-fetched CSRF token.
+ */
+std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response>
+ConfigHttpTest::post_save_config(const std::string &body) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Content-Type", "application/json");
+  headers.emplace("X-CSRF-Token", fetch_csrf_token());
+  return client->request("POST", "/save-config-test", body, headers);
+}
+
+/**
+ * @brief Read the on-disk test config file as a string for assertions.
+ */
+std::string ConfigHttpTest::read_test_config_file() {
+  return file_handler::read_file(test_config_file.string().c_str());
+}
+
+/**
+ * @brief Helper: read an existing-config snapshot to compare against the
+ *        on-disk file after a save that should NOT have wiped anything.
+ */
+std::string ConfigHttpTest::pristine_config_contents() {
+  return "bitrate = 200000\nsunshine_name = hayden\nnvenc_tuning_preset = 0\n";
+}
+
+// Test: confighttp::saveConfig() — successful POST persists the body
+// verbatim and returns {"status":true}. Regression guard for the
+// documented save flow.
+TEST_F(ConfigHttpTest, SaveConfig_ValidBody_PersistsFile) {
+  ASSERT_EQ(read_test_config_file(), pristine_config_contents());
+
+  const auto response = post_save_config("{\"sunshine_name\":\"REPLACED\",\"fps\":\"60\"}");
+  ASSERT_EQ(response->status_code, "200 OK");
+  assert_security_headers(response);
+
+  // The HTTP response body is the JSON success envelope.
+  const std::string response_body = response->content.string();
+  EXPECT_NE(response_body.find("\"status\":true"), std::string::npos)
+    << "Response body should report status:true, got: " << response_body;
+
+  // The on-disk file contains the new keys (pre-existing content is
+  // expected to be replaced because saveConfig rewrites the whole file
+  // from the payload -- see getConfig docs).
+  const std::string file_body = read_test_config_file();
+  EXPECT_NE(file_body.find("sunshine_name = REPLACED"), std::string::npos);
+  EXPECT_NE(file_body.find("fps = 60"), std::string::npos);
+}
+
+// Test: confighttp::saveConfig() — an empty {} payload must NOT silently
+// wipe the on-disk config. Regression guard for the user-visible
+// "config save not working" bug: prior to the fix, this returned
+// {"status":true} and truncated the file to zero bytes.
+TEST_F(ConfigHttpTest, SaveConfig_EmptyBody_DoesNotWipeExistingConfig) {
+  ASSERT_EQ(read_test_config_file(), pristine_config_contents());
+
+  const auto response = post_save_config("{}");
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  assert_json_error_response(response, "empty config", "400");
+  EXPECT_EQ(read_test_config_file(), pristine_config_contents())
+    << "Empty payload must NOT have wiped the on-disk config file";
+}
+
+// Test: confighttp::saveConfig() — a payload whose only values are
+// null/empty strings must NOT wipe the file either (every entry gets
+// skipped by the existing null/empty-string filter, producing the same
+// silent wipe as `{}`).
+TEST_F(ConfigHttpTest, SaveConfig_AllNullOrEmptyValues_DoesNotWipeExistingConfig) {
+  ASSERT_EQ(read_test_config_file(), pristine_config_contents());
+
+  const auto response = post_save_config("{\"a\":null,\"b\":\"\",\"c\":null}");
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  EXPECT_EQ(read_test_config_file(), pristine_config_contents());
+}
+
+// Test: confighttp::saveConfig() — non-object payloads (arrays, scalars)
+// must be rejected instead of producing numeric-keyed "0 = a / 1 = b"
+// lines that corrupt the file.
+TEST_F(ConfigHttpTest, SaveConfig_ArrayBody_RejectedWith400) {
+  ASSERT_EQ(read_test_config_file(), pristine_config_contents());
+
+  const auto response = post_save_config("[\"a\",\"b\"]");
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  assert_json_error_response(response, "JSON object", "400");
+  EXPECT_EQ(read_test_config_file(), pristine_config_contents());
+}
+
+TEST_F(ConfigHttpTest, SaveConfig_ScalarBody_RejectedWith400) {
+  ASSERT_EQ(read_test_config_file(), pristine_config_contents());
+
+  const auto response = post_save_config("42");
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  assert_json_error_response(response, "JSON object", "400");
+  EXPECT_EQ(read_test_config_file(), pristine_config_contents());
+}
+
+TEST_F(ConfigHttpTest, SaveConfig_StringBody_RejectedWith400) {
+  ASSERT_EQ(read_test_config_file(), pristine_config_contents());
+
+  const auto response = post_save_config("\"hi\"");
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  assert_json_error_response(response, "JSON object", "400");
+  EXPECT_EQ(read_test_config_file(), pristine_config_contents());
+}
+
+// Test: confighttp::saveConfig() — malformed JSON must be rejected and
+// must NOT wipe the file.
+TEST_F(ConfigHttpTest, SaveConfig_MalformedJson_RejectedWith400) {
+  ASSERT_EQ(read_test_config_file(), pristine_config_contents());
+
+  const auto response = post_save_config("not-json");
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  EXPECT_EQ(read_test_config_file(), pristine_config_contents());
+}
+
+// Test: confighttp::saveConfig() — missing Content-Type must be rejected
+// via the existing check_content_type guard.
+TEST_F(ConfigHttpTest, SaveConfig_RequiresJsonContentType) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("X-CSRF-Token", fetch_csrf_token());
+
+  const auto response = client->request(
+    "POST", "/save-config-test", "{\"sunshine_name\":\"X\"}", headers);
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  EXPECT_EQ(read_test_config_file(), pristine_config_contents());
+}
+
+// Test: confighttp::saveConfig() — a CSRF token is required. We trigger
+// the "missing token" path by sending an Origin header that is not in
+// the allowed list (the fixture accepts same-origin requests without a
+// token, so we have to make sure the request looks cross-origin).
+TEST_F(ConfigHttpTest, SaveConfig_RequiresCsrfToken) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Content-Type", "application/json");
+  headers.emplace("Origin", "https://evil.example");
+
+  const auto response = client->request(
+    "POST", "/save-config-test", "{\"sunshine_name\":\"HIJACKED\"}", headers);
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  EXPECT_EQ(read_test_config_file(), pristine_config_contents())
+    << "CSRF-blocked save must NOT have written the file";
+}
+
+// Test: confighttp::saveConfig() — a failed write_file (e.g. config_file
+// pointing at a non-writable location) must be surfaced as a 500-equivalent
+// JSON body instead of the misleading {"status":true} the old code
+// returned. Regression guard for the second half of the
+// "config save not working" bug.
+TEST_F(ConfigHttpTest, SaveConfig_FailedWrite_ReturnsErrorBody) {
+  // Point config_file at a path inside /proc that no unprivileged user can
+  // write to. The write_file guard added by this fix should return -1, and
+  // saveConfig should surface that as a JSON 500-equivalent body.
+#ifndef _WIN32
+  // On Linux use /proc/self/cmdline (a regular file, not writable).
+  // The ofstream open will fail because /proc/<pid>/cmdline is read-only.
+  const std::string unwritable = "/proc/self/cmdline/should_fail.conf";
+  const auto saved_target = config::sunshine.config_file;
+  config::sunshine.config_file = unwritable;
+
+  const auto response = post_save_config("{\"sunshine_name\":\"x\"}");
+
+  config::sunshine.config_file = saved_target;  // restore for TearDown
+
+  ASSERT_EQ(response->status_code, "200 OK");
+  const std::string body = response->content.string();
+  EXPECT_NE(body.find("\"status\":false"), std::string::npos)
+    << "Failed write must surface status:false in the JSON body, got: " << body;
+  EXPECT_NE(body.find("Failed to write config file"), std::string::npos)
+    << "Failed write must include a descriptive error message, got: " << body;
+#else
+  GTEST_SKIP() << "/proc semantics differ on Windows; covered by platform tests.";
+#endif
 }
 
 /**

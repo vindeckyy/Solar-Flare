@@ -43,6 +43,20 @@ namespace file_handler {
   }
 
   int write_file(const char *path, const std::string_view &contents) {
+    // Ensure the parent directory exists. The on-disk config is written by
+    // callers like saveConfig() that assume the destination is reachable;
+    // without an mkdir-p here, a fresh appdata directory surfaces as a
+    // silent failure (ofstream::open returns null and the caller can't tell
+    // the user "save didn't take" because the API contract ignored the
+    // return value).
+    if (const auto parent = get_parent_directory(path); !parent.empty() && parent != "." && parent != "/") {
+      std::error_code ec;
+      std::filesystem::create_directories(parent, ec);
+      // create_directories sets ec on failure but also returns false; we
+      // don't propagate the error here -- is_open() below is the source of
+      // truth for whether the file is writable.
+    }
+
     std::ofstream out(path);
 
     if (!out.is_open()) {

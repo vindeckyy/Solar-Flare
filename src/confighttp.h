@@ -47,6 +47,15 @@ namespace confighttp {
   void getLocale(const resp_https_t &response, const req_https_t &request);
   void getCSRFToken(const resp_https_t &response, const req_https_t &request);
 
+  /**
+   * @brief Handle the POST /api/config endpoint. Validates the JSON payload
+   *        and writes the merged settings to @c config::sunshine.config_file.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @note Exposed for unit testing; the real handler is registered in @c start().
+   */
+  void saveConfig(const resp_https_t &response, const req_https_t &request);
+
   // Browse helper functions (also exposed for unit testing)
   /**
    * @brief Checks whether a directory entry qualifies as an executable file.

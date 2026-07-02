@@ -1001,6 +1001,50 @@ namespace confighttp {
       output_tree[name] = std::move(value);
     }
 
+    // Emit SolarFlare audio_fx defaults so the Web UI sees the controls
+    // on first load (before the user has saved anything). User-saved
+    // values in `vars` already won the loop above.
+    const auto &fx = config::solarflare.audio_fx;
+    auto bool_or_default = [&](const char *name, bool val) {
+      if (vars.find(name) == vars.end()) {
+        output_tree[name] = val ? "enabled" : "disabled";
+      }
+    };
+    auto num_or_default = [&](const char *name, int val) {
+      if (vars.find(name) == vars.end()) {
+        output_tree[name] = val;
+      }
+    };
+    auto float_or_default = [&](const char *name, float val) {
+      if (vars.find(name) == vars.end()) {
+        output_tree[name] = val;
+      }
+    };
+    bool_or_default("sf_audio_agc", fx.enable_agc);
+    bool_or_default("sf_audio_vad", fx.enable_vad);
+    bool_or_default("sf_audio_ducking", fx.enable_ducking);
+    bool_or_default("sf_audio_noise_gate", fx.enable_noise_gate);
+    bool_or_default("sf_opus_fec", fx.opus_fec);
+    bool_or_default("sf_opus_bandwidth_extension", fx.opus_bandwidth_extension);
+    float_or_default("sf_audio_noise_gate_db", fx.noise_gate_threshold_db);
+    float_or_default("sf_audio_agc_target_db", fx.agc_target_rms_db);
+    float_or_default("sf_audio_agc_max_gain_db", fx.agc_max_gain_db);
+    float_or_default("sf_audio_agc_min_gain_db", fx.agc_min_gain_db);
+    float_or_default("sf_audio_agc_attack_ms", fx.agc_attack_ms);
+    float_or_default("sf_audio_agc_hold_ms", fx.agc_hold_ms);
+    float_or_default("sf_audio_agc_release_ms", fx.agc_release_ms);
+    float_or_default("sf_audio_vad_threshold_db", fx.vad_threshold_db);
+    float_or_default("sf_audio_vad_hysteresis_db", fx.vad_hysteresis_db);
+    float_or_default("sf_audio_vad_min_speech_ms", fx.vad_min_speech_ms);
+    float_or_default("sf_audio_vad_min_silence_ms", fx.vad_min_silence_ms);
+    float_or_default("sf_audio_ducker_attenuation_db", fx.ducker_target_attenuation_db);
+    float_or_default("sf_audio_ducker_attack_ms", fx.ducker_attack_ms);
+    float_or_default("sf_audio_ducker_release_ms", fx.ducker_release_ms);
+    num_or_default("sf_opus_application", fx.opus_application);
+    num_or_default("sf_opus_vbr", fx.opus_vbr);
+    num_or_default("sf_opus_complexity", fx.opus_complexity);
+    num_or_default("sf_opus_expected_loss_pct", fx.opus_expected_loss_pct);
+
     send_response(response, output_tree);
   }
 
@@ -1055,10 +1099,22 @@ namespace confighttp {
     std::stringstream ss;
     ss << request->content.rdbuf();
     try {
-      // TODO: Input Validation
-      std::stringstream config_stream;
       nlohmann::json output_tree;
       nlohmann::json input_tree = nlohmann::json::parse(ss);
+
+      // Reject non-object payloads (arrays, scalars, null). Iterating those as
+      // if they were objects silently corrupts the config file with synthetic
+      // numeric keys (e.g. "0 = a\n1 = b") or spurious "<number> = null"
+      // lines, then reports success. Surface the rejection as a 400 so the
+      // client can correct the request instead of corrupting the file.
+      if (!input_tree.is_object()) {
+        BOOST_LOG(warning) << "SaveConfig: rejected non-object payload of type "sv
+                           << input_tree.type_name();
+        bad_request(response, request, "Request body must be a JSON object");
+        return;
+      }
+
+      std::stringstream config_stream;
       for (const auto &[k, v] : input_tree.items()) {
         if (v.is_null() || (v.is_string() && v.get<std::string>().empty())) {
           continue;
@@ -1068,7 +1124,36 @@ namespace confighttp {
         // we should migrate the config file to straight JSON and get rid of all this nonsense
         config_stream << k << " = " << (v.is_string() ? v.get<std::string>() : v.dump()) << std::endl;
       }
-      file_handler::write_file(config::sunshine.config_file.c_str(), config_stream.str());
+
+      // Refuse to write an empty payload. A zero-byte config_stream would
+      // truncate the on-disk config file to zero bytes via
+      // file_handler::write_file, silently wiping every previously saved
+      // setting (the upstream web UI sends {} when the user clicks "Save"
+      // with no settings differing from defaults; payloads of all-null
+      // entries also produce an empty stream). Surface as a 400 instead of
+      // silently destroying the user's config.
+      if (config_stream.tellp() == std::streampos {0}) {
+        BOOST_LOG(warning) << "SaveConfig: rejected empty payload (would wipe existing config)"sv;
+        bad_request(response, request, "Refusing to save an empty config: at least one setting must differ from defaults");
+        return;
+      }
+
+      // file_handler::write_file returns -1 if the file cannot be opened or
+      // written (permission denied, read-only filesystem, disk full, parent
+      // directory missing, etc.). Surface the failure as a JSON 500-equivalent
+      // body so the client and logs reflect that the settings did NOT
+      // persist. Returning {"status": true} on a failed write is what
+      // produced the user-visible "config save not working" symptom -- the
+      // request looked successful while the on-disk file was left untouched.
+      const std::string contents = config_stream.str();
+      if (file_handler::write_file(config::sunshine.config_file.c_str(), contents) != 0) {
+        BOOST_LOG(error) << "SaveConfig: failed to write config file "sv
+                         << config::sunshine.config_file;
+        output_tree["status"] = false;
+        output_tree["error"] = "Failed to write config file to disk";
+        send_response(response, output_tree);
+        return;
+      }
       output_tree["status"] = true;
       send_response(response, output_tree);
     } catch (std::exception &e) {
