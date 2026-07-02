@@ -467,6 +467,10 @@ TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
     "enet_4mib_buffer",
     "pipewire_latency_ms",
     "cpu_pinning",
+    // ponytail: expert Linux-only latency/display toggles, same rationale.
+    "dscp_qos",
+    "gpu_governor",
+    "headless_virtual_display",
   };
 
   std::vector<std::string> missingFromFiles;

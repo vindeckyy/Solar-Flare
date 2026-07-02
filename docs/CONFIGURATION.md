@@ -21,6 +21,9 @@ still supported.
 | `enet_4mib_buffer`    | bool   | true | -       | Grow ENet UDP send/recv buffers to 4 MiB (Linux only). |
 | `pipewire_latency_ms` | int    | 8    | 1–40    | `PW_KEY_NODE_LATENCY` hint passed to the PipeWire compositor. |
 | `cpu_pinning`         | bool   | true | -       | Push the capture thread onto `SCHED_RR` and pin it to a non-IRQ, non-SMT core. |
+| `dscp_qos`            | bool   | true | -       | Tag ENet packets with DSCP CS3 so routers prioritize streaming over bulk traffic (Linux only). |
+| `gpu_governor`        | bool   | true | -       | Set AMD GPU to `performance` power profile during stream, restore `auto` on disconnect (Linux only). |
+| `headless_virtual_display` | bool | false | -    | If no displays detected, try creating a virtual xrandr output (Linux only, opt-in). |
 
 Each one is opt-out — setting it back to its "fall back to upstream"
 choice (`busy_poll_us = 0`, `rate_cap_pct = 80` is already upstream's
