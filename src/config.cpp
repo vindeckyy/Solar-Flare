@@ -20,6 +20,7 @@
 #include <boost/property_tree/ptree.hpp>
 
 // local includes
+#include "audio.h"
 #include "config.h"
 #include "entry_handler.h"
 #include "file_handler.h"
@@ -616,6 +617,7 @@ namespace config {
     true,  // enet_4mib_buffer   (grow ENet UDP buffers to 4 MiB)
     8,  // pipewire_latency_ms (PW_KEY_NODE_LATENCY hint)
     true,  // cpu_pinning        (SCHED_RR + physical-core affinity)
+    solarflare_t::audio_fx_t {},  // audio_fx — all off / defaults
   };
 
   bool endline(char ch) {
@@ -936,6 +938,48 @@ namespace config {
     double temp = input;
 
     double_f(vars, name, temp);
+
+    TUPLE_2D_REF(lower, upper, range);
+    if (temp >= lower && temp <= upper) {
+      input = temp;
+    }
+  }
+
+  /**
+   * @brief Parse a float value from the config map.
+   * @param vars Key/value map of config entries.
+   * @param name Key to look up.
+   * @param input Reference updated when @p name is present and parseable.
+   */
+  void float_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, float &input) {
+    std::string tmp;
+    string_f(vars, name, tmp);
+
+    if (tmp.empty()) {
+      return;
+    }
+
+    char *c_str_p;
+    auto val = std::strtof(tmp.c_str(), &c_str_p);
+
+    if (c_str_p == tmp.c_str()) {
+      return;
+    }
+
+    input = val;
+  }
+
+  /**
+   * @brief Parse a float value, clamped to an inclusive range.
+   * @param vars Key/value map of config entries.
+   * @param name Key to look up.
+   * @param input Reference updated only when the parsed value is in range.
+   * @param range Inclusive (lower, upper) bounds for the parsed value.
+   */
+  void float_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, float &input, const std::pair<float, float> &range) {
+    float temp = input;
+
+    float_f(vars, name, temp);
 
     TUPLE_2D_REF(lower, upper, range);
     if (temp >= lower && temp <= upper) {
@@ -1409,6 +1453,62 @@ namespace config {
     bool_f(vars, "enet_4mib_buffer", solarflare.enet_4mib_buffer);
     int_between_f(vars, "pipewire_latency_ms", solarflare.pipewire_latency_ms, {1, 40});
     bool_f(vars, "cpu_pinning", solarflare.cpu_pinning);
+
+    // --- SolarFlare audio_fx / Opus tunables (all default off / upstream) ---
+    auto &af = solarflare.audio_fx;
+    bool_f(vars, "sf_audio_agc", af.enable_agc);
+    bool_f(vars, "sf_audio_vad", af.enable_vad);
+    bool_f(vars, "sf_audio_ducking", af.enable_ducking);
+    bool_f(vars, "sf_audio_noise_gate", af.enable_noise_gate);
+    float_between_f(vars, "sf_audio_noise_gate_db", af.noise_gate_threshold_db, {-90.0f, -10.0f});
+
+    float_between_f(vars, "sf_audio_agc_target_db", af.agc_target_rms_db, {-40.0f, -6.0f});
+    float_between_f(vars, "sf_audio_agc_max_gain_db", af.agc_max_gain_db, {0.0f, 30.0f});
+    float_between_f(vars, "sf_audio_agc_min_gain_db", af.agc_min_gain_db, {-30.0f, 0.0f});
+    float_between_f(vars, "sf_audio_agc_attack_ms", af.agc_attack_ms, {1.0f, 500.0f});
+    float_between_f(vars, "sf_audio_agc_hold_ms", af.agc_hold_ms, {0.0f, 5000.0f});
+    float_between_f(vars, "sf_audio_agc_release_ms", af.agc_release_ms, {1.0f, 5000.0f});
+
+    float_between_f(vars, "sf_audio_vad_threshold_db", af.vad_threshold_db, {-80.0f, -10.0f});
+    float_between_f(vars, "sf_audio_vad_hysteresis_db", af.vad_hysteresis_db, {0.0f, 30.0f});
+    float_between_f(vars, "sf_audio_vad_min_speech_ms", af.vad_min_speech_ms, {10.0f, 2000.0f});
+    float_between_f(vars, "sf_audio_vad_min_silence_ms", af.vad_min_silence_ms, {10.0f, 5000.0f});
+
+    float_between_f(vars, "sf_audio_ducker_attenuation_db", af.ducker_target_attenuation_db, {-40.0f, 0.0f});
+    float_between_f(vars, "sf_audio_ducker_attack_ms", af.ducker_attack_ms, {1.0f, 2000.0f});
+    float_between_f(vars, "sf_audio_ducker_release_ms", af.ducker_release_ms, {1.0f, 5000.0f});
+
+    int_between_f(vars, "sf_opus_application", af.opus_application, {0, 2});
+    int_between_f(vars, "sf_opus_vbr", af.opus_vbr, {0, 2});
+    int_between_f(vars, "sf_opus_complexity", af.opus_complexity, {0, 10});
+    bool_f(vars, "sf_opus_fec", af.opus_fec);
+    int_between_f(vars, "sf_opus_expected_loss_pct", af.opus_expected_loss_pct, {0, 100});
+    bool_f(vars, "sf_opus_bandwidth_extension", af.opus_bandwidth_extension);
+
+    // Propagate Opus application / VBR / FEC / complexity / loss-pct to the
+    // runtime tuning struct used by the audio encode thread. Doing the
+    // propagation here keeps audio.cpp free of config-aware code.
+    // Note: ::audio (global namespace) is used here because config::audio is
+    // the audio-config struct and would otherwise shadow the audio namespace.
+    auto &tuning = ::audio::opus_tuning();
+    switch (af.opus_application) {
+      case 1: tuning.application = ::audio::opus_tuning_t::application_e::VOIP; break;
+      case 2: tuning.application = ::audio::opus_tuning_t::application_e::AUDIO; break;
+      case 0:
+      default:
+        tuning.application = ::audio::opus_tuning_t::application_e::LOWDELAY; break;
+    }
+    switch (af.opus_vbr) {
+      case 1: tuning.vbr = ::audio::opus_tuning_t::vbr_e::CONSTRAINED; break;
+      case 2: tuning.vbr = ::audio::opus_tuning_t::vbr_e::FULL; break;
+      case 0:
+      default:
+        tuning.vbr = ::audio::opus_tuning_t::vbr_e::OFF; break;
+    }
+    tuning.complexity = af.opus_complexity;
+    tuning.enable_fec = af.opus_fec;
+    tuning.expected_packet_loss_pct = af.opus_expected_loss_pct;
+    tuning.enable_bandwidth_extension = af.opus_bandwidth_extension;
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});

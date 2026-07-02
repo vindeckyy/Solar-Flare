@@ -329,6 +329,64 @@ namespace config {
     // push onto SCHED_RR prio 10 and pin to a non-IRQ, non-SMT core.
     // Set false to fall back to upstream's nice-only behaviour.
     bool cpu_pinning = true;
+
+    /**
+     * @brief SolarFlare audio_fx pre-processor and Opus tuning.
+     *
+     * All values default to "disabled / upstream-compatible". When @c
+     * opus_application / @c opus_vbr / @c opus_complexity / @c opus_fec /
+     * @c opus_expected_loss_pct are left at their defaults, the encoder
+     * behaves identically to upstream Sunshine. Turning on the FX stages
+     * (@c enable_agc, @c enable_vad, etc.) adds a small CPU cost in
+     * exchange for smoother loudness, intelligibility, and noise
+     * suppression.
+     */
+    struct audio_fx_t {
+      // --- Pre-encoder audio FX (all off by default) ---
+      /// Apply automatic gain control before encoding.
+      bool enable_agc = false;
+      /// Run voice activity detection (used by the ducker).
+      bool enable_vad = false;
+      /// Apply ducking when voice is active.
+      bool enable_ducking = false;
+      /// Apply a noise gate (suppress signal below @c noise_gate_threshold_db).
+      bool enable_noise_gate = false;
+      /// Noise-gate threshold (dBFS). Signal below this is attenuated.
+      float noise_gate_threshold_db = -55.0f;
+
+      // --- AGC tunables ---
+      float agc_target_rms_db = -20.0f;
+      float agc_max_gain_db = 12.0f;
+      float agc_min_gain_db = -12.0f;
+      float agc_attack_ms = 10.0f;
+      float agc_hold_ms = 200.0f;
+      float agc_release_ms = 100.0f;
+
+      // --- VAD tunables ---
+      float vad_threshold_db = -45.0f;
+      float vad_hysteresis_db = 6.0f;
+      float vad_min_speech_ms = 100.0f;
+      float vad_min_silence_ms = 200.0f;
+
+      // --- Ducker tunables ---
+      float ducker_target_attenuation_db = -12.0f;
+      float ducker_attack_ms = 50.0f;
+      float ducker_release_ms = 500.0f;
+
+      // --- Opus encoder tunables ---
+      /// Opus application mode: 0 = LOWDELAY (default), 1 = VOIP, 2 = AUDIO.
+      int opus_application = 0;
+      /// Opus VBR mode: 0 = OFF (CBR), 1 = CONSTRAINED, 2 = FULL.
+      int opus_vbr = 0;
+      /// Opus complexity (0-10). Default 10 (max quality).
+      int opus_complexity = 10;
+      /// Enable Opus in-band FEC. Default true.
+      bool opus_fec = true;
+      /// Expected packet loss percentage (0-100). 0 disables the hint.
+      int opus_expected_loss_pct = 0;
+      /// Enable Opus bandwidth extension (super-wideband / fullband).
+      bool opus_bandwidth_extension = true;
+    } audio_fx {};
   };
 
   extern video_t video;

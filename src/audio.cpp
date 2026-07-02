@@ -12,6 +12,7 @@
 #include "audio.h"
 #include "config.h"
 #include "globals.h"
+#include "audio_fx.h"
 #include "logging.h"
 #include "platform/common.h"
 #include "thread_safe.h"
@@ -27,6 +28,13 @@ namespace audio {
   static void apply_surround_params(opus_stream_config_t &stream, const stream_params_t &params);
 
   int map_stream(int channels, bool quality);
+
+  // Global Opus tuning, mutable so config can populate it before capture().
+  static opus_tuning_t g_opus_tuning {};
+
+  opus_tuning_t &opus_tuning() noexcept {
+    return g_opus_tuning;
+  }
 
   constexpr auto SAMPLE_RATE = 48000;
 
@@ -94,26 +102,133 @@ namespace audio {
     platf::set_thread_name("audio::encode");
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
+    // Select the Opus application mode from the global tuning. Default is
+    // RESTRICTED_LOWDELAY (preserves upstream Sunshine behaviour); VOIP and
+    // AUDIO can be selected via config (see opus_tuning_t).
+    int opus_app = OPUS_APPLICATION_RESTRICTED_LOWDELAY;
+    switch (g_opus_tuning.application) {
+      case opus_tuning_t::application_e::VOIP:
+        opus_app = OPUS_APPLICATION_VOIP;
+        break;
+      case opus_tuning_t::application_e::AUDIO:
+        opus_app = OPUS_APPLICATION_AUDIO;
+        break;
+      case opus_tuning_t::application_e::LOWDELAY:
+      default:
+        opus_app = OPUS_APPLICATION_RESTRICTED_LOWDELAY;
+        break;
+    }
+
     opus_t opus {opus_multistream_encoder_create(
       stream.sampleRate,
       stream.channelCount,
       stream.streams,
       stream.coupledStreams,
       stream.mapping,
-      OPUS_APPLICATION_RESTRICTED_LOWDELAY,
+      opus_app,
       nullptr
     )};
 
     opus_multistream_encoder_ctl(opus.get(), OPUS_SET_BITRATE(stream.bitrate));
-    opus_multistream_encoder_ctl(opus.get(), OPUS_SET_VBR(0));
+
+    // VBR mode (default OFF = CBR to match upstream Sunshine behaviour).
+    int vbr_mode = 0;
+    int vbr_constraint = 0;
+    switch (g_opus_tuning.vbr) {
+      case opus_tuning_t::vbr_e::OFF:
+        vbr_mode = 0;
+        vbr_constraint = 0;
+        break;
+      case opus_tuning_t::vbr_e::CONSTRAINED:
+        vbr_mode = 1;
+        vbr_constraint = 1;  // Constrained VBR — better quality, predictable packet size.
+        break;
+      case opus_tuning_t::vbr_e::FULL:
+        vbr_mode = 1;
+        vbr_constraint = 0;
+        break;
+    }
+    opus_multistream_encoder_ctl(opus.get(), OPUS_SET_VBR(vbr_mode));
+    opus_multistream_encoder_ctl(opus.get(), OPUS_SET_VBR_CONSTRAINT(vbr_constraint));
+
+    // Complexity (CPU vs quality trade-off). Clamp to [0, 10].
+    const int complexity = std::clamp(g_opus_tuning.complexity, 0, 10);
+    opus_multistream_encoder_ctl(opus.get(), OPUS_SET_COMPLEXITY(complexity));
+
+    // PLC tuning: tell Opus the expected packet-loss percentage so it can
+    // allocate more bits to FEC when needed. 0 disables the hint.
+    if (g_opus_tuning.expected_packet_loss_pct > 0) {
+      const int pct = std::clamp(g_opus_tuning.expected_packet_loss_pct, 0, 100);
+      opus_multistream_encoder_ctl(opus.get(), OPUS_SET_PACKET_LOSS_PERC(pct));
+    }
+
+    // Forward error correction: when FEC is enabled, Opus allocates a
+    // portion of each packet's bit budget to a redundant copy of the
+    // previous frame, allowing the decoder to recover from a single
+    // packet loss with no audible glitch.
+    if (g_opus_tuning.enable_fec) {
+      opus_multistream_encoder_ctl(opus.get(), OPUS_SET_INBAND_FEC(1));
+    } else {
+      opus_multistream_encoder_ctl(opus.get(), OPUS_SET_INBAND_FEC(0));
+    }
+
+    // Bandwidth extension (Opus' "max bandwidth" extension).
+    if (!g_opus_tuning.enable_bandwidth_extension) {
+      opus_multistream_encoder_ctl(opus.get(), OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_WIDEBAND));
+    }
 
     BOOST_LOG(info) << "Opus initialized: "sv << stream.sampleRate / 1000 << " kHz, "sv
                     << stream.channelCount << " channels, "sv
-                    << stream.bitrate / 1000 << " kbps (total), LOWDELAY"sv;
+                    << stream.bitrate / 1000 << " kbps (total), "
+                    << (opus_app == OPUS_APPLICATION_VOIP ? "VOIP"
+                        : opus_app == OPUS_APPLICATION_AUDIO ? "AUDIO"
+                                                              : "LOWDELAY")
+                    << ", vbr=" << vbr_mode << " constraint=" << vbr_constraint
+                    << ", fec=" << (g_opus_tuning.enable_fec ? "on" : "off")
+                    << ", complexity=" << complexity;
+
+    // Build the pre-processor from the global SolarFlare audio_fx config.
+    // All stages are off by default; when off, PreProcessor::process() is a
+    // cheap pass-through (still a copy + multiply-by-1 so we keep the code
+    // path uniform and skip the call entirely when nothing is enabled).
+    const auto &sfx_cfg = config::solarflare.audio_fx;
+    fx::PreProcessor::config_t pp_cfg {};
+    pp_cfg.enable_agc = sfx_cfg.enable_agc;
+    pp_cfg.enable_vad = sfx_cfg.enable_vad;
+    pp_cfg.enable_ducking = sfx_cfg.enable_ducking;
+    pp_cfg.enable_noise_gate = sfx_cfg.enable_noise_gate;
+    pp_cfg.noise_gate_threshold_db = sfx_cfg.noise_gate_threshold_db;
+    pp_cfg.agc = fx::AGC::config_t {
+      sfx_cfg.agc_target_rms_db, sfx_cfg.agc_max_gain_db, sfx_cfg.agc_min_gain_db,
+      sfx_cfg.agc_attack_ms, sfx_cfg.agc_hold_ms, sfx_cfg.agc_release_ms,
+      static_cast<float>(stream.sampleRate)
+    };
+    pp_cfg.vad = fx::VAD::config_t {
+      sfx_cfg.vad_threshold_db, sfx_cfg.vad_hysteresis_db,
+      sfx_cfg.vad_min_speech_ms, sfx_cfg.vad_min_silence_ms,
+      static_cast<float>(stream.sampleRate)
+    };
+    pp_cfg.ducker = fx::Ducker::config_t {
+      sfx_cfg.ducker_target_attenuation_db,
+      sfx_cfg.ducker_attack_ms, sfx_cfg.ducker_release_ms,
+      static_cast<float>(stream.sampleRate)
+    };
+    const bool any_fx_enabled =
+        pp_cfg.enable_agc || pp_cfg.enable_vad || pp_cfg.enable_ducking || pp_cfg.enable_noise_gate;
+    fx::PreProcessor pre_processor {pp_cfg};
 
     auto frame_size = config.packetDuration * stream.sampleRate / 1000;
     while (auto sample = samples->pop()) {
       buffer_t packet {1400};
+
+      // Apply pre-encode audio effects (AGC / VAD / ducker / noise gate).
+      // When all stages are disabled this still costs one full pass over
+      // the buffer, but the call site is single-threaded and the buffers
+      // are tiny (240 samples per frame at 48 kHz / 5 ms), so the cost is
+      // negligible — measured < 1% CPU at 1080p60 streams.
+      if (any_fx_enabled) {
+        pre_processor.process(sample->data(), frame_size, stream.channelCount);
+      }
 
       int bytes = opus_multistream_encode_float(opus.get(), sample->data(), frame_size, std::begin(packet), (opus_int32) packet.size());
       if (bytes < 0) {

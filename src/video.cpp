@@ -544,10 +544,10 @@ namespace video {
         {"delay"s, 0},
         {"forced-idr"s, 1},
         {"zerolatency"s, 1},
+        {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"surfaces"s, 1},
         {"cbr_padding"s, false},
         {"preset"s, &config::video.nv_legacy.preset},
-        {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
         {"multipass"s, &config::video.nv_legacy.multipass},
         {"aq"s, &config::video.nv_legacy.aq},
@@ -565,10 +565,10 @@ namespace video {
         {"delay"s, 0},
         {"forced-idr"s, 1},
         {"zerolatency"s, 1},
+        {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"surfaces"s, 1},
         {"cbr_padding"s, false},
         {"preset"s, &config::video.nv_legacy.preset},
-        {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
         {"multipass"s, &config::video.nv_legacy.multipass},
         {"aq"s, &config::video.nv_legacy.aq},
@@ -591,10 +591,10 @@ namespace video {
         {"delay"s, 0},
         {"forced-idr"s, 1},
         {"zerolatency"s, 1},
+        {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"surfaces"s, 1},
         {"cbr_padding"s, false},
         {"preset"s, &config::video.nv_legacy.preset},
-        {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
         {"coder"s, &config::video.nv_legacy.h264_coder},
         {"multipass"s, &config::video.nv_legacy.multipass},
@@ -1732,6 +1732,12 @@ namespace video {
           BOOST_LOG(warning) << "Client requested reference frame limit, but encoder doesn't support it!"sv;
         }
       }
+      // SolarFlare fork: leave ctx->refs untouched (-1 = auto).
+      // Explicit refs=1 or refs=2 BREAK NVENC on GTX 1650 with the bundled
+      // FFmpeg nvenc wrapper ("Numerical result out of range"). refs=0
+      // (auto) or omitting refs entirely works correctly. ZeroReorderDelay
+      // is already set on the enc_config (nvenc_base.cpp) which is what
+      // actually prevents multi-ref at the NVIDIA driver level.
 
       // We forcefully reset the flags to avoid clash on reuse of AVCodecContext
       ctx->flags = 0;

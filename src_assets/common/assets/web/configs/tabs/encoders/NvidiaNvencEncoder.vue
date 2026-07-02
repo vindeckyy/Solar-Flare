@@ -7,7 +7,6 @@ const props = defineProps([
   'config',
 ])
 
-const config = ref(props.config)
 
 // SolarFlare fork: one-click tuning presets that override the
 // individual knobs below. nvenc_tuning_preset:
@@ -18,45 +17,45 @@ const config = ref(props.config)
 // When the user picks a preset we auto-fill the per-knob fields so the
 // UI shows what the preset will actually do, then re-apply on submit.
 function apply_tuning_preset() {
-  const p = parseInt(config.value.nvenc_tuning_preset, 10);
+  const p = parseInt(props.config.nvenc_tuning_preset, 10);
   if (p === 0) {  // latency
-    config.value.nvenc_preset = "1";
-    config.value.nvenc_bframes = 0;
-    config.value.nvenc_zerolatency = true;
-    config.value.nvenc_rc_lookahead = 0;
-    config.value.nvenc_twopass = "quarter_res";
-    config.value.nvenc_spatial_aq = false;
-    config.value.nvenc_temporal_aq = false;
-    config.value.nvenc_weighted_prediction = false;
-    config.value.nvenc_enable_min_qp = false;
-    config.value.nvenc_vbv_increase = 0;
+    props.config.nvenc_preset = "1";
+    props.config.nvenc_bframes = 0;
+    props.config.nvenc_zerolatency = true;
+    props.config.nvenc_rc_lookahead = 0;
+    props.config.nvenc_twopass = "quarter_res";
+    props.config.nvenc_spatial_aq = false;
+    props.config.nvenc_temporal_aq = false;
+    props.config.nvenc_weighted_prediction = false;
+    props.config.nvenc_enable_min_qp = false;
+    props.config.nvenc_vbv_increase = 0;
   } else if (p === 1) {  // balanced
-    config.value.nvenc_preset = "4";
-    config.value.nvenc_bframes = 2;
-    config.value.nvenc_zerolatency = false;
-    config.value.nvenc_rc_lookahead = 20;
-    config.value.nvenc_twopass = "quarter_res";
-    config.value.nvenc_spatial_aq = true;
-    config.value.nvenc_aq_strength = 8;
-    config.value.nvenc_temporal_aq = true;
-    config.value.nvenc_weighted_prediction = true;
-    config.value.nvenc_enable_min_qp = false;
-    config.value.nvenc_vbv_increase = 50;
+    props.config.nvenc_preset = "4";
+    props.config.nvenc_bframes = 2;
+    props.config.nvenc_zerolatency = false;
+    props.config.nvenc_rc_lookahead = 20;
+    props.config.nvenc_twopass = "quarter_res";
+    props.config.nvenc_spatial_aq = true;
+    props.config.nvenc_aq_strength = 8;
+    props.config.nvenc_temporal_aq = true;
+    props.config.nvenc_weighted_prediction = true;
+    props.config.nvenc_enable_min_qp = false;
+    props.config.nvenc_vbv_increase = 50;
   } else if (p === 2) {  // quality
-    config.value.nvenc_preset = "7";
-    config.value.nvenc_bframes = 4;
-    config.value.nvenc_zerolatency = false;
-    config.value.nvenc_rc_lookahead = 40;
-    config.value.nvenc_twopass = "full_res";
-    config.value.nvenc_spatial_aq = true;
-    config.value.nvenc_aq_strength = 12;
-    config.value.nvenc_temporal_aq = true;
-    config.value.nvenc_weighted_prediction = true;
-    config.value.nvenc_enable_min_qp = true;
-    config.value.nvenc_min_qp_h264 = 22;
-    config.value.nvenc_min_qp_hevc = 26;
-    config.value.nvenc_min_qp_av1 = 26;
-    config.value.nvenc_vbv_increase = 100;
+    props.config.nvenc_preset = "7";
+    props.config.nvenc_bframes = 4;
+    props.config.nvenc_zerolatency = false;
+    props.config.nvenc_rc_lookahead = 40;
+    props.config.nvenc_twopass = "full_res";
+    props.config.nvenc_spatial_aq = true;
+    props.config.nvenc_aq_strength = 12;
+    props.config.nvenc_temporal_aq = true;
+    props.config.nvenc_weighted_prediction = true;
+    props.config.nvenc_enable_min_qp = true;
+    props.config.nvenc_min_qp_h264 = 22;
+    props.config.nvenc_min_qp_hevc = 26;
+    props.config.nvenc_min_qp_av1 = 26;
+    props.config.nvenc_vbv_increase = 100;
   }
   // p === -1 (manual) or unknown: leave the user's knobs alone
 }
@@ -65,8 +64,8 @@ function apply_tuning_preset() {
 // user picks -2 (i.e. explicitly picks a preset, not the "manual"
 // sentinel that lets them edit knobs freely).
 const PRESET_REAPPLY = -2;
-const lastPresetSeen = ref(config.value.nvenc_tuning_preset);
-watch(() => config.value.nvenc_tuning_preset, (newVal) => {
+const lastPresetSeen = ref(props.config.nvenc_tuning_preset);
+watch(() => props.config.nvenc_tuning_preset, (newVal) => {
   if (newVal !== PRESET_REAPPLY && newVal !== lastPresetSeen.value) {
     apply_tuning_preset();
   }

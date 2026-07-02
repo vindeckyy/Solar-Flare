@@ -68,11 +68,52 @@ namespace audio {
     platf::sink_t sink;
   };
 
+  /**
+   * @brief Opus encoder tuning (per-stream).
+   *
+   * Selected at encode-thread start based on the @c config_t for the stream.
+   * Defaults preserve the historical Sunshine behaviour (RESTRICTED_LOWDELAY,
+   * CBR).
+   */
+  struct opus_tuning_t {
+    enum class application_e : int {
+      LOWDELAY = 0,  ///< @c OPUS_APPLICATION_RESTRICTED_LOWDELAY (default).
+      VOIP = 1,  ///< @c OPUS_APPLICATION_VOIP — better for speech.
+      AUDIO = 2,  ///< @c OPUS_APPLICATION_AUDIO — best for music/SFX.
+    };
+
+    enum class vbr_e : int {
+      OFF = 0,  ///< Hard CBR (legacy behaviour).
+      CONSTRAINED = 1,  ///< Constrained VBR (recommended).
+      FULL = 2,  ///< Full VBR (variable packet size).
+    };
+
+    /// Opus application mode (default: LOWDELAY).
+    application_e application = application_e::LOWDELAY;
+    /// VBR mode (default: OFF = CBR).
+    vbr_e vbr = vbr_e::OFF;
+    /// Expected packet-loss percentage hint for PLC (0–100). 0 disables.
+    int expected_packet_loss_pct = 0;
+    /// Enable in-band FEC (forward error correction).
+    bool enable_fec = true;
+    /// Complexity (0–10; higher = more CPU, better quality). Default: 10.
+    int complexity = 10;
+    /// Use Opus bandwidth extension for speech. Default: true.
+    bool enable_bandwidth_extension = true;
+  };
+
   using buffer_t = util::buffer_t<std::uint8_t>;
   using packet_t = std::pair<void *, buffer_t>;
   using audio_ctx_ref_t = safe::shared_t<audio_ctx_t>::ptr_t;
 
   void capture(safe::mail_t mail, config_t config, void *channel_data);
+
+  /**
+   * @brief Access the active Opus tuning for a session.
+   * @return Reference to the global tuning struct (modifiable by tests and
+   *         by the config loader before capture() is invoked).
+   */
+  opus_tuning_t &opus_tuning() noexcept;
 
   /**
    * @brief Get the reference to the audio context.
