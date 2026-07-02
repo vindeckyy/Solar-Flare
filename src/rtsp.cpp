@@ -454,9 +454,10 @@ namespace rtsp_stream {
 
     void handle_accept(const boost::system::error_code &ec) {
       if (ec) {
-        BOOST_LOG(error) << "Couldn't accept incoming connections: "sv << ec.message();
-
-        // Stop server
+        // operation_aborted is normal during shutdown, no need to log.
+        if (ec != boost::asio::error::operation_aborted) {
+          BOOST_LOG(error) << "Couldn't accept incoming connections: "sv << ec.message();
+        }
         clear();
         return;
       }

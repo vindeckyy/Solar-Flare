@@ -1549,6 +1549,15 @@ namespace config {
     }
 
     if (sunshine.min_log_level <= 3) {
+      // Moonlight clients send these via the launch session but they are not
+      // Sunshine config keys. Suppress the warning to keep logs clean.
+      static const std::array<std::string_view, 4> client_keys = {
+        "hevc_bitrate_multiplier"sv, "fps"sv, "bitrate"sv, "gcmap"sv
+      };
+      for (auto &key : client_keys) {
+        vars.erase(std::string(key));
+      }
+
       for (auto &[var, _] : vars) {
         std::cout << "Warning: Unrecognized configurable option ["sv << var << ']' << std::endl;
       }
