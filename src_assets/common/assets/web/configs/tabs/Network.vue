@@ -13,7 +13,7 @@ const props = defineProps([
 
 const defaultMoonlightPort = 47989
 
-const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort)
+const effectivePort = computed(() => +props.config?.port ?? defaultMoonlightPort)
 </script>
 
 <template>
