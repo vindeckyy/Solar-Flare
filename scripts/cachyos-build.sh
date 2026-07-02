@@ -176,7 +176,7 @@ else
             base-devel cmake ninja git \
             openssl curl libpulse libdrm libva \
             libx11 libxfixes libxrandr libxcb libxkbcommon \
-            libevdev opus ffmpeg \
+            libevdev opus \
             libpipewire libportal \
             wayland wayland-protocols \
             systemd-libs libcap libnatpmp \
