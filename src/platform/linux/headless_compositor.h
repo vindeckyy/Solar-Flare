@@ -1,7 +1,8 @@
 /**
  * @file src/platform/linux/headless_compositor.h
- * @brief Declarations for the headless Wayland compositor used for
- *        private game streaming.
+ * @brief Declarations for the headless compositor used for private game
+ *        streaming. Supports labwc (wlroots) for general Wayland and
+ *        krfb-virtualmonitor for KDE/KWin sessions.
  */
 #pragma once
 
@@ -11,73 +12,96 @@
 namespace platf::headless {
 
   /**
-   * @brief Manages a headless nested Wayland compositor (labwc).
+   * @brief Backend selection for the headless display.
+   */
+  enum class backend_e {
+    auto_detect,  ///< Detect KWin and prefer krfb, else labwc
+    labwc,        ///< Force labwc wlroots headless compositor
+    krfb,         ///< Force krfb-virtualmonitor (KDE only)
+  };
+
+  /**
+   * @brief Detect whether KWin is the active Wayland compositor.
+   * @return true if KWin is running.
+   */
+  bool is_kwin_running();
+
+  /**
+   * @brief Manages a headless display backend.
    *
-   * Spawns labwc as a child process with WLR_BACKENDS=headless so that
-   * games run inside a private compositor session rather than the user's
-   * desktop. The class discovers the Wayland socket, polls for the
-   * headless output, and detects XWayland on launch.
+   * Auto-detects KWin for krfb-virtualmonitor support, falling back to a
+   * nested labwc compositor for non-KDE environments.
    */
   class compositor_t {
   public:
     compositor_t() = default;
 
     /**
-     * @brief Start the headless compositor.
-     *
-     * Finds labwc and wlr-randr in PATH, forks a child to run labwc with
-     * the headless backend, discovers the new WAYLAND_DISPLAY socket, and
-     * polls for the HEADLESS-1 output.
+     * @brief Set the preferred backend before calling start().
+     * @param backend The backend to use.
+     */
+    void set_backend(backend_e backend);
+
+    /**
+     * @brief Start the headless display.
      *
      * @param width Virtual output width in pixels.
      * @param height Virtual output height in pixels.
      * @param refresh_hz Virtual output refresh rate.
-     * @param game_cmd The command to launch after compositor is ready,
-     *                 with WAYLAND_DISPLAY and DISPLAY already set.
+     * @param game_cmd The command to launch (labwc only, krfb ignores this).
      * @return true on success.
      */
     bool start(int width, int height, int refresh_hz, const std::string &game_cmd);
 
     /**
-     * @brief Stop the compositor by terminating the process group.
-     *
-     * Sends SIGTERM, waits up to 3 seconds, then sends SIGKILL.
+     * @brief Stop the headless display.
      */
     void stop();
 
     /**
-     * @brief Get the compositor PID.
-     * @return The PID of the labwc process, or -1 if not running.
+     * @brief Get the compositor PID, or -1 if not running.
      */
     int pid() const;
 
     /**
-     * @brief Get the discovered WAYLAND_DISPLAY path.
-     * @return The absolute Wayland socket path (e.g. "wayland-1").
+     * @brief Get the Wayland socket path (labwc only, empty for krfb).
      */
     const std::string &wayland_socket() const;
 
     /**
-     * @brief Get the discovered X11 display number.
-     * @return The X11 display number string (e.g. ":1"), empty if none.
+     * @brief Get the discovered X11 display (labwc only, empty for krfb).
      */
     const std::string &x11_display() const;
 
     /**
+     * @brief Get the virtual output name created by this compositor.
+     *
+     * For krfb this is the monitor name (e.g. "Virtual-1").
+     * For labwc this is "HEADLESS-1".
+     */
+    const std::string &output_name() const;
+
+    /**
      * @brief Wrap a command string with the compositor's environment.
      *
-     * Prepends WAYLAND_DISPLAY= and DISPLAY= to @p game_cmd so the
-     * launched game uses the private compositor session.
-     *
-     * @param game_cmd The raw command to wrap.
-     * @return The wrapped command string.
+     * Labwc: prepends WAYLAND_DISPLAY= and DISPLAY=.
+     * Krfb: returns game_cmd unchanged (runs on host Wayland session).
      */
     std::string wrap_cmd(const std::string &game_cmd);
 
   private:
+    bool start_labwc(int width, int height, int refresh_hz, const std::string &game_cmd);
+    bool start_krfb(int width, int height, int refresh_hz);
+    void stop_labwc();
+    void stop_krfb();
+    backend_e resolve_backend() const;
+
+    backend_e _backend = backend_e::auto_detect;
+    bool _using_krfb = false;
     int _pid = -1;
     std::string _wayland_socket;
     std::string _x11_display;
+    std::string _output_name;
   };
 
 }  // namespace platf::headless

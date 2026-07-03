@@ -364,6 +364,46 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### compositor_backend
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="3">
+            Headless display backend. auto detects KWin and prefers
+            krfb-virtualmonitor, falling back to labwc for other Wayland
+            compositors.
+            @note{Linux only. Requires [headless_mode](#headless_mode) to be enabled.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="3">@code{}
+            auto
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="3">@code{}
+            compositor_backend = auto
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>auto</td>
+        <td colspan="2">Detect KWin and prefer krfb-virtualmonitor, falling back to
+            labwc for other Wayland compositors.</td>
+    </tr>
+    <tr>
+        <td>labwc</td>
+        <td colspan="2">Use labwc headless compositor for all Wayland environments.</td>
+    </tr>
+    <tr>
+        <td>krfb</td>
+        <td colspan="2">Use krfb-virtualmonitor backend for KWin environments.</td>
+    </tr>
+</table>
+
 ## Input
 
 ### controller

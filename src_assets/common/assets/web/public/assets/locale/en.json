@@ -175,6 +175,8 @@
     "coder_cavlc": "cavlc -- context adaptive variable-length coding - faster decode",
     "configuration": "Configuration",
     "configuration_desc": "Configure Sunshine's host settings to match your streaming setup.",
+    "compositor_backend": "Compositor Backend",
+    "compositor_backend_desc": "Headless display backend. auto detects KWin and prefers krfb-virtualmonitor, falling back to labwc for other Wayland compositors.",
     "controller": "Enable Gamepad Input",
     "controller_desc": "Allows guests to control the host system with a gamepad / controller",
     "credentials_file": "Credentials File",

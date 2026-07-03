@@ -74,7 +74,84 @@ namespace platf::headless {
     return result;
   }
 
+  bool is_kwin_running() {
+    auto *xdg = std::getenv("XDG_CURRENT_DESKTOP");
+    if (xdg) {
+      std::string_view desktop {xdg};
+      return desktop.find("KDE"sv) != std::string_view::npos;
+    }
+    auto *wayland = std::getenv("WAYLAND_DISPLAY");
+    if (!wayland) return false;
+    return bp::search_path("kwin_wayland").empty() ? false : true;
+  }
+
+  backend_e compositor_t::resolve_backend() const {
+    if (_backend == backend_e::labwc) return backend_e::labwc;
+    if (_backend == backend_e::krfb) return backend_e::krfb;
+
+    // auto_detect: prefer krfb on KDE, fall back to labwc
+    if (is_kwin_running()) {
+      if (!bp::search_path("krfb-virtualmonitor").empty()) {
+        BOOST_LOG(info) << "headless_compositor: detected KWin, using krfb-virtualmonitor backend"sv;
+        return backend_e::krfb;
+      }
+      BOOST_LOG(info) << "headless_compositor: KWin detected but krfb-virtualmonitor not found, falling back to labwc"sv;
+    }
+    BOOST_LOG(info) << "headless_compositor: using labwc backend"sv;
+    return backend_e::labwc;
+  }
+
+  void compositor_t::set_backend(backend_e backend) {
+    _backend = backend;
+  }
+
   bool compositor_t::start(int width, int height, int refresh_hz, const std::string &game_cmd) {
+    if (resolve_backend() == backend_e::krfb) {
+      _using_krfb = true;
+      return start_krfb(width, height, refresh_hz);
+    }
+    return start_labwc(width, height, refresh_hz, game_cmd);
+  }
+
+  bool compositor_t::start_krfb(int width, int height, int refresh_hz) {
+    auto krfb_path = bp::search_path("krfb-virtualmonitor");
+    if (krfb_path.empty()) {
+      BOOST_LOG(error) << "headless_compositor: krfb-virtualmonitor not found in PATH"sv;
+      return false;
+    }
+
+    _output_name = "SolarFlare-Headless";
+
+    std::error_code ec;
+    std::string krfb_out;
+    {
+      bp::ipstream pipe_stream;
+      bp::child proc(krfb_path,
+        "--name", _output_name,
+        "--width", std::to_string(width),
+        "--height", std::to_string(height),
+        "--refresh", std::to_string(refresh_hz),
+        bp::std_out > pipe_stream, bp::std_err > pipe_stream, ec);
+      if (ec) {
+        BOOST_LOG(error) << "headless_compositor: krfb-virtualmonitor failed to start: "sv << ec.message();
+        return false;
+      }
+      proc.wait(ec);
+      if (ec) {
+        BOOST_LOG(error) << "headless_compositor: krfb-virtualmonitor exited with error"sv;
+        return false;
+      }
+      std::ostringstream oss;
+      oss << pipe_stream.rdbuf();
+      krfb_out = oss.str();
+    }
+
+    BOOST_LOG(info) << "headless_compositor: krfb virtual output \""sv << _output_name
+                    << "\" created at "sv << width << 'x' << height << '@' << refresh_hz;
+    return true;
+  }
+
+  bool compositor_t::start_labwc(int width, int height, int refresh_hz, const std::string &game_cmd) {
     if (width <= 0 || height <= 0) {
       BOOST_LOG(error) << "headless_compositor: invalid dimensions "sv << width << 'x' << height;
       return false;
@@ -227,6 +304,30 @@ namespace platf::headless {
   }
 
   void compositor_t::stop() {
+    if (_using_krfb) {
+      stop_krfb();
+    } else {
+      stop_labwc();
+    }
+  }
+
+  void compositor_t::stop_krfb() {
+    if (_output_name.empty()) return;
+
+    auto krfb_path = bp::search_path("krfb-virtualmonitor");
+    if (krfb_path.empty()) {
+      _output_name.clear();
+      return;
+    }
+
+    BOOST_LOG(info) << "headless_compositor: removing krfb virtual output \""sv << _output_name << '"';
+    std::error_code ec;
+    bp::child proc(krfb_path, "--remove", _output_name, ec);
+    if (!ec) proc.wait(ec);
+    _output_name.clear();
+  }
+
+  void compositor_t::stop_labwc() {
     if (_pid <= 0) return;
 
     BOOST_LOG(info) << "headless_compositor: stopping process group "sv << _pid;
@@ -264,6 +365,7 @@ namespace platf::headless {
   }
 
   std::string compositor_t::wrap_cmd(const std::string &game_cmd) {
+    if (_using_krfb) return game_cmd;
     std::string wrapped;
     if (!_wayland_socket.empty()) {
       wrapped += "WAYLAND_DISPLAY=" + _wayland_socket + " ";
@@ -273,6 +375,12 @@ namespace platf::headless {
     }
     wrapped += game_cmd;
     return wrapped;
+  }
+
+  const std::string &compositor_t::output_name() const {
+    if (_using_krfb) return _output_name;
+    static const std::string headless1 {"HEADLESS-1"};
+    return headless1;
   }
 
 }  // namespace platf::headless
