@@ -969,6 +969,7 @@ namespace pipewire {
         return -1;
       }
 
+      delete[] img->data;
       img->data = new std::uint8_t[img->height * img->row_pitch];
       std::fill_n(img->data, img->height * img->row_pitch, 0);
       return 0;
