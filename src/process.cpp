@@ -39,11 +39,20 @@
   #include <share.h>
 #endif
 
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(__APPLE__)
+  #include "platform/linux/headless_compositor.h"
+#endif
+
 namespace proc {
   using namespace std::literals;
   namespace pt = boost::property_tree;
 
   proc_t proc;
+
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(__APPLE__)
+  /// Headless compositor instance for private game streaming.
+  static std::unique_ptr<platf::headless::compositor_t> g_headless_compositor;
+#endif
 
   /// ponytail: saved encoder state for per-game override restore.
   /// Both @c video.nv (the actual NVENC tunables) and @c video.nv_preset
@@ -285,6 +294,27 @@ namespace proc {
       BOOST_LOG(info) << "Executing [Desktop]"sv;
       placebo = true;
     } else {
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(__APPLE__)
+      // If headless compositor mode is enabled, start labwc before the game.
+      if (config::video.linux_display.headless_mode && config::video.linux_display.use_cage_compositor) {
+        g_headless_compositor = std::make_unique<platf::headless::compositor_t>();
+        std::string wrapped_cmd = g_headless_compositor->wrap_cmd(_app.cmd);
+        if (!g_headless_compositor->start(launch_session->width, launch_session->height, launch_session->fps, wrapped_cmd)) {
+          BOOST_LOG(error) << "Headless compositor failed to start"sv;
+          g_headless_compositor.reset();
+          return -1;
+        }
+        // Inject the compositor's Wayland/X11 sockets into the launch environment.
+        if (!g_headless_compositor->wayland_socket().empty()) {
+          _env["WAYLAND_DISPLAY"] = g_headless_compositor->wayland_socket();
+        }
+        if (!g_headless_compositor->x11_display().empty()) {
+          _env["DISPLAY"] = g_headless_compositor->x11_display();
+        }
+        BOOST_LOG(info) << "Headless compositor ready, launching game inside it"sv;
+      }
+#endif
+
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
@@ -292,6 +322,12 @@ namespace proc {
       _process = platf::run_command(_app.elevated, true, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_group);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(__APPLE__)
+        if (g_headless_compositor) {
+          g_headless_compositor->stop();
+          g_headless_compositor.reset();
+        }
+#endif
         return -1;
       }
     }
@@ -345,6 +381,14 @@ namespace proc {
     terminate_process_group(_process, _process_group, _app.exit_timeout);
     _process = boost::process::v1::child();
     _process_group = boost::process::v1::group();
+
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(__APPLE__)
+    // Stop the headless compositor if it was started for this session.
+    if (g_headless_compositor) {
+      g_headless_compositor->stop();
+      g_headless_compositor.reset();
+    }
+#endif
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
       auto &cmd = *(_app_prep_it - 1);

@@ -26,6 +26,7 @@ protected:
     // Define the expected mapping between documentation sections and UI tabs
     expectedDocToTabMapping = {
       {"General", "general"},
+      {"Headless Stream", "headless"},
       {"Input", "input"},
       {"Audio/Video", "av"},
       {"Network", "network"},

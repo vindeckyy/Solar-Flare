@@ -172,6 +172,17 @@ namespace config {
     bool adaptive_bitrate_enabled;  ///< Enable EWMA-based adaptive bitrate control.
     int adaptive_bitrate_min;  ///< Minimum bitrate floor in kbps.
     int adaptive_bitrate_max;  ///< Maximum bitrate ceiling in kbps.
+
+    /**
+     * @brief Linux headless compositor configuration.
+     * @details Controls whether games are launched into a private nested
+     *          Wayland compositor (labwc) instead of the user's desktop.
+     */
+    struct linux_display_t {
+      bool headless_mode = false;  ///< Master switch for private compositor streaming
+      bool use_cage_compositor = false;  ///< Route games into labwc nested compositor
+      bool prefer_gpu_native_capture = false;  ///< Prefer DMA-BUF even if windowed labwc needed
+    } linux_display;
   };
 
   struct audio_t {

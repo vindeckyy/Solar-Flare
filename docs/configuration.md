@@ -285,6 +285,85 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+## Headless Stream
+
+### headless_mode
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Run games in a private headless compositor instead of hijacking the desktop.
+            When enabled, games launch inside an isolated compositor environment.
+            @note{Linux only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            headless_mode = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### linux_use_cage_compositor
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Route launched applications into a labwc nested Wayland compositor for
+            headless streaming. When enabled, games run inside a private compositor
+            session instead of the desktop session.
+            @note{Linux only. Requires [headless_mode](#headless_mode) to be enabled.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            linux_use_cage_compositor = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### linux_prefer_gpu_native_capture
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Prefer DMA-BUF GPU-native capture even if a windowed labwc compositor is
+            needed. When disabled, the system may fall back to a simpler capture path
+            when a headless compositor is active.
+            @note{Linux only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            linux_prefer_gpu_native_capture = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ## Input
 
 ### controller

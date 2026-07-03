@@ -1297,6 +1297,10 @@ namespace config {
     int_between_f(vars, "adaptive_bitrate_min", video.adaptive_bitrate_min, {100, 1000000});
     int_between_f(vars, "adaptive_bitrate_max", video.adaptive_bitrate_max, {100, 1000000});
 
+    bool_f(vars, "headless_mode", video.linux_display.headless_mode);
+    bool_f(vars, "linux_use_cage_compositor", video.linux_display.use_cage_compositor);
+    bool_f(vars, "linux_prefer_gpu_native_capture", video.linux_display.prefer_gpu_native_capture);
+
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
     string_f(vars, "sunshine_name", nvhttp.sunshine_name);

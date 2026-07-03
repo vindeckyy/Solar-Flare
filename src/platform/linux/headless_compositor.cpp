@@ -1,0 +1,278 @@
+/**
+ * @file src/platform/linux/headless_compositor.cpp
+ * @brief Headless Wayland compositor implementation for private game
+ *        streaming via labwc.
+ */
+
+// standard includes
+#include <algorithm>
+#include <chrono>
+#include <cstdlib>
+#include <cstring>
+#include <dirent.h>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <thread>
+
+// platform includes
+#include <fcntl.h>
+#include <pwd.h>
+#include <signal.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+// lib includes
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/process/v1.hpp>
+#include <boost/process/v1/search_path.hpp>
+
+// local includes
+#include "headless_compositor.h"
+#include "src/logging.h"
+
+using namespace std::literals;
+namespace bp = boost::process::v1;
+
+namespace platf::headless {
+
+  /**
+   * @brief Discover the current user's runtime directory.
+   * @return The path (e.g. "/run/user/1000") or empty on failure.
+   */
+  static std::string user_runtime_dir() {
+    if (auto *xdg = std::getenv("XDG_RUNTIME_DIR")) {
+      return {xdg};
+    }
+    auto *pw = getpwuid(getuid());
+    if (pw && pw->pw_uid > 0) {
+      return "/run/user/"s + std::to_string(pw->pw_uid);
+    }
+    return {};
+  }
+
+  /**
+   * @brief List Wayland socket names inside the run directory,
+   *        optionally filtering by a prefix.
+   * @param run_dir The runtime directory (e.g. "/run/user/1000").
+   * @param prefix Only return names beginning with this prefix (e.g. "wayland-").
+   * @return A vector of basenames found.
+   */
+  static std::vector<std::string> list_wayland_sockets(const std::string &run_dir, const std::string &prefix) {
+    std::vector<std::string> result;
+    auto *dir = opendir(run_dir.c_str());
+    if (!dir) return result;
+    while (auto *ent = readdir(dir)) {
+      std::string name {ent->d_name};
+      if (boost::algorithm::starts_with(name, prefix)) {
+        result.push_back(name);
+      }
+    }
+    closedir(dir);
+    return result;
+  }
+
+  bool compositor_t::start(int width, int height, int refresh_hz, const std::string &game_cmd) {
+    if (width <= 0 || height <= 0) {
+      BOOST_LOG(error) << "headless_compositor: invalid dimensions "sv << width << 'x' << height;
+      return false;
+    }
+
+    auto labwc_path = bp::search_path("labwc");
+    if (labwc_path.empty()) {
+      BOOST_LOG(error) << "headless_compositor: labwc not found in PATH"sv;
+      return false;
+    }
+
+    auto wlr_randr_path = bp::search_path("wlr-randr");
+    if (wlr_randr_path.empty()) {
+      BOOST_LOG(error) << "headless_compositor: wlr-randr not found in PATH"sv;
+      return false;
+    }
+
+    auto run_dir = user_runtime_dir();
+    if (run_dir.empty()) {
+      BOOST_LOG(error) << "headless_compositor: cannot determine user runtime directory"sv;
+      return false;
+    }
+
+    BOOST_LOG(info) << "headless_compositor: labwc="sv << labwc_path << " wlr-randr="sv << wlr_randr_path
+                    << " run_dir="sv << run_dir;
+
+    // Snapshot existing Wayland sockets so we can detect the new one.
+    auto before = list_wayland_sockets(run_dir, std::string("wayland-"));
+
+    _pid = fork();
+    if (_pid < 0) {
+      BOOST_LOG(error) << "headless_compositor: fork failed"sv;
+      return false;
+    }
+
+    if (_pid == 0) {
+      // Child: launch labwc in its own session.
+      setsid();
+
+      // Close all open file descriptors except stdin/stdout/stderr.
+      auto max_fd = sysconf(_SC_OPEN_MAX);
+      if (max_fd < 0) max_fd = 1024;
+      for (int fd = 3; fd < max_fd; ++fd) {
+        close(fd);
+      }
+
+      // Redirect child stdio to /dev/null.
+      int nullfd = open("/dev/null", O_RDWR);
+      if (nullfd >= 0) {
+        dup2(nullfd, STDIN_FILENO);
+        dup2(nullfd, STDOUT_FILENO);
+        dup2(nullfd, STDERR_FILENO);
+        if (nullfd > STDERR_FILENO) close(nullfd);
+      }
+
+      // Headless compositor environment.
+      setenv("WLR_BACKENDS", "headless", 1);
+      setenv("WLR_RENDERER", "gles2", 1);
+      setenv("WLR_HEADLESS_OUTPUTS", "1", 1);
+      setenv("WLR_NO_HARDWARE_CURSORS", "1", 1);
+
+      unsetenv("DISPLAY");
+      unsetenv("WAYLAND_DISPLAY");
+
+      execl(labwc_path.c_str(), "labwc", nullptr);
+
+      // execl only returns on error.
+      _exit(127);
+    }
+
+    // Parent: discover the new Wayland socket.
+    // Poll up to 50 times × 100 ms = 5 seconds.
+    std::string discovered_socket;
+    for (int attempt = 0; attempt < 50; ++attempt) {
+      std::this_thread::sleep_for(100ms);
+
+      auto after = list_wayland_sockets(run_dir, std::string("wayland-"));
+      for (auto &s : after) {
+        if (std::find(before.begin(), before.end(), s) == before.end()) {
+          discovered_socket = std::move(s);
+          break;
+        }
+      }
+      if (!discovered_socket.empty()) break;
+    }
+
+    if (discovered_socket.empty()) {
+      BOOST_LOG(error) << "headless_compositor: could not discover new WAYLAND_DISPLAY socket"sv;
+      stop();
+      return false;
+    }
+
+    _wayland_socket = run_dir + "/" + discovered_socket;
+    BOOST_LOG(info) << "headless_compositor: discovered WAYLAND_DISPLAY="sv << _wayland_socket;
+
+    // Poll for the HEADLESS-1 output to be ready using wlr-randr.
+    bool output_ready = false;
+    for (int attempt = 0; attempt < 50; ++attempt) {
+      std::this_thread::sleep_for(100ms);
+
+      std::error_code ec;
+      std::string wlr_out;
+      {
+        bp::ipstream pipe_stream;
+        bp::environment env {};
+        env["WAYLAND_DISPLAY"] = _wayland_socket;
+        bp::child proc(wlr_randr_path, bp::std_out > pipe_stream, env, ec);
+        if (!ec) {
+          proc.wait(ec);
+          if (!ec) {
+            std::ostringstream oss;
+            oss << pipe_stream.rdbuf();
+            wlr_out = oss.str();
+          }
+        }
+      }
+
+      if (wlr_out.find("HEADLESS-1"sv) != std::string::npos) {
+        BOOST_LOG(info) << "headless_compositor: HEADLESS-1 output detected"sv;
+        output_ready = true;
+        break;
+      }
+    }
+
+    if (!output_ready) {
+      BOOST_LOG(error) << "headless_compositor: HEADLESS-1 output not detected in time"sv;
+      stop();
+      return false;
+    }
+
+    // Discover XWayland display via /tmp/.X11-unix/ detection.
+    auto before_x11 = list_wayland_sockets(std::string("/tmp/.X11-unix"), std::string("X"));
+
+    // Wait briefly for XWayland to start.
+    for (int attempt = 0; attempt < 20; ++attempt) {
+      std::this_thread::sleep_for(100ms);
+      auto after_x11 = list_wayland_sockets(std::string("/tmp/.X11-unix"), std::string("X"));
+      for (auto &x : after_x11) {
+        if (std::find(before_x11.begin(), before_x11.end(), x) == before_x11.end()) {
+          _x11_display = ":" + x.substr(1);
+          BOOST_LOG(info) << "headless_compositor: discovered XWayland display="sv << _x11_display;
+          return true;
+        }
+      }
+    }
+
+    // XWayland may not be available; that's okay.
+    BOOST_LOG(info) << "headless_compositor: XWayland not detected, headless compositor is ready"sv;
+    return true;
+  }
+
+  void compositor_t::stop() {
+    if (_pid <= 0) return;
+
+    BOOST_LOG(info) << "headless_compositor: stopping process group "sv << _pid;
+
+    // Send SIGTERM to the entire process group.
+    kill(-_pid, SIGTERM);
+
+    // Wait up to 3 seconds for graceful shutdown.
+    for (int i = 0; i < 30; ++i) {
+      std::this_thread::sleep_for(100ms);
+      if (waitpid(_pid, nullptr, WNOHANG) > 0) {
+        _pid = -1;
+        BOOST_LOG(info) << "headless_compositor: compositor exited gracefully"sv;
+        return;
+      }
+    }
+
+    // Force kill.
+    BOOST_LOG(info) << "headless_compositor: sending SIGKILL"sv;
+    kill(-_pid, SIGKILL);
+    waitpid(_pid, nullptr, 0);
+    _pid = -1;
+  }
+
+  int compositor_t::pid() const {
+    return _pid;
+  }
+
+  const std::string &compositor_t::wayland_socket() const {
+    return _wayland_socket;
+  }
+
+  const std::string &compositor_t::x11_display() const {
+    return _x11_display;
+  }
+
+  std::string compositor_t::wrap_cmd(const std::string &game_cmd) {
+    std::string wrapped;
+    if (!_wayland_socket.empty()) {
+      wrapped += "WAYLAND_DISPLAY=" + _wayland_socket + " ";
+    }
+    if (!_x11_display.empty()) {
+      wrapped += "DISPLAY=" + _x11_display + " ";
+    }
+    wrapped += game_cmd;
+    return wrapped;
+  }
+
+}  // namespace platf::headless
