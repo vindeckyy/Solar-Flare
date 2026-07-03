@@ -589,6 +589,15 @@ namespace nvhttp {
         auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
 
         ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
+
+        auto client_ip = net::addr_to_normalized_string(request->remote_endpoint().address());
+        if (config::nvhttp.trusted_subnet_auto_pairing && net::is_trusted_subnet(client_ip, config::nvhttp.trusted_subnets)) {
+          BOOST_LOG(info) << "Auto-pairing client from trusted subnet: "sv << client_ip;
+          ptr->second.client.name = "auto-paired"s;
+          getservercert(ptr->second, tree, "0000");
+          return;
+        }
+
         if (config::sunshine.flags[config::flag::PIN_STDIN]) {
           std::string pin;
 

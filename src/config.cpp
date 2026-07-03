@@ -529,7 +529,10 @@ namespace config {
     },  // display_device
 
     0,  // max_bitrate
-    0  // minimum_fps_target (0 = framerate)
+    0,  // minimum_fps_target (0 = framerate)
+    false,  // adaptive_bitrate_enabled
+    2000,  // adaptive_bitrate_min
+    100000  // adaptive_bitrate_max
   };
 
   audio_t audio {
@@ -560,6 +563,8 @@ namespace config {
     platf::get_host_name(),  // sunshine_name,
     "sunshine_state.json"s,  // file_state
     {},  // external_ip
+    {},  // trusted_subnets
+    false,  // trusted_subnet_auto_pairing
   };
 
   input_t input {
@@ -1288,6 +1293,10 @@ namespace config {
     int_f(vars, "max_bitrate", video.max_bitrate);
     double_between_f(vars, "minimum_fps_target", video.minimum_fps_target, {0.0, 1000.0});
 
+    bool_f(vars, "adaptive_bitrate_enabled", video.adaptive_bitrate_enabled);
+    int_between_f(vars, "adaptive_bitrate_min", video.adaptive_bitrate_min, {100, 1000000});
+    int_between_f(vars, "adaptive_bitrate_max", video.adaptive_bitrate_max, {100, 1000000});
+
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
     string_f(vars, "sunshine_name", nvhttp.sunshine_name);
@@ -1307,6 +1316,9 @@ namespace config {
     bool_f(vars, "install_steam_audio_drivers", audio.install_steam_drivers);
 
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, {"pc"sv, "lan"sv, "wan"sv});
+
+    string_f(vars, "trusted_subnets", nvhttp.trusted_subnets);
+    bool_f(vars, "trusted_subnet_auto_pairing", nvhttp.trusted_subnet_auto_pairing);
 
     // Parse CSRF allowed origins - always include defaults, then append user-configured origins
     std::vector<std::string> user_csrf_origins;

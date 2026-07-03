@@ -100,6 +100,7 @@
       </div>
     </nav>
     <Notification></Notification>
+    <CommandPalette></CommandPalette>
   </div>
 </template>
 
@@ -107,6 +108,7 @@
 import { AlertOctagon, CircleUserRound, Home, Info, Layers, Lock, LogOut, Settings, Shield, Star } from '@lucide/vue'
 import ThemeToggle from './ThemeToggle.vue'
 import Notification from './Notification.vue'
+import CommandPalette from './CommandPalette.vue'
 import { checkForUpdate } from './sunshine_version'
 
 // localStorage key for "user has dismissed the banner for this specific
@@ -119,6 +121,7 @@ export default {
   components: {
     ThemeToggle,
     Notification,
+    CommandPalette,
     AlertOctagon,
     Home,
     Lock,

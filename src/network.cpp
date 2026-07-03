@@ -297,4 +297,65 @@ namespace net {
 
     return !instancename.empty() ? instancename : "Sunshine";
   }
+
+  /**
+   * @brief Check whether a client IP falls within any of the given trusted subnets.
+   * @details Parses @p trusted_subnets_str as a comma-separated list of CIDR
+   *          ranges (both IPv4 and IPv6 are supported).  IPv4-mapped IPv6
+   *          addresses in @p client_ip are normalised to IPv4 before checking.
+   *          Malformed CIDR entries are silently skipped.
+   * @param client_ip The client's IP address as a string.
+   * @param trusted_subnets_str Comma-separated CIDR ranges, e.g. "10.0.0.0/24,fc00::/7".
+   * @return true if @p client_ip matches any CIDR range.
+   */
+  bool is_trusted_subnet(const std::string &client_ip, const std::string &trusted_subnets_str) {
+    if (trusted_subnets_str.empty() || client_ip.empty()) {
+      return false;
+    }
+
+    boost::system::error_code ec;
+    auto addr = ip::make_address(client_ip, ec);
+    if (ec) {
+      BOOST_LOG(warning) << "is_trusted_subnet: invalid client IP: "sv << client_ip;
+      return false;
+    }
+    addr = normalize_address(addr);
+
+    std::stringstream ss(trusted_subnets_str);
+    std::string cidr;
+    while (std::getline(ss, cidr, ',')) {
+      // Trim whitespace
+      auto start = cidr.find_first_not_of(" \t\r\n");
+      if (start == std::string::npos) continue;
+      cidr = cidr.substr(start);
+      auto end = cidr.find_last_not_of(" \t\r\n");
+      if (end != std::string::npos) {
+        cidr = cidr.substr(0, end + 1);
+      }
+
+      if (cidr.empty()) continue;
+
+      if (addr.is_v4()) {
+        auto net = ip::make_network_v4(cidr, ec);
+        if (!ec) {
+          if (net.hosts().find(addr.to_v4()) != net.hosts().end()) {
+            return true;
+          }
+        } else {
+          BOOST_LOG(warning) << "is_trusted_subnet: invalid IPv4 CIDR: "sv << cidr;
+        }
+      } else {
+        auto net = ip::make_network_v6(cidr, ec);
+        if (!ec) {
+          if (net.hosts().find(addr.to_v6()) != net.hosts().end()) {
+            return true;
+          }
+        } else {
+          BOOST_LOG(warning) << "is_trusted_subnet: invalid IPv6 CIDR: "sv << cidr;
+        }
+      }
+    }
+
+    return false;
+  }
 }  // namespace net

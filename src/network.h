@@ -109,4 +109,15 @@ namespace net {
    * @return Hostname-based instance name or "Sunshine" if hostname is invalid.
    */
   std::string mdns_instance_name(const std::string_view &hostname);
+
+  /**
+   * @brief Check whether a client IP falls within any of the given trusted subnets.
+   * @details Parses @p trusted_subnets_str as a comma-separated list of CIDR
+   *          ranges (both IPv4 and IPv6 are supported).  IPv4-mapped IPv6
+   *          addresses in @p client_ip are normalised to IPv4 before checking.
+   * @param client_ip The client's IP address as a string.
+   * @param trusted_subnets_str Comma-separated CIDR ranges, e.g. "10.0.0.0/24,fc00::/7".
+   * @return true if @p client_ip matches any CIDR range.
+   */
+  bool is_trusted_subnet(const std::string &client_ip, const std::string &trusted_subnets_str);
 }  // namespace net

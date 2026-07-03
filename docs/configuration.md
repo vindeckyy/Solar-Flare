@@ -1445,6 +1445,87 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### adaptive_bitrate_enabled
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Enable adaptive bitrate control. When enabled, Sunshine will dynamically adjust
+            the encoding bitrate between the configured minimum and maximum values based on
+            network conditions and scene complexity.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            adaptive_bitrate_enabled = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### adaptive_bitrate_min
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Minimum bitrate in kbps for adaptive bitrate control. Only used when
+            [adaptive_bitrate_enabled](#adaptive_bitrate_enabled) is enabled.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            2000
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">100-1000000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            adaptive_bitrate_min = 5000
+            @endcode</td>
+    </tr>
+</table>
+
+### adaptive_bitrate_max
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Maximum bitrate in kbps for adaptive bitrate control. Only used when
+            [adaptive_bitrate_enabled](#adaptive_bitrate_enabled) is enabled.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            100000
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">100-1000000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            adaptive_bitrate_max = 80000
+            @endcode</td>
+    </tr>
+</table>
+
 ## Network
 
 ### upnp
@@ -1810,6 +1891,57 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Example</td>
         <td colspan="2">@code{}
             packetsize = 1346
+            @endcode</td>
+    </tr>
+</table>
+
+### trusted_subnet_auto_pairing
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When enabled, clients connecting from IP addresses that match one of the configured
+            [trusted_subnets](#trusted_subnets) will be automatically paired without requiring PIN
+            authentication. This is useful for devices on a corporate or home VPN that have access to
+            the streaming host.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            trusted_subnet_auto_pairing = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### trusted_subnets
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Comma-separated CIDR ranges for auto-pairing. Only used when
+            [trusted_subnet_auto_pairing](#trusted_subnet_auto_pairing) is enabled. Clients connecting
+            from an IP address within any of the listed subnets will bypass PIN pairing.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            (empty)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            trusted_subnets = 10.0.0.0/8,192.168.1.0/24
             @endcode</td>
     </tr>
 </table>

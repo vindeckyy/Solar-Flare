@@ -21,6 +21,7 @@ extern "C" {
 }
 
 // local includes
+#include "adaptive_bitrate.h"
 #include "cbs.h"
 #include "config.h"
 #include "display_device.h"
@@ -2107,6 +2108,16 @@ namespace video {
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
     auto idr_events = mail->event<bool>(mail::idr);
     auto invalidate_ref_frames_events = mail->event<std::pair<int64_t, int64_t>>(mail::invalidate_ref_frames);
+    auto adaptive_bitrate_net_stats_event = mail->event<std::pair<float, float>>(mail::adaptive_bitrate_net_stats);
+
+    AdaptiveBitrate adaptive_bitrate(AdaptiveBitrate::config_t {
+      config::video.adaptive_bitrate_enabled,
+      config::video.adaptive_bitrate_min,
+      config::video.adaptive_bitrate_max,
+    });
+
+    auto last_encode_time = std::chrono::steady_clock::now();
+    int adaptive_bitrate_counter = 0;
 
     {
       // Load a dummy image into the AVFrame to ensure we have something to encode
@@ -2163,12 +2174,37 @@ namespace video {
         }
       }
 
+      auto encode_start = std::chrono::steady_clock::now();
       if (encode(frame_nr++, *session, packets, channel_data, frame_timestamp)) {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         return;
       }
+      auto encode_end = std::chrono::steady_clock::now();
 
       session->request_normal_frame();
+
+      if (config::video.adaptive_bitrate_enabled) {
+        while (adaptive_bitrate_net_stats_event->peek()) {
+          if (auto stats = adaptive_bitrate_net_stats_event->pop(0ms)) {
+            adaptive_bitrate.update_network_stats(stats->first, stats->second);
+          }
+        }
+
+        float encode_time_ms = std::chrono::duration<float, std::milli>(encode_end - encode_start).count();
+        float elapsed_s = std::chrono::duration<float>(encode_end - last_encode_time).count();
+        last_encode_time = encode_end;
+
+        float actual_fps = (elapsed_s > 0.0f) ? (1.0f / elapsed_s) : static_cast<float>(config.framerate);
+        float fps_ratio = actual_fps / static_cast<float>(config.framerate);
+
+        adaptive_bitrate.update_stream_health(fps_ratio, encode_time_ms, 0.0f);
+
+        if (++adaptive_bitrate_counter >= config.framerate) {
+          adaptive_bitrate_counter = 0;
+          int target_bitrate = adaptive_bitrate.get_target_bitrate(config.bitrate);
+          config.bitrate = target_bitrate;
+        }
+      }
 
       // While streaming check to see if the mouse is present and enable Mouse Keys to force the cursor to appear
       // This is useful for KVM switch scenarios where mouse may disappear during streaming

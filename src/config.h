@@ -168,6 +168,10 @@ namespace config {
 
     int max_bitrate;  // Maximum bitrate, sets ceiling in kbps for bitrate requested from client
     double minimum_fps_target;  ///< Lowest framerate that will be used when streaming. Range 0-1000, 0 = half of client's requested framerate.
+
+    bool adaptive_bitrate_enabled;  ///< Enable EWMA-based adaptive bitrate control.
+    int adaptive_bitrate_min;  ///< Minimum bitrate floor in kbps.
+    int adaptive_bitrate_max;  ///< Maximum bitrate ceiling in kbps.
   };
 
   struct audio_t {
@@ -209,6 +213,22 @@ namespace config {
     std::string file_state;
 
     std::string external_ip;
+
+    /**
+     * @brief Comma-separated CIDR ranges for trusted subnet auto-pairing.
+     * @details Clients connecting from these subnets will be auto-paired
+     *          without PIN verification when @c trusted_subnet_auto_pairing
+     *          is enabled. Example: "10.0.0.0/24,192.168.1.0/24,fc00::/7".
+     */
+    std::string trusted_subnets;
+
+    /**
+     * @brief Auto-accept pairing from clients whose IP falls within
+     *        a trusted subnet.
+     * @details When enabled, clients matching @c trusted_subnets are paired
+     *          automatically without requiring the user to enter a PIN.
+     */
+    bool trusted_subnet_auto_pairing;
   };
 
   struct input_t {
