@@ -1,5 +1,26 @@
 <template>
   <div>
+    <!--
+      SolarFlare fork: global "update available" banner. Shown on EVERY page
+      that includes Navbar.vue (apps, config, featured, pin, home, ...) so
+      the user can't avoid it by navigating away from the home page.
+      Hard to dismiss on purpose: clicking the dismiss button only hides it
+      for the current installed version, not for any future version bumps.
+    -->
+    <div v-if="bannerVisible" class="solarflare-global-update-banner alert alert-danger d-flex align-items-center gap-3 mb-0" role="alert">
+      <AlertOctagon :size="28" class="solarflare-update-icon flex-shrink-0"></AlertOctagon>
+      <div class="flex-grow-1">
+        <div class="solarflare-update-eyebrow">{{ $t('index.outdated_eyebrow') }}</div>
+        <div class="solarflare-update-title">
+          {{ $t('index.outdated_title', { installed: installedVersion, latest: updateInfo.latestVersion }) }}
+        </div>
+      </div>
+      <a class="btn btn-danger flex-shrink-0" :href="updateInfo.htmlUrl" target="_blank">
+        {{ $t('index.download') }}
+      </a>
+      <button type="button" class="btn-close flex-shrink-0" :aria-label="$t('_common.dismiss')" @click="dismissForVersion(updateInfo.latestVersion)"></button>
+    </div>
+
     <nav class="navbar navbar-expand-lg navbar-sunshine">
       <div class="container-fluid">
         <a class="navbar-brand solarflare-brand" href="./" title="SolarFlare">
@@ -83,14 +104,22 @@
 </template>
 
 <script>
-import { CircleUserRound, Home, Info, Layers, Lock, LogOut, Settings, Shield, Star } from '@lucide/vue'
+import { AlertOctagon, CircleUserRound, Home, Info, Layers, Lock, LogOut, Settings, Shield, Star } from '@lucide/vue'
 import ThemeToggle from './ThemeToggle.vue'
 import Notification from './Notification.vue'
+import { checkForUpdate } from './sunshine_version'
+
+// localStorage key for "user has dismissed the banner for this specific
+// latest version". A new version bump resets the dismissal so the banner
+// shows again. Stored separately from the 24-hour update-cache so
+// dismissals survive a cache expiry.
+const DISMISS_KEY = 'solarflare.update-dismiss.v1'
 
 export default {
   components: {
     ThemeToggle,
     Notification,
+    AlertOctagon,
     Home,
     Lock,
     Layers,
@@ -101,8 +130,31 @@ export default {
     CircleUserRound,
     LogOut
   },
-  created() {
-    console.log("Header mounted!")
+  data() {
+    return {
+      updateInfo: null,
+      installedVersion: '',
+      _dismissedFor: this._readDismissedFor(),
+    }
+  },
+  computed: {
+    // Re-evaluate when _dismissedFor changes so the v-if flips back on
+    // after the user clicks the dismiss button.
+    bannerVisible() {
+      return this.updateInfo && this.updateInfo.outdated && this._dismissedFor !== this.updateInfo.latestVersion
+    }
+  },
+  async created() {
+    // Pull the installed version from /api/config so we don't have to
+    // accept it as a prop. This makes the banner self-contained: any
+    // page that renders Navbar.vue gets the update check for free.
+    try {
+      const config = await fetch('./api/config').then((r) => r.json())
+      this.installedVersion = config.version || ''
+      this.updateInfo = await checkForUpdate(this.installedVersion)
+    } catch (e) {
+      console.error('Navbar: update check failed:', e)
+    }
   },
   mounted() {
     const currentPath = globalThis.location.pathname.replace(/\/$/, '') || '/'
@@ -123,6 +175,19 @@ export default {
     }
   },
   methods: {
+    _readDismissedFor() {
+      try { return localStorage.getItem(DISMISS_KEY) || '' } catch (e) { return '' }
+    },
+    /**
+     * Dismiss the banner for the currently-displayed latest version.
+     * Any future version bump resets this (since the stored value no
+     * longer matches the new `latestVersion`), so the banner comes
+     * back automatically when there's something genuinely new.
+     */
+    dismissForVersion(version) {
+      try { localStorage.setItem(DISMISS_KEY, version) } catch (e) { /* ignore quota errors */ }
+      this._dismissedFor = version
+    },
     logout() {
       const cacheBuster = Date.now().toString()
       const logoutPageUrl = new URL('/logout', globalThis.location.href)

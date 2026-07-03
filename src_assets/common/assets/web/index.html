@@ -119,22 +119,40 @@
         </div>
 
         <div v-if="stableBuildAvailable">
-          <div class="alert alert-warning my-3">
+          <div class="alert alert-danger solarflare-update-banner my-3">
             <!-- header row -->
             <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
               <div class="d-flex align-items-center gap-3 flex-wrap">
-                <alert-circle :size="18" class="icon"></alert-circle>
-                <span>{{ $t('index.new_stable') }}</span>
-                <h5 class="mb-0">{{ githubVersion.release.name }}</h5>
+                <alert-octagon :size="32" class="icon-lg solarflare-update-icon"></alert-octagon>
+                <div>
+                  <div class="solarflare-update-eyebrow">{{ $t('index.outdated_eyebrow') }}</div>
+                  <h4 class="mb-0 solarflare-update-title">
+                    {{ $t('index.outdated_title', { installed: version.version, latest: githubVersion.version }) }}
+                  </h4>
+                </div>
               </div>
-              <a class="btn btn-success flex-shrink-0" :href="githubVersion.release.html_url" target="_blank">
-                <download :size="18" class="icon"></download>
-                {{ $t('index.download') }}
-              </a>
+              <div class="d-flex gap-2 flex-wrap">
+                <a class="btn btn-danger flex-shrink-0" :href="githubVersion.release.html_url" target="_blank">
+                  <download :size="18" class="icon"></download>
+                  {{ $t('index.download') }}
+                </a>
+              </div>
             </div>
 
-            <!-- body row (full width) -->
-            <div class="markdown-body release-notes" v-html="convertMarkdownToHtml(githubVersion.release.body)"></div>
+            <!-- upgrade command: the user runs the build script -->
+            <div class="solarflare-update-cmd">
+              <code>git -C ~/Solar-Flare pull && ./scripts/cachyos-build.sh --no-pacman</code>
+              <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="copyUpgradeCmd">
+                <copy :size="14" class="icon"></copy>
+                {{ upgradeCmdCopied ? $t('index.copied') : $t('index.copy') }}
+              </button>
+            </div>
+
+            <!-- collapsible release notes -->
+            <details class="mt-3">
+              <summary class="solarflare-update-summary">{{ $t('index.release_notes_for', { version: githubVersion.version }) }}</summary>
+              <div class="markdown-body release-notes mt-2" v-html="convertMarkdownToHtml(githubVersion.release.body)"></div>
+            </details>
           </div>
         </div>
       </div>
@@ -157,10 +175,12 @@
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
   import ResourceCard from './ResourceCard.vue'
-  import SunshineVersion from './sunshine_version'
+  import SunshineVersion, { checkForUpdate } from './sunshine_version'
   import {
     AlertCircle,
+    AlertOctagon,
     AlertTriangle,
+    Copy,
     FileText,
     Wrench,
     Package,
@@ -184,7 +204,9 @@
       Navbar,
       ResourceCard,
       AlertCircle,
+      AlertOctagon,
       AlertTriangle,
+      Copy,
       FileText,
       Wrench,
       Package,
@@ -203,6 +225,7 @@
         platform: "",
         controllerEnabled: false,
         vigembus: null,
+        upgradeCmdCopied: false,
       }
     },
     async created() {
@@ -213,10 +236,34 @@
         this.controllerEnabled = config.controller !== "disabled";
         this.version = new SunshineVersion(null, config.version);
         console.log("Version: ", this.version.version)
-        this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/vindeckyy/Solar-Flare/releases/latest").then((r) => r.json()), null);
-        console.log("GitHub Version: ", this.githubVersion.version)
-        this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/vindeckyy/Solar-Flare/releases").then((r) => r.json())).find(release => release.prerelease), null);
-        console.log("Pre-Release Version: ", this.preReleaseVersion.version)
+
+        // Use the cached update-checker (24h localStorage cache) instead of
+        // a raw GitHub API call. The cache means navigating between tabs
+        // doesn't re-hit GitHub's rate limit, and a stale entry still
+        // returns immediately while a background refresh fetches fresh data.
+        const updateInfo = await checkForUpdate(this.version.version);
+        if (updateInfo) {
+          // Rebuild a minimal SunshineVersion-like object for the existing
+          // template, so we don't have to refactor every v-if/field.
+          this.githubVersion = new SunshineVersion({
+            tag_name: updateInfo.latestVersion,
+            name: updateInfo.latestVersion,
+            html_url: updateInfo.htmlUrl,
+            body: updateInfo.releaseNotes,
+          }, null);
+          console.log("GitHub Version: ", this.githubVersion.version);
+        }
+
+        // Pre-release check is separate (the existing flow already worked
+        // for it, and it doesn't go through the cache). Keep it simple.
+        try {
+          this.preReleaseVersion = new SunshineVersion(
+            (await fetch("https://api.github.com/repos/vindeckyy/Solar-Flare/releases").then((r) => r.json()))
+              .find(release => release.prerelease), null);
+          console.log("Pre-Release Version: ", this.preReleaseVersion?.version);
+        } catch (e) {
+          console.error("Pre-release fetch failed:", e);
+        }
 
         // Fetch ViGEmBus status only on Windows when controller is enabled
         if (this.platform === 'windows' && this.controllerEnabled) {
@@ -288,6 +335,44 @@
       convertMarkdownToHtml(markdown) {
         if (!markdown) return '';
         return marked.parse(markdown);
+      },
+      /**
+       * Copy the cached upgrade command to the clipboard and flash the
+       * button label so the user sees the feedback. The command is the
+       * same one the README's "Quick install" section uses: pull the
+       * latest commit, then run the build script with --no-pacman since
+       * the deps are already installed.
+       */
+      copyUpgradeCmd() {
+        const cmd = 'git -C ~/Solar-Flare pull && ./scripts/cachyos-build.sh --no-pacman';
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(cmd).then(() => {
+            this.upgradeCmdCopied = true;
+            setTimeout(() => { this.upgradeCmdCopied = false; }, 2000);
+          }).catch(() => {
+            // Fall back to the legacy execCommand path for older browsers
+            // / restrictive CSPs that block clipboard.writeText.
+            this._legacyCopy(cmd);
+          });
+        } else {
+          this._legacyCopy(cmd);
+        }
+      },
+      _legacyCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          this.upgradeCmdCopied = true;
+          setTimeout(() => { this.upgradeCmdCopied = false; }, 2000);
+        } catch (e) {
+          console.error('Copy failed:', e);
+        }
+        document.body.removeChild(ta);
       }
     }
   });
