@@ -27,7 +27,21 @@ class SunshineVersion {
     if (v.indexOf("v") === 0) {
       v = v.substring(1);
     }
-    return v.split('.').map(Number);
+    // Strip git-style suffix appended to local builds (e.g. "4-1856aa4"
+    // -> "4", or "4-1856aa4-dirty" -> "4"). The leading commit-count is
+    // what we want; everything after the first '-' is git metadata.
+    const dashIdx = v.indexOf('-');
+    if (dashIdx !== -1) {
+      v = v.substring(0, dashIdx);
+    }
+    const parts = v.split('.').map(Number);
+    // Only return if we got at least one numeric part. Non-numeric strings
+    // (like the literal "2026.999.0" fall-through) parse cleanly; "abc"
+    // would yield [NaN] which we treat as "unparseable".
+    if (parts.length === 0 || parts.some(Number.isNaN)) {
+      return null;
+    }
+    return parts;
   }
 
   isGreater(otherVersion) {
