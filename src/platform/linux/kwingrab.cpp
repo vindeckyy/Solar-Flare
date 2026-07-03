@@ -650,26 +650,33 @@ namespace kwin {
   class kwin_t: public pipewire::pipewire_display_t {
   public:
     int configure_stream(const std::string &display_name, int &out_pipewire_fd, uint32_t &out_pipewire_node, uint64_t &out_pipewire_objectserial) override {
-      screencast = std::make_unique<screencast_t>();
-      if (screencast->init(true) < 0) {
-        return -1;
-      }
-#if !defined(__FreeBSD__)
-      // Check if KWin screencasting extension is accessible after first init attempt
-      if (!screencast->is_kwin_screencasting_available()) {
-        // KWin screencasting extension was not found. Drop ALL elevated privileges in case KWin is missing CAP_SYS_NICE
-        BOOST_LOG(warning) << "[kwingrab] KWin screencasting unavailable after init. Trying again after dropping ALL elevated privileges."sv;
-        platf::drop_elevated_privileges(true);
-        // Retry screencast session init after privilege drop
-        screencast.reset();  // Cleanup current screencast instance
-        screencast = std::make_unique<screencast_t>();  // Create new screencast instance
+      auto try_init_start = [this](const std::string &display_name) -> int {
+        screencast = std::make_unique<screencast_t>();
         if (screencast->init(true) < 0) {
           return -1;
         }
-      }
-#endif
-      if (screencast->start(display_name) < 0) {
+        if (!screencast->is_kwin_screencasting_available()) {
+          BOOST_LOG(warning) << "[kwingrab] KWin screencasting unavailable after init."sv;
+          return -1;
+        }
+        return screencast->start(display_name);
+      };
+
+      if (try_init_start(display_name) < 0) {
+#if !defined(__FreeBSD__)
+        if (platf::has_elevated_privileges(true)) {
+          BOOST_LOG(warning) << "[kwingrab] KWin screencast failed with elevated privileges. Dropping ALL caps and retrying."sv;
+          platf::drop_elevated_privileges(true);
+          screencast.reset();
+          if (try_init_start(display_name) < 0) {
+            return -1;
+          }
+        } else {
+          return -1;
+        }
+#else
         return -1;
+#endif
       }
       if (screencast->out_params) {
         // Return values for pipewire init
