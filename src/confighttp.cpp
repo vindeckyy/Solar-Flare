@@ -34,6 +34,7 @@
 #include "crypto.h"
 #include "display_device.h"
 #include "file_handler.h"
+#include "game_scanner.h"
 #include "globals.h"
 #include "httpcommon.h"
 #include "logging.h"
@@ -641,6 +642,38 @@ namespace confighttp {
       send_response(response, file_tree);
     } catch (std::exception &e) {
       BOOST_LOG(warning) << "GetApps: "sv << e.what();
+      bad_request(response, request, e.what());
+    }
+  }
+
+  /**
+   * @brief Scan for installed games from Steam, Lutris, and Heroic.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/games/scan| GET| null}
+   */
+  void scanGames(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    try {
+      auto discovered = game_scanner::scan_all();
+      nlohmann::json tree = nlohmann::json::array();
+      for (const auto &g : discovered) {
+        nlohmann::json entry;
+        entry["name"] = g.name;
+        entry["path"] = g.path;
+        entry["launcher"] = g.launcher;
+        entry["cover_url"] = g.cover_url;
+        tree.push_back(entry);
+      }
+      send_response(response, tree);
+    } catch (std::exception &e) {
+      BOOST_LOG(warning) << "ScanGames: "sv << e.what();
       bad_request(response, request, e.what());
     }
   }
@@ -1865,6 +1898,7 @@ namespace confighttp {
     server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
     server.resource["^/api/csrf-token$"]["GET"] = getCSRFToken;
+    server.resource["^/api/games/scan$"]["GET"] = scanGames;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/pin$"]["POST"] = savePin;
     server.resource["^/api/logs$"]["GET"] = getLogs;
