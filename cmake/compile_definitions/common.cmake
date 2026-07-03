@@ -53,7 +53,7 @@ if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
             OUTPUT_VARIABLE _sunshine_gcc_v
             ERROR_VARIABLE _sunshine_gcc_e
             ERROR_QUIET)
-        if(_sunshine_gcc_e MATCHES "march[ =]+(znver[1-9]|x86-64-v[1-4])")
+        if(_sunshine_gcc_e MATCHES "march[ =]+(znver[0-9]+|x86-64-v[0-4])")
             set(_sunshine_native_march "${CMAKE_MATCH_1}")
         endif()
 
@@ -65,11 +65,17 @@ if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
                     COMMAND ${_sunshine_lscpu}
                     OUTPUT_VARIABLE _sunshine_lscpu_out
                     ERROR_QUIET)
-                if(_sunshine_lscpu_out MATCHES "Model name:[^\n]*([Zz]en[ -]?[1-9])")
-                    set(_zen_match "${CMAKE_MATCH_1}")
+                # Match "Zen 5" but not "Ryzen 5". We require the character
+                # immediately before "Zen" to be a non-letter (start of line,
+                # whitespace, or punctuation). Ryzen contains "zen" as a
+                # suffix which would otherwise be a false match.
+                if(_sunshine_lscpu_out MATCHES "(^|[^A-Za-z])([Zz]en[ -]?[0-9]+)([^A-Za-z]|$)")
+                    set(_zen_match "${CMAKE_MATCH_2}")
                     string(TOLOWER "${_zen_match}" _zen_match_lower)
                     string(STRIP "${_zen_match_lower}" _zen_match_lower)
-                    if(_zen_match_lower MATCHES "zen[ -]?4")
+                    if(_zen_match_lower MATCHES "zen[ -]?5")
+                        set(_sunshine_native_march "znver5")
+                    elseif(_zen_match_lower MATCHES "zen[ -]?4")
                         set(_sunshine_native_march "znver4")
                     elseif(_zen_match_lower MATCHES "zen[ -]?3")
                         set(_sunshine_native_march "znver3")
@@ -85,29 +91,42 @@ if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
         endif()
 
         # 3. /proc/cpuinfo: model name doesn't say "zen" on Ryzen parts, but
-        #    the "cpu family" + "model" fields do encode the microarch. Family
-        #    23 = Zen 1/1+, Family 25 = Zen 2/3, Family 26 = Zen 4.
+        #    the "cpu family" + "model" fields do encode the microarch.
+        #    Family 23 = Zen 1/1+, Family 25 = Zen 2/3/5, Family 26 = Zen 4/5.
         #    Within those, model numbers split the generations. Use them as a
         #    third source before falling through to x86-64-v3.
         if(NOT _sunshine_native_march)
             set(_sunshine_cpuinfo_file "/proc/cpuinfo")
             if(EXISTS ${_sunshine_cpuinfo_file})
                 file(READ ${_sunshine_cpuinfo_file} _sunshine_cpuinfo)
-                # Family 26, model >= 0x10 = Zen 4 (Phoenix, Genoa, etc.)
+                # AMD CPU family encoding:
+                #   Family 23 = Zen, Zen+, Zen 2 (kernels lump these together)
+                #   Family 25 = Zen 3
+                #   Family 26 = Zen 4
+                # We can't reliably split Zen 1 vs Zen 2 from family alone,
+                # so default to znver2 for family 23 (most common on CachyOS
+                # systems and forward-compatible with Zen 1). For Zen 5
+                # desktop parts (Granite Ridge, Strix) which some kernels
+                # report as family 26 with high model numbers, prefer znver5.
                 if(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 26" AND _sunshine_cpuinfo MATCHES "model[ \t]*: ([0-9]+)")
-                    set(_sunshine_native_march "znver4")
-                # Family 25, model 0x21-0xAF = Zen 3 (Vermeer, Cezanne),
-                # 0x10-0x1F and 0x40-0x7F = Zen 2 (Renoir, Lucienne, Matisse)
-                elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 25" AND _sunshine_cpuinfo MATCHES "model[ \t]*: ([0-9]+)")
                     set(_model "${CMAKE_MATCH_1}")
                     if(_model GREATER 63)
-                        set(_sunshine_native_march "znver3")
+                        # Family 26 + model >= 64 includes Strix Point,
+                        # Strix Halo, Granite Ridge -- these are Zen 5.
+                        set(_sunshine_native_march "znver5")
                     else()
-                        set(_sunshine_native_march "znver2")
+                        # Family 26 + model < 64 = Zen 4 (Phoenix, Genoa).
+                        set(_sunshine_native_march "znver4")
                     endif()
-                # Family 23 = Zen 1 / Zen 1+
+                elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 26")
+                    set(_sunshine_native_march "znver4")
+                # Family 25 = Zen 3 (family 25 is Zen 3 only; Zen 5 desktop parts
+                # use family 26, not family 25).
+                elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 25")
+                    set(_sunshine_native_march "znver3")
+                # Family 23 = Zen, Zen+, Zen 2. Default to znver2; forward-compatible.
                 elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 23")
-                    set(_sunshine_native_march "znver1")
+                    set(_sunshine_native_march "znver2")
                 endif()
             endif()
         endif()
