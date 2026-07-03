@@ -108,7 +108,7 @@ REQUIRED_SUBS=(
   third-party/glad
   third-party/nv-codec-headers
   third-party/nanors
-  third-party/wlroots-protocols
+  third-party/wlr-protocols
   third-party/doxyconfig
   third-party/build-deps
   third-party/lizardbyte-common

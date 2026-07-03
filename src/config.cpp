@@ -1155,6 +1155,14 @@ namespace config {
     }
   }
 
+  // Forward decls for helpers used by apply_config() below but defined
+  // further down (kept near each other for readability). The forward
+  // declarations must come BEFORE apply_config() so the calls at the top
+  // of apply_config resolve correctly.
+  static void apply_solarflare_keys(std::unordered_map<std::string, std::string> &vars);
+  void apply_audio_fx_runtime(const solarflare_audio_fx_t &af);
+  void apply_nvenc_tuning_preset();
+
   void apply_config(std::unordered_map<std::string, std::string> &&vars) {
     log_config_settings(vars, true);
 
@@ -1402,71 +1410,16 @@ namespace config {
     // SolarFlare fork tunables. See docs/CONFIGURATION.md for ranges and
     // docs/PORTING.md for the multi-distro background. All defaults match
     // the previously-hardcoded values, so a vanilla install is identical
-    // to the pre-config-fork behaviour.
-    int_between_f(vars, "busy_poll_us", solarflare.busy_poll_us, {0, 10000});
-    int_between_f(vars, "rate_cap_pct", solarflare.rate_cap_pct, {50, 95});
-    bool_f(vars, "enet_4mib_buffer", solarflare.enet_4mib_buffer);
-    int_between_f(vars, "pipewire_latency_ms", solarflare.pipewire_latency_ms, {1, 40});
-    bool_f(vars, "cpu_pinning", solarflare.cpu_pinning);
-    bool_f(vars, "dscp_qos", solarflare.dscp_qos);
-    bool_f(vars, "gpu_governor", solarflare.gpu_governor);
-    bool_f(vars, "headless_virtual_display", solarflare.headless_virtual_display);
+    // to the pre-config-fork behaviour. The helper below also re-runs from
+    // the hot-reload watcher (start_config_watcher) so a single edit to
+    // sunshine.conf can land in the running process without a restart.
+    apply_solarflare_keys(vars);
 
-    // --- SolarFlare audio_fx / Opus tunables (all default off / upstream) ---
-    auto &af = solarflare.audio_fx;
-    bool_f(vars, "sf_audio_agc", af.enable_agc);
-    bool_f(vars, "sf_audio_vad", af.enable_vad);
-    bool_f(vars, "sf_audio_ducking", af.enable_ducking);
-    bool_f(vars, "sf_audio_noise_gate", af.enable_noise_gate);
-    float_between_f(vars, "sf_audio_noise_gate_db", af.noise_gate_threshold_db, {-90.0f, -10.0f});
-
-    float_between_f(vars, "sf_audio_agc_target_db", af.agc_target_rms_db, {-40.0f, -6.0f});
-    float_between_f(vars, "sf_audio_agc_max_gain_db", af.agc_max_gain_db, {0.0f, 30.0f});
-    float_between_f(vars, "sf_audio_agc_min_gain_db", af.agc_min_gain_db, {-30.0f, 0.0f});
-    float_between_f(vars, "sf_audio_agc_attack_ms", af.agc_attack_ms, {1.0f, 500.0f});
-    float_between_f(vars, "sf_audio_agc_hold_ms", af.agc_hold_ms, {0.0f, 5000.0f});
-    float_between_f(vars, "sf_audio_agc_release_ms", af.agc_release_ms, {1.0f, 5000.0f});
-
-    float_between_f(vars, "sf_audio_vad_threshold_db", af.vad_threshold_db, {-80.0f, -10.0f});
-    float_between_f(vars, "sf_audio_vad_hysteresis_db", af.vad_hysteresis_db, {0.0f, 30.0f});
-    float_between_f(vars, "sf_audio_vad_min_speech_ms", af.vad_min_speech_ms, {10.0f, 2000.0f});
-    float_between_f(vars, "sf_audio_vad_min_silence_ms", af.vad_min_silence_ms, {10.0f, 5000.0f});
-
-    float_between_f(vars, "sf_audio_ducker_attenuation_db", af.ducker_target_attenuation_db, {-40.0f, 0.0f});
-    float_between_f(vars, "sf_audio_ducker_attack_ms", af.ducker_attack_ms, {1.0f, 2000.0f});
-    float_between_f(vars, "sf_audio_ducker_release_ms", af.ducker_release_ms, {1.0f, 5000.0f});
-
-    int_between_f(vars, "sf_opus_application", af.opus_application, {0, 2});
-    int_between_f(vars, "sf_opus_vbr", af.opus_vbr, {0, 2});
-    int_between_f(vars, "sf_opus_complexity", af.opus_complexity, {0, 10});
-    bool_f(vars, "sf_opus_fec", af.opus_fec);
-    int_between_f(vars, "sf_opus_expected_loss_pct", af.opus_expected_loss_pct, {0, 100});
-    bool_f(vars, "sf_opus_bandwidth_extension", af.opus_bandwidth_extension);
-
-    // Propagate Opus application / VBR / FEC / complexity / loss-pct to the
-    // runtime tuning struct used by the audio encode thread. Doing the
-    // propagation here keeps audio.cpp free of config-aware code.
-    // Note: ::audio (global namespace) is used here because config::audio is
-    // the audio-config struct and would otherwise shadow the audio namespace.
-    auto &tuning = ::audio::opus_tuning();
-    switch (af.opus_application) {
-      case 1: tuning.application = ::audio::opus_tuning_t::application_e::VOIP; break;
-      case 2: tuning.application = ::audio::opus_tuning_t::application_e::AUDIO; break;
-      case 0:
-      default:
-        tuning.application = ::audio::opus_tuning_t::application_e::LOWDELAY; break;
-    }
-    switch (af.opus_vbr) {
-      case 1: tuning.vbr = ::audio::opus_tuning_t::vbr_e::CONSTRAINED; break;
-      case 2: tuning.vbr = ::audio::opus_tuning_t::vbr_e::FULL; break;
-      case 0:
-      default:
-        tuning.vbr = ::audio::opus_tuning_t::vbr_e::OFF; break;
-    }
-    tuning.complexity = af.opus_complexity;
-    tuning.enable_fec = af.opus_fec;
-    tuning.expected_packet_loss_pct = af.opus_expected_loss_pct;
-    tuning.enable_bandwidth_extension = af.opus_bandwidth_extension;
+    // Propagate the parsed audio_fx / Opus values to the runtime tuning struct
+    // used by the audio encode thread. Centralising this here keeps audio.cpp
+    // free of config-aware code; the hot reload path calls the same helper so
+    // a config edit at runtime actually takes effect on the next session.
+    apply_audio_fx_runtime(solarflare.audio_fx);
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
@@ -1761,6 +1714,93 @@ namespace config {
     }
   }
 
+  /**
+   * @brief Parse the SolarFlare fork tunables from @p vars into @c solarflare.
+   *
+   * Used by both the initial config parse (apply_config) and the hot-reload
+   * path (start_config_watcher). Out-of-range values are silently rejected
+   * (the int_between_f / float_between_f / bool_f convention) so a typo in
+   * sunshine.conf never applies a junk value at runtime.
+   *
+   * @param vars key/value map produced by parse_config(); keys we recognise
+   *             are erased; keys we don't recognise are left alone.
+   */
+  static void apply_solarflare_keys(std::unordered_map<std::string, std::string> &vars) {
+    // Top-level SolarFlare tunables.
+    int_between_f(vars, "busy_poll_us", solarflare.busy_poll_us, {0, 10000});
+    int_between_f(vars, "rate_cap_pct", solarflare.rate_cap_pct, {50, 95});
+    bool_f(vars, "enet_4mib_buffer", solarflare.enet_4mib_buffer);
+    int_between_f(vars, "pipewire_latency_ms", solarflare.pipewire_latency_ms, {1, 40});
+    bool_f(vars, "cpu_pinning", solarflare.cpu_pinning);
+    bool_f(vars, "dscp_qos", solarflare.dscp_qos);
+    bool_f(vars, "gpu_governor", solarflare.gpu_governor);
+    bool_f(vars, "headless_virtual_display", solarflare.headless_virtual_display);
+
+    // audio_fx sub-tunables.
+    auto &af = solarflare.audio_fx;
+    bool_f(vars, "sf_audio_agc", af.enable_agc);
+    bool_f(vars, "sf_audio_vad", af.enable_vad);
+    bool_f(vars, "sf_audio_ducking", af.enable_ducking);
+    bool_f(vars, "sf_audio_noise_gate", af.enable_noise_gate);
+    float_between_f(vars, "sf_audio_noise_gate_db", af.noise_gate_threshold_db, {-90.0f, -10.0f});
+    float_between_f(vars, "sf_audio_agc_target_db", af.agc_target_rms_db, {-40.0f, -6.0f});
+    float_between_f(vars, "sf_audio_agc_max_gain_db", af.agc_max_gain_db, {0.0f, 30.0f});
+    float_between_f(vars, "sf_audio_agc_min_gain_db", af.agc_min_gain_db, {-30.0f, 0.0f});
+    float_between_f(vars, "sf_audio_agc_attack_ms", af.agc_attack_ms, {1.0f, 500.0f});
+    float_between_f(vars, "sf_audio_agc_hold_ms", af.agc_hold_ms, {0.0f, 5000.0f});
+    float_between_f(vars, "sf_audio_agc_release_ms", af.agc_release_ms, {1.0f, 5000.0f});
+    float_between_f(vars, "sf_audio_vad_threshold_db", af.vad_threshold_db, {-80.0f, -10.0f});
+    float_between_f(vars, "sf_audio_vad_hysteresis_db", af.vad_hysteresis_db, {0.0f, 30.0f});
+    float_between_f(vars, "sf_audio_vad_min_speech_ms", af.vad_min_speech_ms, {10.0f, 2000.0f});
+    float_between_f(vars, "sf_audio_vad_min_silence_ms", af.vad_min_silence_ms, {10.0f, 5000.0f});
+    float_between_f(vars, "sf_audio_ducker_attenuation_db", af.ducker_target_attenuation_db, {-40.0f, 0.0f});
+    float_between_f(vars, "sf_audio_ducker_attack_ms", af.ducker_attack_ms, {1.0f, 2000.0f});
+    float_between_f(vars, "sf_audio_ducker_release_ms", af.ducker_release_ms, {1.0f, 5000.0f});
+    int_between_f(vars, "sf_opus_application", af.opus_application, {0, 2});
+    int_between_f(vars, "sf_opus_vbr", af.opus_vbr, {0, 2});
+    int_between_f(vars, "sf_opus_complexity", af.opus_complexity, {0, 10});
+    bool_f(vars, "sf_opus_fec", af.opus_fec);
+    int_between_f(vars, "sf_opus_expected_loss_pct", af.opus_expected_loss_pct, {0, 100});
+    bool_f(vars, "sf_opus_bandwidth_extension", af.opus_bandwidth_extension);
+  }
+
+  /**
+   * @brief Propagate parsed audio_fx values into the runtime Opus tuning.
+   *
+   * @c g_opus_tuning is read by the audio encode thread when it constructs
+   * the Opus encoder. Updating the struct from the config loader side is
+   * safe because the encode thread re-reads on every new session; an
+   * in-flight stream continues with whatever values it was created with
+   * (intentional -- mid-stream tuning changes can glitch audio).
+   *
+   * Called from both apply_config() and the hot-reload watcher so that
+   * editing sf_opus_* in sunshine.conf actually takes effect on the next
+   * stream.
+   */
+  void apply_audio_fx_runtime(const solarflare_audio_fx_t &af) {
+    // Note: ::audio (global namespace) is used here because config::audio
+    // is the audio-config struct and would otherwise shadow the audio namespace.
+    auto &tuning = ::audio::opus_tuning();
+    switch (af.opus_application) {
+      case 1: tuning.application = ::audio::opus_tuning_t::application_e::VOIP; break;
+      case 2: tuning.application = ::audio::opus_tuning_t::application_e::AUDIO; break;
+      case 0:
+      default:
+        tuning.application = ::audio::opus_tuning_t::application_e::LOWDELAY; break;
+    }
+    switch (af.opus_vbr) {
+      case 1: tuning.vbr = ::audio::opus_tuning_t::vbr_e::CONSTRAINED; break;
+      case 2: tuning.vbr = ::audio::opus_tuning_t::vbr_e::FULL; break;
+      case 0:
+      default:
+        tuning.vbr = ::audio::opus_tuning_t::vbr_e::OFF; break;
+    }
+    tuning.complexity = af.opus_complexity;
+    tuning.enable_fec = af.opus_fec;
+    tuning.expected_packet_loss_pct = af.opus_expected_loss_pct;
+    tuning.enable_bandwidth_extension = af.opus_bandwidth_extension;
+  }
+
   // ---------------------------------------------------------------------------
   // Config hot reload: watches sunshine.conf for changes and re-applies
   // SolarFlare tunables without restarting.
@@ -1776,41 +1816,11 @@ namespace config {
     try {
       auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
 
-      // Re-apply only the 8 SolarFlare tunables + audio_fx.
-      int_between_f(vars, "busy_poll_us", solarflare.busy_poll_us, {0, 10000});
-      int_between_f(vars, "rate_cap_pct", solarflare.rate_cap_pct, {50, 95});
-      bool_f(vars, "enet_4mib_buffer", solarflare.enet_4mib_buffer);
-      int_between_f(vars, "pipewire_latency_ms", solarflare.pipewire_latency_ms, {1, 40});
-      bool_f(vars, "cpu_pinning", solarflare.cpu_pinning);
-      bool_f(vars, "dscp_qos", solarflare.dscp_qos);
-      bool_f(vars, "gpu_governor", solarflare.gpu_governor);
-      bool_f(vars, "headless_virtual_display", solarflare.headless_virtual_display);
-
-      auto &af = solarflare.audio_fx;
-      bool_f(vars, "sf_audio_agc", af.enable_agc);
-      bool_f(vars, "sf_audio_vad", af.enable_vad);
-      bool_f(vars, "sf_audio_ducking", af.enable_ducking);
-      bool_f(vars, "sf_audio_noise_gate", af.enable_noise_gate);
-      float_between_f(vars, "sf_audio_noise_gate_db", af.noise_gate_threshold_db, {-90.0f, -10.0f});
-      float_between_f(vars, "sf_audio_agc_target_db", af.agc_target_rms_db, {-40.0f, -6.0f});
-      float_between_f(vars, "sf_audio_agc_max_gain_db", af.agc_max_gain_db, {0.0f, 30.0f});
-      float_between_f(vars, "sf_audio_agc_min_gain_db", af.agc_min_gain_db, {-30.0f, 0.0f});
-      float_between_f(vars, "sf_audio_agc_attack_ms", af.agc_attack_ms, {1.0f, 500.0f});
-      float_between_f(vars, "sf_audio_agc_hold_ms", af.agc_hold_ms, {0.0f, 5000.0f});
-      float_between_f(vars, "sf_audio_agc_release_ms", af.agc_release_ms, {1.0f, 5000.0f});
-      float_between_f(vars, "sf_audio_vad_threshold_db", af.vad_threshold_db, {-80.0f, -10.0f});
-      float_between_f(vars, "sf_audio_vad_hysteresis_db", af.vad_hysteresis_db, {0.0f, 30.0f});
-      float_between_f(vars, "sf_audio_vad_min_speech_ms", af.vad_min_speech_ms, {10.0f, 2000.0f});
-      float_between_f(vars, "sf_audio_vad_min_silence_ms", af.vad_min_silence_ms, {10.0f, 5000.0f});
-      float_between_f(vars, "sf_audio_ducker_attenuation_db", af.ducker_target_attenuation_db, {-40.0f, 0.0f});
-      float_between_f(vars, "sf_audio_ducker_attack_ms", af.ducker_attack_ms, {1.0f, 2000.0f});
-      float_between_f(vars, "sf_audio_ducker_release_ms", af.ducker_release_ms, {1.0f, 5000.0f});
-      int_between_f(vars, "sf_opus_application", af.opus_application, {0, 2});
-      int_between_f(vars, "sf_opus_vbr", af.opus_vbr, {0, 2});
-      int_between_f(vars, "sf_opus_complexity", af.opus_complexity, {0, 10});
-      bool_f(vars, "sf_opus_fec", af.opus_fec);
-      int_between_f(vars, "sf_opus_expected_loss_pct", af.opus_expected_loss_pct, {0, 100});
-      bool_f(vars, "sf_opus_bandwidth_extension", af.opus_bandwidth_extension);
+      // Re-parse the fork keys + propagate the Opus tuning to the runtime
+      // global. Same helpers as the initial config load, so a fork tweak
+      // edits the right struct AND its shadow in audio::opus_tuning().
+      apply_solarflare_keys(vars);
+      apply_audio_fx_runtime(solarflare.audio_fx);
 
       BOOST_LOG(info) << "SolarFlare config reloaded from "sv << sunshine.config_file;
     } catch (const std::exception &e) {

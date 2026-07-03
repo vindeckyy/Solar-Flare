@@ -200,10 +200,20 @@ int main(int argc, char *argv[]) {
         BOOST_LOG(info) << '\t' << key;
       }
 
+      // Stop the watcher thread we started above before returning; otherwise
+      // it leaks and runs until the process exits. Same for the cmd path
+      // below -- any early return after start_config_watcher() needs to
+      // pair with a stop.
+      config::stop_config_watcher();
       return 7;
     }
 
-    return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
+    // Helper subcommands like `creds`, `version`, `help` may exit before the
+    // main loop. Mirror the unknown-command cleanup so we never leak the
+    // watcher thread on those paths either.
+    auto cmd_rc = fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
+    config::stop_config_watcher();
+    return cmd_rc;
   }
 
   // Adding guard here first as it also performs recovery after crash,

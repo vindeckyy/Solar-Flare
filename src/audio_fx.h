@@ -314,6 +314,11 @@ namespace audio::fx {
     VAD _vad;
     Ducker _ducker;
     float _noise_gate_gain = 1.0f;
+    /// Sample rate used to derive the noise-gate smoothing constants. The
+    /// class inherits the AGC's sample rate at construction so a 44.1 kHz
+    /// stream doesn't get 48 kHz smoothing (which would close the gate too
+    /// slowly).
+    float _noise_gate_sample_rate = 48000.0f;
   };
 
 }  // namespace audio::fx

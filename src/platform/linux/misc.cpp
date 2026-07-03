@@ -9,12 +9,17 @@
 #endif
 
 // standard includes
+#include <algorithm>
 #include <atomic>
+#include <cctype>
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <span>
 #include <sstream>
+#include <vector>
 
 // platform includes
 #include <arpa/inet.h>
@@ -440,17 +445,62 @@ namespace platf {
         BOOST_LOG(debug) << "SCHED_RR not available; falling back to nice only"sv;
       }
 
-      long nproc = ::sysconf(_SC_NPROCESSORS_ONLN);
-      if (nproc >= 2) {
-        // Skip core 0 (IRQ affine by default) and SMT siblings.
-        // On Ryzen 5 4600H (6C/12T) this picks physical cores 1..5.
-        long physical_cores = nproc / 2;
-        if (physical_cores < 1) physical_cores = 1;
-        long usable = physical_cores - 1;
-        if (usable < 1) usable = 1;
+      // Pick a non-SMT core to pin to. The naive `nproc / 2` heuristic we
+      // used previously was wrong on CPUs without SMT (Ryzen 5600 / 5600G)
+      // and on Apple silicon emulated through a hypervisor. The kernel
+      // publishes the real topology under /sys/devices/system/cpu/cpu*/
+      // topology/thread_siblings_list: cores with only themselves listed
+      // have no SMT sibling, cores with a comma-separated pair share a
+      // physical core. We read the directory once on first call and cache
+      // the candidate cores.
+      static const std::vector<unsigned> candidates = []() -> std::vector<unsigned> {
+        namespace fs = std::filesystem;
+        std::vector<unsigned> cores;
+        std::error_code ec;
+        fs::path topo {"/sys/devices/system/cpu"};
+        if (!fs::exists(topo, ec) || ec) {
+          return cores;
+        }
+        for (const auto &entry : fs::directory_iterator(topo, ec)) {
+          // Only consider cpuN directories.
+          const auto name = entry.path().filename().string();
+          if (name.size() < 4 || name.compare(0, 3, "cpu") != 0) {
+            continue;
+          }
+          const char *digits = name.c_str() + 3;
+          if (*digits == '\0' || !std::isdigit(static_cast<unsigned char>(*digits))) {
+            continue;
+          }
+          char *end = nullptr;
+          long n = std::strtol(digits, &end, 10);
+          if (end == digits || n < 0) {
+            continue;
+          }
+          // Read thread_siblings_list; if the file's first value equals this
+          // CPU's number, it's a primary thread (no SMT sibling). On Intel
+          // SMT and AMD SMT the value is "N,M" or "N".
+          fs::path sibs = entry.path() / "topology" / "thread_siblings_list";
+          std::ifstream f {sibs};
+          if (!f) continue;
+          std::string line;
+          if (!std::getline(f, line)) continue;
+          // Parse the first sibling number.
+          char *e2 = nullptr;
+          long first = std::strtol(line.c_str(), &e2, 10);
+          if (e2 == line.c_str()) continue;
+          if (first == n) {
+            cores.push_back(static_cast<unsigned>(n));
+          }
+        }
+        // Stable order so the round-robin advances deterministically.
+        std::sort(cores.begin(), cores.end());
+        return cores;
+      }();
+      if (!candidates.empty()) {
+        // Round-robin across physical cores so successive capture threads
+        // (audio + video) don't pile onto the same L2.
         static std::atomic<unsigned> slot {0};
-        unsigned core = 1 + (slot.fetch_add(1, std::memory_order_relaxed) % (unsigned) usable);
-        if ((long) core >= nproc) core = (unsigned) (nproc - 1);
+        unsigned core = candidates[slot.fetch_add(1, std::memory_order_relaxed) % candidates.size()];
 
         cpu_set_t set;
         CPU_ZERO(&set);

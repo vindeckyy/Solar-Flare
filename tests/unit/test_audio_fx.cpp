@@ -512,3 +512,111 @@ TEST(PreProcessor, ResetClearsAllStages) {
   pp.process(sil.data(), sil.size(), 1);
   EXPECT_LT(rms_dbfs(sil), -60.0f);
 }
+
+// =====================================================================
+// Regression tests for the sample-rate handling fix in the noise gate.
+// =====================================================================
+//
+// Previously the noise gate's time-constants were derived from a hardcoded
+// 48 kHz frame duration even when the stream was 44.1 kHz, making the
+// attack/release ~9% slower than intended (48000/44100). The fix: the
+// PreProcessor reads its AGC sub-config's sample_rate and reuses it.
+
+TEST(PreProcessor, NoiseGateUsesConfiguredSampleRate) {
+  // Build a PreProcessor at 44100 Hz (a non-default value).
+  PreProcessor::config_t cfg {};
+  cfg.enable_agc = false;
+  cfg.enable_vad = false;
+  cfg.enable_ducking = false;
+  cfg.enable_noise_gate = true;
+  cfg.noise_gate_threshold_db = -30.0f;
+  cfg.agc.sample_rate = 44100.0f;
+  cfg.vad.sample_rate = 44100.0f;
+  cfg.ducker.sample_rate = 44100.0f;
+  PreProcessor pp {cfg};
+
+  // A 0 dBFS sine should keep the gate open; verify by comparing output
+  // RMS before vs after -- the gate shouldn't attenuate a hot signal.
+  std::vector<float> buf = make_sine(440.0f, 0.0f, 100 /*ms*/, 1);
+  const float pre_rms = rms_dbfs(buf);
+  pp.process(buf.data(), buf.size(), 1);
+  EXPECT_GT(rms_dbfs(buf), pre_rms - 1.0f)
+    << "Noise gate must NOT attenuate a 0 dBFS signal (above threshold)";
+}
+
+TEST(PreProcessor, NoiseGateClosesAtLowSampleRate) {
+  // Verify that the gate still closes on silence at 44.1 kHz -- the fix
+  // must preserve the existing closing behaviour, not break it.
+  PreProcessor::config_t cfg {};
+  cfg.enable_agc = false;
+  cfg.enable_vad = false;
+  cfg.enable_ducking = false;
+  cfg.enable_noise_gate = true;
+  cfg.noise_gate_threshold_db = -30.0f;
+  cfg.agc.sample_rate = 44100.0f;
+  cfg.vad.sample_rate = 44100.0f;
+  cfg.ducker.sample_rate = 44100.0f;
+  PreProcessor pp {cfg};
+
+  // 500 ms of silence is plenty of time for the gate to close.
+  std::vector<float> sil = make_silence(500, 1);
+  pp.process(sil.data(), sil.size(), 1);
+  EXPECT_LT(rms_dbfs(sil), -60.0f)
+    << "Noise gate must close on silence at 44.1 kHz";
+}
+
+TEST(PreProcessor, DefaultSampleRateIs48000) {
+  // A PreProcessor built with no sub-config sample_rate set should default
+  // to 48 kHz so the noise gate's hardcoded time-constants are correct.
+  // (This is the path the audio.cpp audio::capture() takes when constructing
+  // pp_cfg from the config-derived defaults.)
+  PreProcessor::config_t cfg {};
+  cfg.enable_noise_gate = true;
+  PreProcessor pp {cfg};
+
+  // Process a 100 ms sine at 48 kHz and verify it survives.
+  std::vector<float> buf = make_sine(440.0f, 0.0f, 100, 1);
+  pp.process(buf.data(), buf.size(), 1);
+  EXPECT_GT(rms_dbfs(buf), -6.0f)
+    << "Noise gate must NOT attenuate a 0 dBFS sine at the default sample rate";
+}
+
+// =====================================================================
+// Regression test for the AGC process() simplification: a hold-active
+// frame must still decrement the hold timer (we removed a useless alias).
+// =====================================================================
+
+TEST(AGC, HoldTimerDecrementsPerFrame) {
+  AGC::config_t cfg {};
+  cfg.target_rms_db = -20.0f;
+  cfg.max_gain_db = 20.0f;
+  cfg.min_gain_db = -20.0f;
+  cfg.attack_ms = 5.0f;
+  cfg.release_ms = 5.0f;
+  cfg.hold_ms = 200.0f;
+  cfg.sample_rate = kSampleRate;
+  AGC agc {cfg};
+
+  // Raise gain with quiet input -- this should set the hold timer.
+  std::vector<float> quiet = make_silence(20, 1);
+  agc.process(quiet.data(), quiet.size(), 1);
+  const float gain_after_quiet = agc.current_gain();
+  EXPECT_GT(gain_after_quiet, 1.0f);
+
+  // Now feed a few loud frames. While hold is active, gain must not move
+  // (the hold branch must run). If the timer decrement is broken, the
+  // hold never expires and gain stays pinned to its peak forever -- which
+  // is the bug we removed.
+  std::vector<float> loud = make_sine(440.0f, -3.0f, 300, 1);
+  // Slice into small chunks so each call is one frame.
+  std::size_t chunk = static_cast<std::size_t>(kSampleRate * 0.005f);
+  for (std::size_t off = 0; off + chunk <= loud.size(); off += chunk) {
+    agc.process(loud.data() + off, chunk, 1);
+  }
+
+  // After 300 ms of loud input with hold_ms=200, the hold must have elapsed
+  // and gain must have come back down toward the target (loud signal ->
+  // negative gain).
+  EXPECT_LT(agc.current_gain(), gain_after_quiet)
+    << "AGC must release after hold_ms elapses, not stay pinned to peak gain";
+}

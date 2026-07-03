@@ -45,7 +45,14 @@ namespace proc {
 
   proc_t proc;
 
-  /// ponytail: saved encoder preset for per-game override restore.
+  /// ponytail: saved encoder state for per-game override restore.
+  /// Both @c video.nv (the actual NVENC tunables) and @c video.nv_preset
+  /// (the higher-level preset selector) are stashed, because a preset
+  /// override overwrites the underlying @c video.nv fields via
+  /// apply_nvenc_tuning_preset(). Restoring only @c nv_preset would leave
+  /// the user-configured NVENC tunables (e.g. @c nvenc_bframes=3) silently
+  /// replaced with the preset's values after every game launch.
+  static nvenc::nvenc_config g_saved_nv_config {};
   static int g_saved_nv_preset = -99;
   static bool g_nv_preset_overridden = false;
 
@@ -158,13 +165,26 @@ namespace proc {
     _app_prep_it = _app_prep_begin;
 
     // ponytail: per-game encoder preset override. If the app has one set,
-    // stash the global preset and apply the per-game one for this session.
-    if (_app.encoder_preset_override >= 0) {
+    // stash both the preset selector and the underlying NVENC tunables so
+    // terminate() can restore them exactly. A preset override calls
+    // apply_nvenc_tuning_preset() which overwrites the underlying fields,
+    // so we have to remember the original @c video.nv struct too -- not
+    // just the @c nv_preset selector.
+    //
+    // Out-of-range values are silently ignored so a typo in apps.json
+    // (e.g. encoder-preset = 99) can't brick the user's manual NVENC
+    // settings by running apply_nvenc_tuning_preset() with a junk value.
+    if (_app.encoder_preset_override >= 0 && _app.encoder_preset_override <= 2) {
+      g_saved_nv_config = config::video.nv;
       g_saved_nv_preset = config::video.nv_preset;
       config::video.nv_preset = _app.encoder_preset_override;
       config::apply_nvenc_tuning_preset();
       g_nv_preset_overridden = true;
       BOOST_LOG(info) << "App ["sv << _app.name << "] overrides encoder preset to "sv << _app.encoder_preset_override;
+    } else if (_app.encoder_preset_override > 2) {
+      BOOST_LOG(warning) << "App ["sv << _app.name << "] has encoder_preset_override="sv
+                         << _app.encoder_preset_override
+                         << " which is outside the valid range [0,2]; ignoring."sv;
     }
 
     // Add Stream-specific environment variables
@@ -365,10 +385,13 @@ namespace proc {
       display_device::revert_configuration();
     }
 
-    // ponytail: restore the global encoder preset if a per-game override was active.
+    // ponytail: restore the global encoder preset if a per-game override was
+    // active. Both the preset selector AND the underlying NVENC tunables
+    // must be restored, otherwise the user's manual nvenc_bframes /
+    // nvenc_zerolatency / etc. stay at whatever the preset put them at.
     if (g_nv_preset_overridden) {
+      config::video.nv = g_saved_nv_config;
       config::video.nv_preset = g_saved_nv_preset;
-      config::apply_nvenc_tuning_preset();
       g_nv_preset_overridden = false;
       g_saved_nv_preset = -99;
       BOOST_LOG(info) << "Restored encoder preset to "sv << config::video.nv_preset;

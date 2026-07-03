@@ -449,14 +449,13 @@ protected:
   }
 };
 
-TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
-  const auto cppOptions = extractConfigCppOptions();
-  const auto htmlOptions = extractConfigHtmlOptions();
-  const auto mdOptions = extractConfigMdOptions();
-  const auto jsonOptions = extractEnJsonConfigOptions();
-
-  // Options that are internal/special and shouldn't be in UI/docs
-  const std::set<std::string, std::less<>> internalOptions = {
+// Options that are internal/special and shouldn't be in UI/docs.
+// Returns a fresh copy each call so individual tests can mutate it without
+// leaking state across tests. The two tests below (the "is everything
+// covered" check and the "does the framework detect missing options" check)
+// use the SAME set so a fork-key addition only needs to happen in one place.
+static std::set<std::string, std::less<>> make_internal_options() {
+  return {
     "flags",  // Internal config flags, not user-configurable
     // SolarFlare fork tunables: expert kernel-level knobs documented in
     // docs/CONFIGURATION.md but intentionally NOT exposed in the web UI
@@ -472,6 +471,14 @@ TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
     "gpu_governor",
     "headless_virtual_display",
   };
+}
+
+TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
+  const auto cppOptions = extractConfigCppOptions();
+  const auto htmlOptions = extractConfigHtmlOptions();
+  const auto mdOptions = extractConfigMdOptions();
+  const auto jsonOptions = extractEnJsonConfigOptions();
+  const auto internalOptions = make_internal_options();
 
   std::vector<std::string> missingFromFiles;
 
@@ -655,16 +662,9 @@ TEST_F(ConfigConsistencyTest, TestFrameworkDetectsMissingOptions) {
   const std::string testDummyOption = "test_framework_validation_option";
   modifiedCppOptions.insert(testDummyOption);
 
-  // Options that are internal/special and shouldn't be in UI/docs
-  std::set<std::string, std::less<>> internalOptions = {
-    "flags",  // Internal config flags, not user-configurable
-    // SolarFlare fork tunables (see first internalOptions block above).
-    "busy_poll_us",
-    "rate_cap_pct",
-    "enet_4mib_buffer",
-    "pipewire_latency_ms",
-    "cpu_pinning",
-  };
+  // Reuse the canonical internal-options set from make_internal_options()
+  // so the two tests stay in lockstep when a fork key is added.
+  const std::set<std::string, std::less<>> internalOptions = make_internal_options();
 
   std::vector<std::string> missingFromFiles;
 

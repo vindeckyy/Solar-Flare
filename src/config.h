@@ -405,6 +405,10 @@ namespace config {
     bool headless_virtual_display = false;
   };
 
+  /// Backwards-compatible alias so the audio encode helper (declared below)
+  /// can take a single-word type name.
+  using solarflare_audio_fx_t = solarflare_t::audio_fx_t;
+
   /**
    * @brief Apply the NVENC tuning preset to nv_* fields.
    *
@@ -424,6 +428,18 @@ namespace config {
    * @brief Stop the config file watcher thread. Call during shutdown.
    */
   void stop_config_watcher();
+
+  /**
+   * @brief Apply the parsed @c solarflare_t::audio_fx sub-tunables to the
+   *        runtime Opus tuning struct used by the audio encode thread.
+   *
+   * Called by the config loader (initial parse + hot reload) so that editing
+   * a fork audio_fx key in sunshine.conf actually takes effect on the next
+   * session. Must NOT be called from inside the encode thread.
+   *
+   * @param af The parsed fork audio_fx sub-struct (see solarflare_t::audio_fx_t).
+   */
+  void apply_audio_fx_runtime(const solarflare_audio_fx_t &af);
 
   extern video_t video;
   extern audio_t audio;

@@ -301,3 +301,74 @@ TEST(SolarflareConfigCompileTime, StructIsReasonablySmall) {
     << "solarflare_t grew beyond 256 bytes; consider whether new fields "
        "are necessary or whether they should live in a separate struct.";
 }
+
+// ----------------------------------------------------------------------------
+// Regression test for the apply_audio_fx_runtime helper. The previous code
+// inlined the opus_application / opus_vbr / ... -> g_opus_tuning propagation
+// in apply_config() and never ran it from the hot-reload watcher, so editing
+// sf_opus_* in sunshine.conf silently did nothing until restart.
+// ----------------------------------------------------------------------------
+#include <src/audio.h>
+
+TEST_F(SolarflareConfigTest, ApplyAudioFxRuntimePropagatesOpusTuning) {
+  // Snapshot the global Opus tuning so we can restore it on TearDown.
+  auto &saved_tuning = ::audio::opus_tuning();
+  auto saved_application = saved_tuning.application;
+  auto saved_vbr = saved_tuning.vbr;
+  auto saved_complexity = saved_tuning.complexity;
+  auto saved_enable_fec = saved_tuning.enable_fec;
+  auto saved_loss_pct = saved_tuning.expected_packet_loss_pct;
+  auto saved_bwe = saved_tuning.enable_bandwidth_extension;
+
+  // Configure an audio_fx with non-default values, then apply.
+  config::solarflare_t::audio_fx_t af {};
+  af.opus_application = 2;  // AUDIO
+  af.opus_vbr = 1;  // CONSTRAINED
+  af.opus_complexity = 5;
+  af.opus_fec = false;
+  af.opus_expected_loss_pct = 17;
+  af.opus_bandwidth_extension = false;
+  config::apply_audio_fx_runtime(af);
+
+  EXPECT_EQ(saved_tuning.application, ::audio::opus_tuning_t::application_e::AUDIO);
+  EXPECT_EQ(saved_tuning.vbr, ::audio::opus_tuning_t::vbr_e::CONSTRAINED);
+  EXPECT_EQ(saved_tuning.complexity, 5);
+  EXPECT_FALSE(saved_tuning.enable_fec);
+  EXPECT_EQ(saved_tuning.expected_packet_loss_pct, 17);
+  EXPECT_FALSE(saved_tuning.enable_bandwidth_extension);
+
+  // Restore (SetUp snapshot is restored by TearDown above; here we restore
+  // the opus side too because audio::g_opus_tuning is not snapshotted by
+  // the SolarflareSnapshot helper).
+  saved_tuning.application = saved_application;
+  saved_tuning.vbr = saved_vbr;
+  saved_tuning.complexity = saved_complexity;
+  saved_tuning.enable_fec = saved_enable_fec;
+  saved_tuning.expected_packet_loss_pct = saved_loss_pct;
+  saved_tuning.enable_bandwidth_extension = saved_bwe;
+}
+
+TEST_F(SolarflareConfigTest, ApplyAudioFxRuntimeMapsAllEnumValues) {
+  auto &tuning = ::audio::opus_tuning();
+  config::solarflare_t::audio_fx_t af {};
+
+  // application: 0 -> LOWDELAY, 1 -> VOIP, 2 -> AUDIO, anything else -> LOWDELAY
+  af.opus_application = 0; config::apply_audio_fx_runtime(af);
+  EXPECT_EQ(tuning.application, ::audio::opus_tuning_t::application_e::LOWDELAY);
+  af.opus_application = 1; config::apply_audio_fx_runtime(af);
+  EXPECT_EQ(tuning.application, ::audio::opus_tuning_t::application_e::VOIP);
+  af.opus_application = 2; config::apply_audio_fx_runtime(af);
+  EXPECT_EQ(tuning.application, ::audio::opus_tuning_t::application_e::AUDIO);
+  af.opus_application = 99; config::apply_audio_fx_runtime(af);
+  EXPECT_EQ(tuning.application, ::audio::opus_tuning_t::application_e::LOWDELAY);
+
+  // vbr: 0 -> OFF, 1 -> CONSTRAINED, 2 -> FULL, else -> OFF
+  af.opus_vbr = 0; config::apply_audio_fx_runtime(af);
+  EXPECT_EQ(tuning.vbr, ::audio::opus_tuning_t::vbr_e::OFF);
+  af.opus_vbr = 1; config::apply_audio_fx_runtime(af);
+  EXPECT_EQ(tuning.vbr, ::audio::opus_tuning_t::vbr_e::CONSTRAINED);
+  af.opus_vbr = 2; config::apply_audio_fx_runtime(af);
+  EXPECT_EQ(tuning.vbr, ::audio::opus_tuning_t::vbr_e::FULL);
+  af.opus_vbr = 99; config::apply_audio_fx_runtime(af);
+  EXPECT_EQ(tuning.vbr, ::audio::opus_tuning_t::vbr_e::OFF);
+}

@@ -125,24 +125,22 @@ namespace audio::fx {
     const float clamped_db = std::clamp(needed_gain_db, _cfg.min_gain_db, _cfg.max_gain_db);
     const float target_gain_linear = detail::db_to_linear(clamped_db);
 
-    // Asymmetric smoothing:
-    //   - target > current  -> attack (raise gain quickly toward target)
-    //   - target < current  -> release (lower gain slowly, after hold)
+    // AGC::process -- hold-aware, asymmetric time-constants.
+    //
+    // target > current  -> attack (raise gain toward target)
+    // target < current  -> release (lower gain slowly, after hold)
     if (target_gain_linear > _current_gain_linear) {
       // We need more gain — attack quickly toward target. Reset the hold
       // timer so each new loud event re-arms the hold for `hold_ms`.
       _current_gain_linear += (target_gain_linear - _current_gain_linear) * attack_alpha;
       _hold_remaining_samples = (_cfg.hold_ms / 1000.0f) * _cfg.sample_rate;
+    } else if (_hold_remaining_samples <= 0.0f) {
+      // Target is lower (we want to back off) and the hold has elapsed —
+      // release toward target.
+      _current_gain_linear += (target_gain_linear - _current_gain_linear) * release_alpha;
     } else {
-      // Target is lower (we want to back off) — wait out the hold first.
-      const float hold_remaining_samples_f = _hold_remaining_samples;
-      if (hold_remaining_samples_f <= 0.0f) {
-        _current_gain_linear += (target_gain_linear - _current_gain_linear) * release_alpha;
-      } else {
-        // Hold is active — keep current gain, decrement the hold timer.
-        const float consumed = static_cast<float>(frame_count);
-        _hold_remaining_samples = std::max(0.0f, _hold_remaining_samples - consumed);
-      }
+      // Hold is active — keep current gain, decrement the hold timer.
+      _hold_remaining_samples = std::max(0.0f, _hold_remaining_samples - static_cast<float>(frame_count));
     }
 
     // Guard against numerical drift that could push the gain out of bounds.
@@ -280,13 +278,15 @@ namespace audio::fx {
       _agc(cfg.agc),
       _vad(cfg.vad),
       _ducker(cfg.ducker) {
-    // Ensure sub-processors share the same sample-rate assumption.
+    // Ensure sub-processors share the same sample-rate assumption. We default
+    // to 48 kHz if any sub-config was zeroed (which would make ms_to_alpha
+    // divide-by-zero), but we also pin the noise gate to whichever sample
+    // rate the AGC/VAD/Ducker agreed on so a 44.1 kHz stream gets the right
+    // smoothing constants.
     if (_cfg.agc.sample_rate <= 0.0f) _cfg.agc.sample_rate = 48000.0f;
-    if (_cfg.vad.sample_rate <= 0.0f) _cfg.vad.sample_rate = 48000.0f;
-    if (_cfg.ducker.sample_rate <= 0.0f) _cfg.ducker.sample_rate = 48000.0f;
-    _agc = AGC(_cfg.agc);
-    _vad = VAD(_cfg.vad);
-    _ducker = Ducker(_cfg.ducker);
+    if (_cfg.vad.sample_rate <= 0.0f) _cfg.vad.sample_rate = _cfg.agc.sample_rate;
+    if (_cfg.ducker.sample_rate <= 0.0f) _cfg.ducker.sample_rate = _cfg.agc.sample_rate;
+    _noise_gate_sample_rate = _cfg.agc.sample_rate;
   }
 
   bool PreProcessor::process(float *samples, std::size_t frame_count, int channels) {
@@ -311,11 +311,15 @@ namespace audio::fx {
       const float rms = detail::rms_db(samples, frame_count, channels);
       if (rms < _cfg.noise_gate_threshold_db) {
         // Below the threshold — exponentially decay the gate toward silence.
-        const float gate_release = detail::ms_to_alpha(20.0f, (1000.0f * static_cast<float>(frame_count)) / 48000.0f);
+        // Use the configured sample rate so the 20 ms / 5 ms time-constants
+        // are correct for 44.1, 48, 96 kHz streams alike.
+        const float frame_ms = (1000.0f * static_cast<float>(frame_count)) / _noise_gate_sample_rate;
+        const float gate_release = detail::ms_to_alpha(20.0f, frame_ms);
         _noise_gate_gain += (0.0f - _noise_gate_gain) * gate_release;
       } else {
         // Above the threshold — open the gate quickly.
-        const float gate_attack = detail::ms_to_alpha(5.0f, (1000.0f * static_cast<float>(frame_count)) / 48000.0f);
+        const float frame_ms = (1000.0f * static_cast<float>(frame_count)) / _noise_gate_sample_rate;
+        const float gate_attack = detail::ms_to_alpha(5.0f, frame_ms);
         _noise_gate_gain += (1.0f - _noise_gate_gain) * gate_attack;
       }
       const float g = _noise_gate_gain;

@@ -226,12 +226,20 @@ namespace net {
     // traffic. IPTOS_LOWDELAY (0x10) | IPTOS_THROUGHPUT (0x08) = 0x18 = CS3.
     // ponytail: one setsockopt, measurable on any congested LAN link.
     if (config::solarflare.dscp_qos) {
-      // ponytail: define constants inline — <netinet/ip.h> isn't universally
+      // ponytail: define constants inline -- <netinet/ip.h> isn't universally
       // available on all Linux toolchains (missing on some musl/glibc versions).
       constexpr int kIPTOS_LOWDELAY = 0x10;
       constexpr int kIPTOS_THROUGHPUT = 0x08;
-      int tos = kIPTOS_LOWDELAY | kIPTOS_THROUGHPUT;  // 0x18 = CS3
+      const int tos = kIPTOS_LOWDELAY | kIPTOS_THROUGHPUT;  // 0x18 = CS3
+
+      // IP_TOS only takes effect on AF_INET sockets; for AF_INET6 sockets we
+      // need IPV6_TCLASS. host_create() can build either depending on @p af,
+      // so we set both: the wrong family is silently ignored by the kernel.
+      // Without IPV6_TCLASS, an "address_family = both" install streams IPv6
+      // packets with TOS=0 -- the upstream default -- so the fork's QoS
+      // promise silently breaks for dual-stack clients.
       (void) setsockopt(host->socket, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+      (void) setsockopt(host->socket, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(tos));
     }
 #endif
 
