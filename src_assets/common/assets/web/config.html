@@ -128,8 +128,14 @@
       <advanced
         v-if="currentTab === 'advanced'"
         :config="config"
-        :platform="platform">
+         :platform="platform">
       </advanced>
+
+      <headless
+        v-if="currentTab === 'headless'"
+        :config="config"
+        :platform="platform">
+      </headless>
 
       <container-encoders
         :current-tab="currentTab"
@@ -156,6 +162,7 @@
   import Advanced from './configs/tabs/Advanced.vue'
   import AudioVideo from './configs/tabs/AudioVideo.vue'
   import ContainerEncoders from './configs/tabs/ContainerEncoders.vue'
+  import Headless from './configs/tabs/Headless.vue'
   import {$tp, usePlatformI18n} from './platform-i18n'
   import {
     Check,
@@ -184,6 +191,7 @@
       // They will be accessible via audio-video, container-encoders only.
       AudioVideo,
       ContainerEncoders,
+      Headless,
       // icons
       Cpu,
       Check,

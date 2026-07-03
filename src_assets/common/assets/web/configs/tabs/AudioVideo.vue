@@ -95,6 +95,32 @@ const props = defineProps([
         :config="config"
     />
 
+    <!-- Adaptive Bitrate -->
+    <hr class="my-4">
+    <h4>{{ $t('config.adaptive_bitrate') }}</h4>
+    <Checkbox class="mb-3"
+              id="adaptive_bitrate_enabled"
+              locale-prefix="config"
+              v-model="config.adaptive_bitrate_enabled"
+              default="false"
+    ></Checkbox>
+    <div class="mb-3 row g-2" v-if="config.adaptive_bitrate_enabled === true">
+      <div class="col-md-6">
+        <label for="adaptive_bitrate_min" class="form-label">{{ $t('config.adaptive_bitrate_min') }}</label>
+        <input type="number" class="form-control" id="adaptive_bitrate_min"
+               step="1000" min="500" max="100000"
+               v-model.number="config.adaptive_bitrate_min" />
+        <div class="form-text">{{ $t('config.adaptive_bitrate_min_desc') }}</div>
+      </div>
+      <div class="col-md-6">
+        <label for="adaptive_bitrate_max" class="form-label">{{ $t('config.adaptive_bitrate_max') }}</label>
+        <input type="number" class="form-control" id="adaptive_bitrate_max"
+               step="1000" min="1000" max="500000"
+               v-model.number="config.adaptive_bitrate_max" />
+        <div class="form-text">{{ $t('config.adaptive_bitrate_max_desc') }}</div>
+      </div>
+    </div>
+
     <!-- SolarFlare Audio — pre-encoder effects + Opus tuning -->
     <hr class="my-4">
     <h4>{{ $t('config.sf_audio_section') }}</h4>
