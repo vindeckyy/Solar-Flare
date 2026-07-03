@@ -12,6 +12,7 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
         # numa is not available on FreeBSD
         set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 X11)
     elseif(UNIX AND NOT APPLE)
+        find_library(LIBNUMA_LIBRARY numa REQUIRED)
         set(FFMPEG_PLATFORM_LIBRARIES numa va va-drm va-x11 X11)
     endif()
 

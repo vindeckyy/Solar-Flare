@@ -6,7 +6,7 @@ body:
     attributes:
       value: >
         **THIS IS NOT THE PLACE TO ASK FOR SUPPORT!**
-        Please use our [Support Center](https://app.lizardbyte.dev/support) for support issues.
+        Please use [GitHub Discussions](https://github.com/vindeckyy/Solar-Flare/discussions) for support issues.
         Non actionable bug reports will be LOCKED and CLOSED!
   - type: checkboxes
     attributes:
@@ -17,13 +17,13 @@ body:
   - type: checkboxes
     attributes:
       label: Is your issue described in the documentation?
-      description: Please read our [documentation](https://docs.lizardbyte.dev/projects/sunshine)
+      description: Please read the [README](https://github.com/vindeckyy/Solar-Flare#readme)
       options:
         - label: I have read the documentation
   - type: dropdown
     attributes:
       label: Is your issue present in the latest beta/pre-release?
-      description: Please test the latest [pre-release](https://github.com/LizardByte/Sunshine/releases).
+      description: Please test the latest [release](https://github.com/vindeckyy/Solar-Flare/releases).
       options:
         - "I didn't read the issue template"
         - "I'm too lazy to test"
