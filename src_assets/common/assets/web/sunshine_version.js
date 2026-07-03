@@ -123,8 +123,13 @@ function refreshInBackground(installedVersion) {
 function buildUpdateInfo(release, installedVersion) {
   const latest = new SunshineVersion(release, null);
   const installed = new SunshineVersion(null, installedVersion || 'v0.0.0');
+  // Strip the leading 'v' from both so the rendered title is consistent
+  // ("Running 0.0.5, latest is 9.9.9-scary-test" not "Running 0.0.5, latest is v9.9.9").
+  // The SunshineVersion instance preserves the original; we just don't
+  // want to double-prefix the rendered string.
+  const stripV = (s) => (s || '').replace(/^v/i, '');
   return {
-    latestVersion: latest.version,
+    latestVersion: stripV(latest.version),
     htmlUrl: release.html_url,
     releaseNotes: release.body || '',
     publishedAt: release.published_at || '',
