@@ -10,8 +10,8 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0"></a>
   <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf.svg" alt="Fork of Sunshine"></a>
   <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-2026.999.0-orange.svg" alt="Version"></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-406%20passed%20%2F%205%20skipped-brightgreen.svg" alt="Tests"></a>
-  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-59-blueviolet.svg" alt="Commits since fork"></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-418%20passed%20%2F%205%20skipped-brightgreen.svg" alt="Tests"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-118-blueviolet.svg" alt="Commits since fork"></a>
   <a href="#building-from-source"><img src="https://img.shields.io/badge/target-CachyOS%20x86__64-1793d1.svg" alt="Target: CachyOS"></a>
 </p>
 
@@ -226,13 +226,13 @@ On AMD GPUs, SolarFlare writes `performance` to `/sys/class/drm/card*/device/pow
 
 Controlled by `gpu_governor` (default: true). Silently does nothing on NVIDIA or Intel GPUs, or on systems that do not expose this sysfs path.
 
-### 7. Headless virtual display
+### 7. Headless X11 virtual display (legacy)
 
-If you run your gaming PC without a monitor attached (a headless server in a rack, for example), SolarFlare can create a virtual display so the capture system has something to stream.
+If you run your gaming PC without a monitor attached and need a simple X11 stub, the legacy `headless_virtual_display` option runs `xrandr --output VIRTUAL1 --auto` and re-scans for displays when no physical output is detected. Requires `xserver-xorg-video-dummy` installed on most distributions.
 
-When `headless_virtual_display` is enabled and no physical displays are detected, SolarFlare runs `xrandr --output VIRTUAL1 --auto` and then re-scans for displays. This requires the xrandr dummy driver to be installed (`xserver-xorg-video-dummy` on most distributions).
+For new headless setups, see **section 13. Headless stream with smart backend selection** below — it does not need X11 dummy drivers and works on pure Wayland.
 
-This is **off by default**. Enable it with `headless_virtual_display = true` in `sunshine.conf`.
+This is **off by default**. Enable with `headless_virtual_display = true` in `sunshine.conf`.
 
 ### 8. Zen CPU auto-detection
 
