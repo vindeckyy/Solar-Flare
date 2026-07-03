@@ -205,6 +205,41 @@ wheels = [
 ]
 
 [[package]]
+name = "lizardbyte-common"
+version = "0.0.0"
+source = { directory = "third-party/lizardbyte-common" }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+c = [
+    { name = "babel", specifier = "==2.18.0" },
+    { name = "clang-format", specifier = "==21.1.8" },
+    { name = "cmakelang", specifier = "==0.6.13" },
+    { name = "gcovr", specifier = "==8.6" },
+]
+dev = [
+    { name = "babel", specifier = "==2.18.0" },
+    { name = "clang-format", specifier = "==21.1.8" },
+    { name = "cmakelang", specifier = "==0.6.13" },
+    { name = "flake8", specifier = "==7.3.0" },
+    { name = "gcovr", specifier = "==8.6" },
+    { name = "pytest", specifier = "==9.0.3" },
+    { name = "pytest-cov", specifier = "==7.1.0" },
+]
+lint-c = [
+    { name = "clang-format", specifier = "==21.1.8" },
+    { name = "cmakelang", specifier = "==0.6.13" },
+]
+lint-python = [{ name = "flake8", specifier = "==7.3.0" }]
+locale = [{ name = "babel", specifier = "==2.18.0" }]
+test-c = [{ name = "gcovr", specifier = "==8.6" }]
+test-python = [
+    { name = "pytest", specifier = "==9.0.3" },
+    { name = "pytest-cov", specifier = "==7.1.0" },
+]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -380,8 +415,11 @@ wheels = [
 
 [[package]]
 name = "sunshine"
-version = "0.0.0"
+version = "2026.999.0"
 source = { editable = "." }
+dependencies = [
+    { name = "lizardbyte-common" },
+]
 
 [package.dev-dependencies]
 flatpak = [
@@ -394,6 +432,7 @@ glad = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "lizardbyte-common", extras = ["c"], directory = "third-party/lizardbyte-common" }]
 
 [package.metadata.requires-dev]
 flatpak = [

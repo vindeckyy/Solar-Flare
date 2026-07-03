@@ -28,10 +28,16 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
    - [Audio processing](#3-audio-processing-pipeline)
    - [Per-game profiles](#4-per-game-encoder-profiles)
    - [DSCP network priority](#5-dscp-network-priority)
-   - [GPU frequency governor](#6-gpu-frequency-governor)
-   - [Headless virtual display](#7-headless-virtual-display)
-   - [Build flags](#8-zen-cpu-auto-detection)
-   - [Other improvements](#9-other-improvements)
+    - [GPU frequency governor](#6-gpu-frequency-governor)
+    - [Headless virtual display](#7-headless-virtual-display)
+    - [Build flags](#8-zen-cpu-auto-detection)
+    - [Other improvements](#9-other-improvements)
+    - [Command palette (Ctrl+K)](#10-command-palette-ctrlk)
+    - [Trusted subnet auto-pairing](#11-trusted-subnet-auto-pairing)
+    - [Adaptive bitrate controller](#12-adaptive-bitrate-controller)
+    - [Headless stream with smart backend selection](#13-headless-stream-with-smart-backend-selection)
+    - [Game library import scanner](#14-game-library-import-scanner)
+    - [KWin screencast privilege-drop retry](#15-kwin-screencast-privilege-drop-retry)
 5. [All config settings](#all-config-settings)
 6. [Building from source](#building-from-source)
 7. [Testing](#testing)
@@ -251,6 +257,42 @@ Combined with `-flto` (link-time optimization), `-O3` (aggressive optimization),
 **Regression guards:** 9 tests verify that cherry-picked upstream fixes are still in place and fail the build if someone accidentally reverts them.
 
 **Pinned workflows:** 22 LizardByte workflow files are pinned to specific commits so they never accidentally run on the fork.
+
+### 10. Command palette (Ctrl+K)
+
+Press `Ctrl+K` (or `Cmd+K`) from anywhere in the web UI to open a Spotlight-style command palette. Type to search across pages, settings shortcuts, and host controls. Use arrow keys to navigate, Enter to select, Esc to close.
+
+### 11. Trusted subnet auto-pairing
+
+Add `trusted_subnets = "10.0.0.0/24,192.168.1.0/24"` to your config and any Moonlight client connecting from those subnets is paired automatically without needing to type a PIN. IPv4 and IPv6 CIDR ranges are both supported. Enable with `trusted_subnet_auto_pairing = enabled`.
+
+### 12. Adaptive bitrate controller
+
+An EWMA-based controller in the encode loop watches encode time, FPS ratio, and client-reported packet loss. When network conditions degrade or the encoder can't keep up, bitrate is reduced proportionally within `[adaptive_bitrate_min, adaptive_bitrate_max]` (defaults 2 Mbps / 100 Mbps). After 10 seconds of healthy stats, bitrate ramps back up gradually.
+
+### 13. Headless stream with smart backend selection
+
+Games can run in a private compositor instead of hijacking your desktop. Three backends are supported and auto-detected based on the running compositor:
+
+- **`compositor_backend = krfb`** — Creates a virtual KWin output on your existing KDE session via `krfb-virtualmonitor`. No nested compositor, no X11.
+- **`compositor_backend = gamescope`** — For Steam Deck game mode. Spawns a nested Gamescope instance with `--headless`.
+- **`compositor_backend = labwc`** — For everything else. Spawns a wlroots headless compositor.
+
+When `compositor_backend = auto` (default), SolarFlare detects KDE and prefers krfb, Steam Deck and prefers gamescope, then falls back to labwc. All three are pure Wayland with zero X11 dependencies. Enable with:
+
+```
+headless_mode = enabled
+linux_use_cage_compositor = enabled
+compositor_backend = auto
+```
+
+### 14. Game library import scanner
+
+`GET /api/games/scan` discovers installed games from Steam (`libraryfolders.vdf` + `*.acf`), Lutris (`*.yml`), and Heroic (`installed.json`). Returns `{name, path, launcher, cover_url}` for every game found, ready for one-click import into your apps list.
+
+### 15. KWin screencast privilege-drop retry
+
+When Sunshine runs with `CAP_SYS_ADMIN`, KWin sometimes refuses the screencast Wayland connection. The `kwingrab` backend now detects this and automatically drops all elevated privileges, re-creates the screencast session, and retries. No more silent failures when running as root or with file capabilities set.
 
 ---
 
