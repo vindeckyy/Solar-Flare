@@ -1160,11 +1160,18 @@ namespace video {
   };
 #endif
 
+  /**
+   * @brief Ordered list of available encoders for auto-detection.
+   *
+   * Encoders are tried in order; the first to pass validation wins.
+   * On Linux/FreeBSD, platform-native encoders (Vulkan, VA-API) are
+   * prioritized over NVENC so AMD and Intel GPUs default to their
+   * hardware-accelerated path without a fallback to the OpenGL
+   * GPU→RAM→GPU workaround.
+   */
   static const std::vector<encoder_t *> encoders {
-#ifndef __APPLE__
-    &nvenc,
-#endif
 #ifdef _WIN32
+    &nvenc,
     &quicksync,
     &amdvce,
     &mediafoundation,
@@ -1174,6 +1181,9 @@ namespace video {
     &vulkan,
   #endif
     &vaapi,
+  #ifndef __APPLE__
+    &nvenc,
+  #endif
 #endif
 #ifdef __APPLE__
     &videotoolbox,

@@ -406,13 +406,13 @@ namespace egl {
 
     constexpr int conf_attr[] {
       EGL_RENDERABLE_TYPE,
-      EGL_OPENGL_BIT,
+      EGL_OPENGL_BIT | EGL_OPENGL_ES3_BIT,
       EGL_NONE
     };
 
-    int count;
+    int count = 0;
     EGLConfig conf;
-    if (!eglChooseConfig(display, conf_attr, &conf, 1, &count)) {
+    if (!eglChooseConfig(display, conf_attr, &conf, 1, &count) || count == 0) {
       BOOST_LOG(error) << "Couldn't set config attributes: ["sv << util::hex(eglGetError()).to_string_view() << ']';
       return std::nullopt;
     }
