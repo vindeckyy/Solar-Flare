@@ -1078,6 +1078,26 @@ namespace confighttp {
     num_or_default("sf_opus_complexity", fx.opus_complexity);
     num_or_default("sf_opus_expected_loss_pct", fx.opus_expected_loss_pct);
 
+    // Emit defaults for headless stream options so the Web UI sees the controls
+    // on first load before the user has saved anything.
+    bool_or_default("headless_mode", config::video.linux_display.headless_mode);
+    bool_or_default("linux_use_cage_compositor", config::video.linux_display.use_cage_compositor);
+    bool_or_default("linux_prefer_gpu_native_capture", config::video.linux_display.prefer_gpu_native_capture);
+    if (vars.find("compositor_backend") == vars.end()) {
+      output_tree["compositor_backend"] = config::video.linux_display.compositor_backend;
+    }
+
+    // Emit defaults for adaptive bitrate options.
+    bool_or_default("adaptive_bitrate_enabled", config::video.adaptive_bitrate_enabled);
+    num_or_default("adaptive_bitrate_min", config::video.adaptive_bitrate_min);
+    num_or_default("adaptive_bitrate_max", config::video.adaptive_bitrate_max);
+
+    // Emit defaults for trusted subnet options.
+    bool_or_default("trusted_subnet_auto_pairing", config::nvhttp.trusted_subnet_auto_pairing);
+    if (vars.find("trusted_subnets") == vars.end()) {
+      output_tree["trusted_subnets"] = config::nvhttp.trusted_subnets;
+    }
+
     send_response(response, output_tree);
   }
 
