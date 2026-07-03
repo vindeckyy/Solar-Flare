@@ -92,7 +92,7 @@ body:
         - Linux - Fedora Copr
         - Linux - flathub/flatpak
         - Linux - Homebrew
-        - Linux - LizardByte/pacman-repo
+        - Linux - see README.md for distro packages
         - Linux - nixpkgs (Third Party)
         - Linux - solus (Third Party)
         - Linux - Unraid (Third Party)
