@@ -85,17 +85,26 @@ namespace platf::headless {
     return bp::search_path("kwin_wayland").empty() ? false : true;
   }
 
+  bool is_gamescope_running() {
+    auto *xdg = std::getenv("XDG_CURRENT_DESKTOP");
+    if (xdg && std::string_view {xdg} == "gamescope"sv) return true;
+    auto *display = std::getenv("WAYLAND_DISPLAY");
+    if (display && std::string_view {display}.find("gamescope"sv) != std::string_view::npos) return true;
+    return !bp::search_path("gamescope").empty();
+  }
+
   backend_e compositor_t::resolve_backend() const {
     if (_backend == backend_e::labwc) return backend_e::labwc;
     if (_backend == backend_e::krfb) return backend_e::krfb;
+    if (_backend == backend_e::gamescope) return backend_e::gamescope;
 
-    // auto_detect: prefer krfb on KDE, fall back to labwc
-    if (is_kwin_running()) {
-      if (!bp::search_path("krfb-virtualmonitor").empty()) {
-        BOOST_LOG(info) << "headless_compositor: detected KWin, using krfb-virtualmonitor backend"sv;
-        return backend_e::krfb;
-      }
-      BOOST_LOG(info) << "headless_compositor: KWin detected but krfb-virtualmonitor not found, falling back to labwc"sv;
+    if (is_kwin_running() && !bp::search_path("krfb-virtualmonitor").empty()) {
+      BOOST_LOG(info) << "headless_compositor: detected KWin, using krfb-virtualmonitor backend"sv;
+      return backend_e::krfb;
+    }
+    if (is_gamescope_running()) {
+      BOOST_LOG(info) << "headless_compositor: detected Gamescope, using nested gamescope backend"sv;
+      return backend_e::gamescope;
     }
     BOOST_LOG(info) << "headless_compositor: using labwc backend"sv;
     return backend_e::labwc;
@@ -106,9 +115,14 @@ namespace platf::headless {
   }
 
   bool compositor_t::start(int width, int height, int refresh_hz, const std::string &game_cmd) {
-    if (resolve_backend() == backend_e::krfb) {
+    auto backend = resolve_backend();
+    if (backend == backend_e::krfb) {
       _using_krfb = true;
       return start_krfb(width, height, refresh_hz);
+    }
+    if (backend == backend_e::gamescope) {
+      _using_gamescope = true;
+      return start_gamescope(width, height, refresh_hz, game_cmd);
     }
     return start_labwc(width, height, refresh_hz, game_cmd);
   }
@@ -148,6 +162,88 @@ namespace platf::headless {
 
     BOOST_LOG(info) << "headless_compositor: krfb virtual output \""sv << _output_name
                     << "\" created at "sv << width << 'x' << height << '@' << refresh_hz;
+    return true;
+  }
+
+  bool compositor_t::start_gamescope(int width, int height, int refresh_hz, const std::string &game_cmd) {
+    auto gamescope_path = bp::search_path("gamescope");
+    if (gamescope_path.empty()) {
+      BOOST_LOG(error) << "headless_compositor: gamescope not found in PATH"sv;
+      return false;
+    }
+
+    _output_name = "HEADLESS-1";
+
+    auto run_dir = user_runtime_dir();
+    if (run_dir.empty()) {
+      BOOST_LOG(error) << "headless_compositor: cannot determine user runtime directory"sv;
+      return false;
+    }
+
+    auto before = list_wayland_sockets(run_dir, std::string("wayland-"));
+
+    _pid = fork();
+    if (_pid < 0) {
+      BOOST_LOG(error) << "headless_compositor: fork failed"sv;
+      return false;
+    }
+
+    if (_pid == 0) {
+      setsid();
+
+      auto max_fd = sysconf(_SC_OPEN_MAX);
+      if (max_fd < 0) max_fd = 1024;
+      for (int fd = 3; fd < max_fd; ++fd) close(fd);
+
+      int nullfd = open("/dev/null", O_RDWR);
+      if (nullfd >= 0) {
+        dup2(nullfd, STDIN_FILENO);
+        dup2(nullfd, STDOUT_FILENO);
+        dup2(nullfd, STDERR_FILENO);
+        if (nullfd > STDERR_FILENO) close(nullfd);
+      }
+
+      // Gamescope headless mode creates a virtual output backed by EGL.
+      // Nested mode: Gamescope runs inside the existing Wayland session.
+      setenv("WLR_NO_HARDWARE_CURSORS", "1", 1);
+      unsetenv("DISPLAY");
+
+      // Use nested mode: gamescope runs as a Wayland client in the current session,
+      // creating a virtual output for the game.
+      execl(gamescope_path.c_str(), "gamescope",
+        "--headless",
+        "--prefer-vk-device",  // Prefer Vulkan for rendering
+        "-W", std::to_string(width).c_str(),
+        "-H", std::to_string(height).c_str(),
+        "-r", std::to_string(refresh_hz).c_str(),
+        "--", "sh", "-c", game_cmd.c_str(),
+        nullptr);
+
+      _exit(127);
+    }
+
+    // Discover the new Wayland socket.
+    std::string discovered;
+    for (int attempt = 0; attempt < 50; ++attempt) {
+      std::this_thread::sleep_for(100ms);
+      auto after = list_wayland_sockets(run_dir, std::string("wayland-"));
+      for (auto &s : after) {
+        if (std::find(before.begin(), before.end(), s) == before.end()) {
+          discovered = std::move(s);
+          break;
+        }
+      }
+      if (!discovered.empty()) break;
+    }
+
+    if (discovered.empty()) {
+      BOOST_LOG(error) << "headless_compositor: could not discover gamescope Wayland socket"sv;
+      stop();
+      return false;
+    }
+
+    _wayland_socket = run_dir + "/" + discovered;
+    BOOST_LOG(info) << "headless_compositor: gamescope WAYLAND_DISPLAY="sv << _wayland_socket;
     return true;
   }
 
@@ -306,6 +402,9 @@ namespace platf::headless {
   void compositor_t::stop() {
     if (_using_krfb) {
       stop_krfb();
+    } else if (!_output_name.empty() && _output_name != "HEADLESS-1") {
+      // Gamescope path (output_name was set by start_gamescope)
+      stop_gamescope();
     } else {
       stop_labwc();
     }
@@ -325,6 +424,22 @@ namespace platf::headless {
     bp::child proc(krfb_path, "--remove", _output_name, ec);
     if (!ec) proc.wait(ec);
     _output_name.clear();
+  }
+
+  void compositor_t::stop_gamescope() {
+    if (_pid <= 0) return;
+    BOOST_LOG(info) << "headless_compositor: stopping gamescope process "sv << _pid;
+    kill(-_pid, SIGTERM);
+    for (int i = 0; i < 30; ++i) {
+      std::this_thread::sleep_for(100ms);
+      if (waitpid(_pid, nullptr, WNOHANG) > 0) {
+        _pid = -1;
+        return;
+      }
+    }
+    kill(-_pid, SIGKILL);
+    waitpid(_pid, nullptr, 0);
+    _pid = -1;
   }
 
   void compositor_t::stop_labwc() {
@@ -366,19 +481,18 @@ namespace platf::headless {
 
   std::string compositor_t::wrap_cmd(const std::string &game_cmd) {
     if (_using_krfb) return game_cmd;
-    std::string wrapped;
     if (!_wayland_socket.empty()) {
-      wrapped += "WAYLAND_DISPLAY=" + _wayland_socket + " ";
+      auto wrapped = "WAYLAND_DISPLAY="s + _wayland_socket + " ";
+      if (!_x11_display.empty()) {
+        wrapped += "DISPLAY="s + _x11_display + " ";
+      }
+      return wrapped + game_cmd;
     }
-    if (!_x11_display.empty()) {
-      wrapped += "DISPLAY=" + _x11_display + " ";
-    }
-    wrapped += game_cmd;
-    return wrapped;
+    return game_cmd;
   }
 
   const std::string &compositor_t::output_name() const {
-    if (_using_krfb) return _output_name;
+    if (!_output_name.empty()) return _output_name;
     static const std::string headless1 {"HEADLESS-1"};
     return headless1;
   }

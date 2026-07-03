@@ -1300,7 +1300,7 @@ namespace config {
     bool_f(vars, "headless_mode", video.linux_display.headless_mode);
     bool_f(vars, "linux_use_cage_compositor", video.linux_display.use_cage_compositor);
     bool_f(vars, "linux_prefer_gpu_native_capture", video.linux_display.prefer_gpu_native_capture);
-    string_restricted_f(vars, "compositor_backend", video.linux_display.compositor_backend, {"auto"sv, "labwc"sv, "krfb"sv});
+    string_restricted_f(vars, "compositor_backend", video.linux_display.compositor_backend, {"auto"sv, "labwc"sv, "krfb"sv, "gamescope"sv});
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);

@@ -15,16 +15,17 @@ namespace platf::headless {
    * @brief Backend selection for the headless display.
    */
   enum class backend_e {
-    auto_detect,  ///< Detect KWin and prefer krfb, else labwc
+    auto_detect,  ///< Detect compositor and pick best backend
     labwc,        ///< Force labwc wlroots headless compositor
     krfb,         ///< Force krfb-virtualmonitor (KDE only)
+    gamescope,    ///< Force nested Gamescope headless (Steam Deck / game mode)
   };
 
   /**
-   * @brief Detect whether KWin is the active Wayland compositor.
-   * @return true if KWin is running.
+   * @brief Detect whether Gamescope is the active compositor.
+   * @return true if Gamescope is running.
    */
-  bool is_kwin_running();
+  bool is_gamescope_running();
 
   /**
    * @brief Manages a headless display backend.
@@ -92,12 +93,15 @@ namespace platf::headless {
   private:
     bool start_labwc(int width, int height, int refresh_hz, const std::string &game_cmd);
     bool start_krfb(int width, int height, int refresh_hz);
+    bool start_gamescope(int width, int height, int refresh_hz, const std::string &game_cmd);
     void stop_labwc();
     void stop_krfb();
+    void stop_gamescope();
     backend_e resolve_backend() const;
 
     backend_e _backend = backend_e::auto_detect;
     bool _using_krfb = false;
+    bool _using_gamescope = false;
     int _pid = -1;
     std::string _wayland_socket;
     std::string _x11_display;

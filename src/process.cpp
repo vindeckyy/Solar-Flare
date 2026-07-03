@@ -303,6 +303,7 @@ namespace proc {
         auto &backend_str = config::video.linux_display.compositor_backend;
         if (backend_str == "labwc") g_headless_compositor->set_backend(platf::headless::backend_e::labwc);
         else if (backend_str == "krfb") g_headless_compositor->set_backend(platf::headless::backend_e::krfb);
+        else if (backend_str == "gamescope") g_headless_compositor->set_backend(platf::headless::backend_e::gamescope);
 
         std::string wrapped_cmd = g_headless_compositor->wrap_cmd(_app.cmd);
         if (!g_headless_compositor->start(launch_session->width, launch_session->height, launch_session->fps, wrapped_cmd)) {
