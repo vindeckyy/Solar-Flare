@@ -571,6 +571,9 @@ TEST(PreProcessor, DefaultSampleRateIs48000) {
   // (This is the path the audio.cpp audio::capture() takes when constructing
   // pp_cfg from the config-derived defaults.)
   PreProcessor::config_t cfg {};
+  cfg.enable_agc = false;
+  cfg.enable_vad = false;
+  cfg.enable_ducking = false;
   cfg.enable_noise_gate = true;
   PreProcessor pp {cfg};
 

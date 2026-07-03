@@ -2539,6 +2539,377 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### nvenc_weighted_prediction
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Use B-frame weighted prediction to improve the compression of fade-in / fade-out
+            transitions. Costs a small amount of CUDA cores.
+            @note{This option only applies when using NVENC [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_weighted_prediction = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_enable_min_qp
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Clamp the quantisation parameter to a minimum value, preventing the encoder from using
+            too-low QP values. Limits peak image quality to save bitrate on scenes the encoder would
+            otherwise over-allocate to.
+            @note{This option only applies when using NVENC [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_enable_min_qp = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_min_qp_h264
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Lower bound for H.264 QP when [nvenc_enable_min_qp](#nvenc_enable_min_qp) is enabled.
+            Higher values save more bitrate on easy scenes.
+            @note{This option only applies when using NVENC [encoder](#encoder) with H.264.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            19
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1-51</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_min_qp_h264 = 19
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_min_qp_hevc
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Lower bound for HEVC QP when [nvenc_enable_min_qp](#nvenc_enable_min_qp) is enabled.
+            Higher values save more bitrate on easy scenes.
+            @note{This option only applies when using NVENC [encoder](#encoder) with HEVC.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            23
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1-51</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_min_qp_hevc = 23
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_min_qp_av1
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Lower bound for AV1 QP when [nvenc_enable_min_qp](#nvenc_enable_min_qp) is enabled.
+            Higher values save more bitrate on easy scenes.
+            @note{This option only applies when using NVENC [encoder](#encoder) with AV1.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            23
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1-255</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_min_qp_av1 = 23
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_filler_data
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Add filler data to encoded frames to maintain the target bitrate even when the source
+            content compresses below it. Mainly useful for network testing.
+            @note{This option only applies when using NVENC [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_filler_data = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_rc_lookahead
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Number of frames the encoder looks ahead to anticipate bitrate needs. Helps rate control
+            anticipate motion and reduces bitrate variance by 15-30% at the cost of pipeline latency.
+            Set to 0 to disable. Ignored when [nvenc_zerolatency](#nvenc_zerolatency) is enabled.
+            @note{This option only applies when using NVENC [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-31</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_rc_lookahead = 20
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_surfaces
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Number of encode surfaces used by the NVENC driver. More surfaces allow better encoder
+            pipelining at the cost of GPU memory. Set to -1 to let the driver choose the default.
+            @note{This option only applies when using NVENC [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -1
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-1 (driver default) or 1-32</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_surfaces = -1
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_bframes
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Number of B-frames between P-frames. Higher values improve compression at the cost of
+            pipeline latency. 0 = no B-frames (lowest latency, required for sub-frame streaming).
+            Ignored when [nvenc_zerolatency](#nvenc_zerolatency) is enabled.
+            @note{This option only applies when using NVENC [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-4</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_bframes = 0
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_zerolatency
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Mirrors FFmpeg's tune=zerolatency. When enabled, automatically disables lookahead,
+            B-frames, and forces single-pass encoding, dedicating every millisecond of encoder
+            pipeline budget to the encoder instead of frame reordering. Recommended for interactive
+            gaming streaming.
+            @note{This option only applies when using NVENC [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_zerolatency = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_aq_strength
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When [nvenc_spatial_aq](#nvenc_spatial_aq) is enabled, controls how aggressively the
+            encoder redistributes bits across the frame. 1 = subtle, 15 = aggressive. Higher values
+            save more bitrate on flat regions at the cost of more visible quality loss in busy
+            regions.
+            @note{This option only applies when using NVENC [encoder](#encoder) and
+            [nvenc_spatial_aq](#nvenc_spatial_aq) is enabled.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            8
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1-15</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_aq_strength = 8
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_temporal_aq
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Redistribute bits across frames instead of within a frame. Pairs with
+            [nvenc_spatial_aq](#nvenc_spatial_aq) for full two-dimensional adaptive quantisation.
+            Especially useful for content with rapidly changing scenes such as gameplay with
+            frequent cuts.
+            @note{This option only applies when using NVENC [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_temporal_aq = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### nvenc_tuning_preset
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            One-click NVENC tuning preset for the SolarFlare fork. When set to a value other than
+            -1, automatically overrides the individual nvenc_* knobs below with recommended values.
+            -1 = manual (use each knob below individually); 0 = latency-optimised (P1, no B-frames,
+            zero-latency tune, no lookahead); 1 = balanced (P4, 2 B-frames, 20-frame lookahead, AQ
+            on); 2 = quality-optimised (P7, 4 B-frames, 40-frame lookahead, full two-pass, min-QP).
+            @note{This option only applies when using NVENC [encoder](#encoder). Setting any preset
+            will overwrite the individual nvenc_* values; manually adjust them afterwards if needed.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -1
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-1 (manual), 0 (latency), 1 (balanced), 2 (quality)</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_tuning_preset = 1
+            @endcode</td>
+    </tr>
+</table>
+
 ## Intel QuickSync Encoder
 
 ### qsv_preset
@@ -3415,6 +3786,274 @@ identical to a build without this configuration section. }
         <td>Example</td>
         <td colspan="2">@code{}
             cpu_pinning = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Apply automatic gain control before Opus encoding. Smooth gain riding so the encoded
+            audio sits closer to a target loudness level. Disabled by default (upstream behaviour).
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_vad
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Run voice activity detection on the captured audio to drive ducking and other
+            voice-aware behaviour. Disabled by default (upstream behaviour).
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_vad = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_ducking
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When voice is active (requires [sf_audio_vad](#sf_audio_vad)), briefly reduce the
+            game-audio level so speech is more intelligible. Disabled by default (upstream
+            behaviour).
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_ducking = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_noise_gate
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Apply a noise gate that suppresses signal below
+            [sf_audio_noise_gate_db](#sf_audio_noise_gate_db). Kills microphone-style noise
+            floor. Disabled by default (upstream behaviour).
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_noise_gate = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_application
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Opus application mode. 0 = RESTRICTED_LOWDELAY (upstream default, lowest latency),
+            1 = VOIP (better speech intelligibility), 2 = AUDIO (better music and sound effects).
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-2</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_application = 0
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_vbr
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Opus variable bitrate mode. 0 = CBR (upstream default), 1 = Constrained VBR,
+            2 = Full VBR. VBR typically gives better quality at the same bitrate.
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-2</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_vbr = 0
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_complexity
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Opus encoder complexity. 0 = lowest CPU usage / lowest quality, 10 = highest CPU
+            usage / highest quality. Upstream default is 10.
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            10
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-10</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_complexity = 10
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_fec
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Enable Opus in-band forward error correction. Sends redundant copies of each packet so
+            the decoder can recover from single-packet loss. Enabled by default (upstream default).
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_fec = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_expected_loss_pct
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Tell Opus the expected packet-loss percentage so it can pre-allocate FEC bits. 0
+            disables the hint (upstream default). Higher values trade bandwidth for robustness.
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-100</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_expected_loss_pct = 0
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_bandwidth_extension
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Allow Opus to use super-wideband or fullband (>16 kHz) encoding modes. Enabled by
+            default (upstream default). Disabling restricts to wideband (16 kHz) for compatibility.
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_bandwidth_extension = enabled
             @endcode</td>
     </tr>
 </table>

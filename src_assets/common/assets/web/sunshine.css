@@ -794,10 +794,6 @@
     --navbar-text-muted: rgba(255, 255, 255, 0.9);
 }
 
-
-}
-
-
 /* SolarFlare Dark - brand identity, deep slate with solar-flare accents */
 [data-theme="solarflare"] {
     --color-primary: #F59E0B;

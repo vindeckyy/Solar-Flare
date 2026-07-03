@@ -336,6 +336,8 @@
     "nvenc_split_encode": "Split frame encoding",
     "nvenc_split_encode_desc": "Split the encoding of each video frame over multiple NVENC hardware units. Significantly reduces host processing latency with a marginal compression efficiency penalty. The default option enables SFE if the following conditions are met: there are 2+ NVENC units, the stream is 4K resolution or higher, and the preset is P1-P4. Set this to Enabled to use SFE at lower resolutions or higher presets.",
     "nvenc_split_encode_driver_decides_def": "Driver decides (default)",
+    "nvenc_surfaces": "Encode Surfaces",
+    "nvenc_surfaces_desc": "Number of encode surfaces managed by the NVENC driver. More surfaces allow better encoder pipelining at the cost of GPU memory. Set to -1 to let the driver choose the default. Range: -1 (driver default) or 1-32.",
     "nvenc_temporal_aq": "Temporal AQ (SolarFlare fork)",
     "nvenc_temporal_aq_desc": "Redistributes bits across frames instead of within a frame. Pairs with Spatial AQ. Especially useful for content with rapidly changing scenes (gameplay with frequent cuts).",
     "nvenc_tuning_preset": "NVENC tuning preset (SolarFlare fork)",
