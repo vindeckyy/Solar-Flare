@@ -77,6 +77,34 @@ Full cmake build was skipped (the FFmpeg prebuilt submodule clone hits 1.2 GB an
 - `7ebc2d7` `feat(webui): scary red update banner + 24h GitHub release cache`
 - `35d1a1a` `fix: real bugs in config, audio_fx, network, process, build`
 
+### Fixed (July 4 2026)
+
+Daily bug check on the Jul 3 feature batch (`66d0c20`, `163b6ce`, `04d3cb0`, `b1dc4fd`, `52d85d5`, `89c2880`) plus the Reddit bug report from user braxton (CachyOS, AMD RX 9070 XT, commit `9d18542`):
+
+- **Adaptive bitrate throttled every new session on its first sample.** `video::AdaptiveBitrate::update_network_stats()` updated the EWMA and immediately compared the raw sample against `2 * EWMA`, but the EWMA starts at `0`, so `rtt_ms > 2 * 0.3 * rtt_ms` evaluated true for any non-zero RTT. Every fresh stream hit "congested" before the EWMA had any history. Fixed by priming the EWMA on the first sample (new `_primed` flag) and skipping the congestion check until the second update.
+- **`get_target_bitrate` could return below the configured floor.** The clamp order was `max(result, min)` followed by `min(result, max)` followed by `min(result, base)`. When `base_bitrate < min_bitrate` the floor was set then immediately clobbered by the final clamp to `base`. Reordered so the floor clamp runs last and is never overridden. Added an explicit regression test (`FloorIsRespectedEvenWhenBaseIsBelowFloor`).
+- **`headless_compositor_t::stop()` dispatched teardown by string-matching `_output_name != "HEADLESS-1"`.** Fragile coupling that silently broke if gamescope ever changed its default output name. Replaced with an explicit check on the existing `_using_krfb` / `_using_gamescope` flags.
+- **`start_krfb()` discarded `krfb-virtualmonitor` output silently.** The function piped stdout+stderr into `krfb_out` then never read it; a non-zero exit or error message from `krfb-virtualmonitor` was invisible to users. Now logs the exit status and prints the captured output at error level on non-zero exit (and at debug level otherwise).
+- **`stop_labwc` / `stop_gamescope` ignored the child exit status.** `waitpid(_pid, nullptr, WNOHANG)` discarded the status word, so a labwc or gamescope crash (or a signal kill) was indistinguishable from a clean exit. Now inspects `WIFEXITED` / `WIFSIGNALED` and logs the status / signal at warning level.
+- **Steam scanner missed Flatpak and Snap installs.** `game_scanner::scan_steam()` only checked `~/.steam/steam` and `~/.local/share/Steam`. Flatpak Steam (CachyOS, Bazzite, SteamOS default) installs to `~/.var/app/com.valvesoftware.Steam/data/Steam` and Snap Steam to `~/snap/steam/common/.steam/steam`. Both paths added to `candidate_dirs`.
+- **Lutris scanner stored the YAML config path instead of the launch command.** `GameEntry.path` was the `.yml` file path, which is not executable and not what a "Launch" UI button expects. Now stores `lutris lutris:<slug>` (the actual `lutris` invocation). Falls back to the .yml path only when the YAML has no `slug:` key.
+- **KMS monitor-index parser decoded non-numeric names as garbage integers.** `util::from_view()` treats every byte as a decimal digit, so a monitor name like `Virtual-Virtual-1` (produced by KWin's double-prefixed virtual outputs) decoded to `-1797036149` and became a corrupt out-of-bounds index in the plane scan array, producing the `Couldn't find monitor [-1797036149]` panic reported by the Reddit user. Added `util::parse_monitor_index()` which validates every character is `0`..`9` and falls back to a caller-supplied default. Wired into `kmsgrab`, `cuda`, `wlgrab`, and `x11grab`.
+- **KMS capture segfaulted when a physical connector was disabled mid-stream.** `display_t::refresh()` called `drmModeGetPlane(card.fd.el, plane_id)` and immediately dereferenced `plane->fb_id` to log it. `drmModeGetPlane` returns `nullptr` when the plane was destroyed by a hot-swap event (e.g. user ran `kscreen-doctor output.DP-3.disable`), and the resulting null deref segfaulted the graphics thread. Now checks the pointer and returns `capture_e::timeout` (the capture loop retries the next frame) instead of crashing.
+- **XDG portal `drop_elevated_privileges` was being called BEFORE the portal init**, which stripped `CAP_SYS_ADMIN` / `CAP_SYS_NICE` and prevented `xdg-desktop-portal` from reading `/proc/<sunshine-pid>/root` during the RemoteDesktop.CreateSession validation. On Arch-based systemd user installs (CachyOS, Manjaro, Endeavour) this caused `GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: Unable to open /proc/<pid>/root` for both RemoteDesktop and ScreenCast sessions. Mirrored the kwin retry pattern: try the portal session first with caps intact; on failure drop ALL caps and retry once; then drop the remaining caps AFTER the session is established. The kwin retry path from `ea69a44` already followed this pattern; portal now matches.
+- **KWin privilege-drop retry was already in place** (commit `ea69a44`); no change needed for the Reddit user's Issue 3, but verified by inspection that the retry-then-fall-back path is correct.
+
+### Changed (July 4 2026)
+
+- **`compositor_t::resolve_backend()` promoted from private to public** in `src/platform/linux/headless_compositor.h`. Callers (and unit tests) can now inspect the auto-detected backend before committing to `start()`. The semantics are unchanged: explicit `set_backend()` wins over environment detection, which still prefers `krfb-virtualmonitor` under KWin, then nested `gamescope`, then `labwc`.
+- **Test count**: 46 new test cases added across 5 new files (`test_adaptive_bitrate.cpp`, `test_trusted_subnet.cpp`, `test_parse_monitor_index.cpp`, `test_game_scanner.cpp`, `test_headless_compositor.cpp`). Total `test_sunshine` runs 464 tests: 458 PASSED, 6 SKIPPED (platform-conditional: Windows-only `UtfUtils`, missing `inputtino` on the test host, missing VAAPI encoder), 0 FAILED. Was 412 PASSED before this batch.
+
+### Verified (July 4 2026)
+
+All changes pass the full `test_sunshine` suite (464 tests) with zero failures. The `sunshine` binary target builds cleanly via `cmake --build cmake-build-test --target sunshine`. The previously failing integration test `ConfigConsistencyTest.ConfigTabsMatchDocumentationSections` (which had been failing against the stale `cmake-build-debug/tests/test_sunshine` binary from Jul 3) passes against the freshly built `cmake-build-test/tests/test_sunshine`. Web UI changes were not part of this batch, so the Vue / i18n / Vite build was not re-run.
+
+All pushed commits live on `vindeckyy/Solar-Flare@master`:
+- `04a029e` `fix: daily bug check on Jul 3 features + Reddit portal/KMS bug report`
+
 ### Added (June 2026 — original fork)
 
 - **SolarFlare fork branding in `sunshine --version`**. New
