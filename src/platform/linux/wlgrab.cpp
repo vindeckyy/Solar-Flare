@@ -83,8 +83,11 @@ namespace wl {
           }
         }
         if (!matched) {
-          auto streamedMonitor = util::from_view(display_name);
-          if (streamedMonitor >= 0 && streamedMonitor < interface.monitors.size()) {
+          // parse_monitor_index returns -1 for non-numeric names so a
+          // "Virtual-Virtual-1" KWin output never accidentally selects a
+          // real monitor slot.
+          auto streamedMonitor = util::parse_monitor_index(display_name, -1);
+          if (streamedMonitor >= 0 && streamedMonitor < (std::int64_t) interface.monitors.size()) {
             monitor = interface.monitors[streamedMonitor].get();
           }
         }

@@ -57,6 +57,7 @@ namespace video {
     float _ewma_rtt = 0.0f;
     float _current_scale = 1.0f;
 
+    bool _primed = false;  ///< True once the EWMA has consumed its first sample.
     bool _in_recovery = false;
     std::chrono::steady_clock::time_point _recovery_start;
   };

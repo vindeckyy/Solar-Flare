@@ -796,12 +796,17 @@ namespace cuda {
         int streamedMonitor = -1;
         if (!display_name.empty()) {
           if (status_params->bXRandRAvailable) {
-            auto monitor_nr = util::from_view(display_name);
-
-            if (monitor_nr < 0 || monitor_nr >= status_params->dwOutputNum) {
+            // parse_monitor_index returns -1 for non-numeric names so we
+            // can detect KWin-style "Virtual-Virtual-1" outputs without
+            // letting them corrupt the monitor_nr range check below.
+            std::int64_t monitor_nr = util::parse_monitor_index(display_name, -1);
+            if (monitor_nr < 0) {
+              BOOST_LOG(warning) << "Can't stream monitor ["sv << display_name
+                                 << "], display_name is not a numeric index; defaulting to virtual desktop"sv;
+            } else if (monitor_nr >= (std::int64_t) status_params->dwOutputNum) {
               BOOST_LOG(warning) << "Can't stream monitor ["sv << monitor_nr << "], it needs to be between [0] and ["sv << status_params->dwOutputNum - 1 << "], defaulting to virtual desktop"sv;
             } else {
-              streamedMonitor = monitor_nr;
+              streamedMonitor = (int) monitor_nr;
             }
           } else {
             BOOST_LOG(warning) << "XrandR not available, streaming entire virtual desktop"sv;

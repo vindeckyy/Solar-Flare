@@ -69,6 +69,13 @@ namespace game_scanner {
     const std::vector<fs::path> candidate_dirs = {
       home / ".steam" / "steam",
       home / ".local" / "share" / "Steam",
+      // Flatpak Steam installs to ~/.var/app/com.valvesoftware.Steam and
+      // symlinks its data tree under data/Steam. Most Linux gamers in
+      // 2026 install via Flatpak (CachyOS, Bazzite, SteamOS, etc.) so
+      // omitting this path silently hides their entire library.
+      home / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam",
+      // Snap Steam lives under ~/snap/steam/common/.steam/steam.
+      home / "snap" / "steam" / "common" / ".steam" / "steam",
 #ifdef _WIN32
       fs::path("C:\\Program Files (x86)\\Steam")
 #endif
@@ -186,7 +193,13 @@ namespace game_scanner {
         if (!name.empty()) {
           GameEntry g;
           g.name = name;
-          g.path = entry.path().string();
+          // Lutris games are launched via `lutris lutris:<slug>` rather
+          // than by exec'ing the .yml config file. Store the launcher
+          // invocation in `path` so UI consumers (which typically expect
+          // an executable command) can paste it directly into a prep cmd
+          // or use it as the apps.cmd field without further translation.
+          g.path = !slug.empty() ? std::format("lutris lutris:{}", slug)
+                                 : entry.path().string();
           g.launcher = "lutris";
           if (!slug.empty()) {
             g.cover_url = std::format("https://lutris.net/games/banner/{}.jpg", slug);

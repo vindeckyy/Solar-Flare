@@ -90,6 +90,20 @@ namespace platf::headless {
      */
     std::string wrap_cmd(const std::string &game_cmd);
 
+    /**
+     * @brief Determine which backend would be used without starting it.
+     *
+     * If @ref set_backend has been called with an explicit non-auto value,
+     * that value is returned. Otherwise the choice is auto-detected from
+     * the running session (KDE -> krfb, gamescope -> nested gamescope,
+     * else -> labwc).
+     *
+     * Public so callers can log / display the selected backend before
+     * committing to @ref start(), and so unit tests can exercise the
+     * dispatch logic without spawning subprocesses.
+     */
+    backend_e resolve_backend() const;
+
   private:
     bool start_labwc(int width, int height, int refresh_hz, const std::string &game_cmd);
     bool start_krfb(int width, int height, int refresh_hz);
@@ -97,7 +111,6 @@ namespace platf::headless {
     void stop_labwc();
     void stop_krfb();
     void stop_gamescope();
-    backend_e resolve_backend() const;
 
     backend_e _backend = backend_e::auto_detect;
     bool _using_krfb = false;

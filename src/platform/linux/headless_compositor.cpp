@@ -138,6 +138,7 @@ namespace platf::headless {
 
     std::error_code ec;
     std::string krfb_out;
+    int krfb_exit = 0;
     {
       bp::ipstream pipe_stream;
       bp::child proc(krfb_path,
@@ -151,6 +152,7 @@ namespace platf::headless {
         return false;
       }
       proc.wait(ec);
+      krfb_exit = proc.exit_code();
       if (ec) {
         BOOST_LOG(error) << "headless_compositor: krfb-virtualmonitor exited with error"sv;
         return false;
@@ -158,6 +160,17 @@ namespace platf::headless {
       std::ostringstream oss;
       oss << pipe_stream.rdbuf();
       krfb_out = oss.str();
+    }
+
+    if (krfb_exit != 0) {
+      BOOST_LOG(error) << "headless_compositor: krfb-virtualmonitor exited with status "sv << krfb_exit;
+      if (!krfb_out.empty()) {
+        BOOST_LOG(error) << "headless_compositor: krfb output:\n"sv << krfb_out;
+      }
+      return false;
+    }
+    if (!krfb_out.empty()) {
+      BOOST_LOG(debug) << "headless_compositor: krfb-virtualmonitor output:\n"sv << krfb_out;
     }
 
     BOOST_LOG(info) << "headless_compositor: krfb virtual output \""sv << _output_name
@@ -312,6 +325,15 @@ namespace platf::headless {
       unsetenv("DISPLAY");
       unsetenv("WAYLAND_DISPLAY");
 
+      // game_cmd is intentionally NOT exec'd by labwc itself: Sunshine
+      // launches the game process separately via run_command() (see
+      // process.cpp) so Sunshine retains ownership of the PID and the
+      // teardown ordering. labwc has no --command flag of its own; the
+      // game is started after labwc's WAYLAND_DISPLAY is discovered and
+      // injected into _env. The parameter is kept in the signature for
+      // parity with start_gamescope() / wrap_cmd().
+      (void) game_cmd;
+
       execl(labwc_path.c_str(), "labwc", nullptr);
 
       // execl only returns on error.
@@ -400,10 +422,14 @@ namespace platf::headless {
   }
 
   void compositor_t::stop() {
+    // Dispatch teardown by the active backend flag, not by string-matching
+    // the output name. Previously this routed by checking
+    // `_output_name != "HEADLESS-1"`, which silently broke if gamescope
+    // ever changed its default output name or if a future backend reused
+    // the literal "HEADLESS-1".
     if (_using_krfb) {
       stop_krfb();
-    } else if (!_output_name.empty() && _output_name != "HEADLESS-1") {
-      // Gamescope path (output_name was set by start_gamescope)
+    } else if (_using_gamescope) {
       stop_gamescope();
     } else {
       stop_labwc();
@@ -432,13 +458,26 @@ namespace platf::headless {
     kill(-_pid, SIGTERM);
     for (int i = 0; i < 30; ++i) {
       std::this_thread::sleep_for(100ms);
-      if (waitpid(_pid, nullptr, WNOHANG) > 0) {
+      int status = 0;
+      pid_t r = waitpid(_pid, &status, WNOHANG);
+      if (r > 0) {
+        if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+          BOOST_LOG(warning) << "headless_compositor: gamescope exited with status "sv << WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+          BOOST_LOG(warning) << "headless_compositor: gamescope killed by signal "sv << WTERMSIG(status);
+        }
         _pid = -1;
         return;
       }
     }
     kill(-_pid, SIGKILL);
-    waitpid(_pid, nullptr, 0);
+    int status = 0;
+    waitpid(_pid, &status, 0);
+    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+      BOOST_LOG(warning) << "headless_compositor: gamescope exited with status "sv << WEXITSTATUS(status) << " after SIGKILL";
+    } else if (WIFSIGNALED(status)) {
+      BOOST_LOG(warning) << "headless_compositor: gamescope killed by signal "sv << WTERMSIG(status);
+    }
     _pid = -1;
   }
 
@@ -453,9 +492,17 @@ namespace platf::headless {
     // Wait up to 3 seconds for graceful shutdown.
     for (int i = 0; i < 30; ++i) {
       std::this_thread::sleep_for(100ms);
-      if (waitpid(_pid, nullptr, WNOHANG) > 0) {
+      int status = 0;
+      pid_t r = waitpid(_pid, &status, WNOHANG);
+      if (r > 0) {
+        if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+          BOOST_LOG(warning) << "headless_compositor: labwc exited with status "sv << WEXITSTATUS(status);
+        } else if (WIFSIGNALED(status)) {
+          BOOST_LOG(warning) << "headless_compositor: labwc killed by signal "sv << WTERMSIG(status);
+        } else {
+          BOOST_LOG(info) << "headless_compositor: compositor exited gracefully"sv;
+        }
         _pid = -1;
-        BOOST_LOG(info) << "headless_compositor: compositor exited gracefully"sv;
         return;
       }
     }
@@ -463,7 +510,13 @@ namespace platf::headless {
     // Force kill.
     BOOST_LOG(info) << "headless_compositor: sending SIGKILL"sv;
     kill(-_pid, SIGKILL);
-    waitpid(_pid, nullptr, 0);
+    int status = 0;
+    waitpid(_pid, &status, 0);
+    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+      BOOST_LOG(warning) << "headless_compositor: labwc exited with status "sv << WEXITSTATUS(status) << " after SIGKILL";
+    } else if (WIFSIGNALED(status)) {
+      BOOST_LOG(warning) << "headless_compositor: labwc killed by signal "sv << WTERMSIG(status);
+    }
     _pid = -1;
   }
 

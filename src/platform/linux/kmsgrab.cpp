@@ -3,6 +3,8 @@
  * @brief Definitions for KMS screen capture.
  */
 // standard includes
+#include <algorithm>
+#include <cctype>
 #include <errno.h>
 #include <fcntl.h>
 #include <filesystem>
@@ -611,7 +613,22 @@ namespace platf {
       int init(const std::string &display_name, const ::video::config_t &config) {
         delay = std::chrono::nanoseconds {1s} / config.framerate;
 
-        int monitor_index = util::from_view(display_name);
+        // Sanitize the monitor index. parse_monitor_index() validates every
+        // character is an ASCII digit before delegating to from_view(); a
+        // non-numeric name like "Virtual-Virtual-1" (produced by KWin's
+        // double-prefixed virtual outputs) or "DP-1" would otherwise be
+        // decoded as an arbitrary negative number that becomes an
+        // out-of-bounds index into the KMS plane scan array and trips the
+        // encoder's monitor lookup with garbage like -1797036149.
+        constexpr std::int64_t kFallbackMonitor = 0;
+        std::int64_t parsed_index = util::parse_monitor_index(display_name, kFallbackMonitor);
+        if (!display_name.empty() && parsed_index == kFallbackMonitor &&
+            !std::all_of(display_name.begin(), display_name.end(),
+                         [](unsigned char c) { return std::isdigit(c); })) {
+          BOOST_LOG(warning) << "kmsgrab: display_name '"sv << display_name
+                             << "' is not a numeric monitor index; falling back to 0"sv;
+        }
+        int monitor_index = static_cast<int>(parsed_index);
         int monitor = 0;
 
         fs::path card_dir {"/dev/dri"sv};
@@ -1080,6 +1097,19 @@ namespace platf {
         }
 
         plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
+
+        // drmModeGetPlane returns nullptr when the plane has been destroyed
+        // by a hot-swap event (e.g. the user just disabled DP-3 via
+        // kscreen-doctor or unplugged a physical connector). Without this
+        // null check the next line dereferences a null pointer to read
+        // plane->fb_id, segfaulting the capture thread. Treat it the same
+        // as a temporary framebuffer-miss: log a warning, sleep for one
+        // frame interval, and retry rather than aborting the stream.
+        if (!plane) {
+          BOOST_LOG(warning) << "kmsgrab: drmModeGetPlane("sv << plane_id << ") returned nullptr; plane may have been removed by a hot-swap event. Retrying."sv;
+          return capture_e::timeout;
+        }
+
         frame_timestamp = std::chrono::steady_clock::now();
 
         auto fb = card.fb(plane.get());

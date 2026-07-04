@@ -399,7 +399,10 @@ namespace platf {
 
       int streamedMonitor = -1;
       if (!display_name.empty()) {
-        streamedMonitor = (int) util::from_view(display_name);
+        // parse_monitor_index returns -1 for non-numeric names so a
+        // "Virtual-Virtual-1" KWin output doesn't accidentally match a
+        // real monitor index.
+        streamedMonitor = (int) util::parse_monitor_index(display_name, -1);
       }
 
       if (streamedMonitor != -1) {

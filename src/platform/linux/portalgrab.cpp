@@ -715,14 +715,40 @@ namespace platf {
       return nullptr;
     }
 
-    // Drop CAP_SYS_ADMIN, CAP_SYS_NICE and set DUMPABLE flag to allow XDG /root access
-    if (has_elevated_privileges(true)) {
-      drop_elevated_privileges(true);
-    }
-
+    // Try the portal session first with elevated caps still in place. The
+    // XDG Desktop Portal spawns xdg-desktop-portal on demand to handle the
+    // RemoteDesktop/ScreenCast CreateSession request, and that helper
+    // validates the caller by reading /proc/<sunshine-pid>/root -- which
+    // is denied when /proc/<pid> is not "dumpable" or when ambient caps
+    // have already been pruned. Dropping caps *before* the portal call
+    // (the prior behaviour) caused
+    //   GDBus.Error:org.freedesktop.DBus.Error.AccessDenied:
+    //     Unable to open /proc/7425/root
+    // on Arch-based distros that run Sunshine as a systemd user unit.
+    //
+    // If the elevated-priv attempt fails, mirror the kwingrab retry path:
+    // drop ALL caps and try again. By that point the caller's ambient
+    // capability state is irrelevant because the portal already has its
+    // session handle.
     auto portal = std::make_shared<portal::portal_t>();
     if (portal->init(hwdevice_type, display_name, config)) {
-      return nullptr;
+      if (has_elevated_privileges(true)) {
+        BOOST_LOG(warning) << "[portalgrab] Portal init failed with elevated privileges. Dropping ALL caps and retrying."sv;
+        drop_elevated_privileges(true);
+        portal = std::make_shared<portal::portal_t>();
+        if (portal->init(hwdevice_type, display_name, config)) {
+          return nullptr;
+        }
+      } else {
+        return nullptr;
+      }
+    }
+
+    // Once the portal session is established, drop the remaining
+    // CAP_SYS_ADMIN/CAP_SYS_NICE so we don't keep ambient root powers
+    // around for the lifetime of the stream.
+    if (has_elevated_privileges(false)) {
+      drop_elevated_privileges(false);
     }
 
     return portal;

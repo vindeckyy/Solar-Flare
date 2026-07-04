@@ -495,6 +495,31 @@ namespace util {
     return from_chars(std::begin(number), std::end(number));
   }
 
+  /**
+   * @brief Parse a numeric index from a string, returning a fallback if the
+   *        string contains anything other than ASCII digits.
+   * @details The plain @ref from_view helper treats every byte as a decimal
+   *          digit (it does no validation), so a non-numeric string like
+   *          "Virtual-Virtual-1" or "DP-1" returns an arbitrary negative
+   *          number that can become a corrupt out-of-bounds index when used
+   *          to select a monitor/plane. This helper requires every character
+   *          to be '0'..'9' before parsing and returns @p fallback otherwise.
+   * @param text The string to parse.
+   * @param fallback Value returned when @p text is empty or non-numeric.
+   * @return The parsed non-negative integer, or @p fallback.
+   */
+  inline std::int64_t parse_monitor_index(const std::string_view &text, std::int64_t fallback) {
+    if (text.empty()) {
+      return fallback;
+    }
+    for (char c : text) {
+      if (c < '0' || c > '9') {
+        return fallback;
+      }
+    }
+    return from_view(text);
+  }
+
   template<class X, class Y>
   class Either: public std::variant<std::monostate, X, Y> {
   public:

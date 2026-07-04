@@ -16,10 +16,21 @@ namespace video {
   }
 
   void AdaptiveBitrate::update_network_stats(float packet_loss_pct, float rtt_ms) {
+    // Prime the EWMA on the first sample. Without this, the rtt_spike check
+    // below would compare the first rtt_ms against 2x(0.3 * rtt_ms) = 0.6x the
+    // first sample, falsely flagging every fresh session as congested on its
+    // very first update.
+    if (!_primed) {
+      _ewma_loss = packet_loss_pct;
+      _ewma_rtt = rtt_ms;
+      _primed = true;
+      return;
+    }
+
     _ewma_loss = EWMA_ALPHA * packet_loss_pct + (1.0f - EWMA_ALPHA) * _ewma_loss;
     _ewma_rtt = EWMA_ALPHA * rtt_ms + (1.0f - EWMA_ALPHA) * _ewma_rtt;
 
-    bool rtt_spike = rtt_ms > 2.0f * _ewma_rtt && _ewma_rtt > 0.0f;
+    bool rtt_spike = rtt_ms > 2.0f * _ewma_rtt;
     bool is_congested = rtt_spike || _ewma_loss > 0.0f;
 
     if (is_congested) {
@@ -79,9 +90,14 @@ namespace video {
 
   int AdaptiveBitrate::get_target_bitrate(int base_bitrate) {
     int result = static_cast<int>(base_bitrate * _current_scale);
-    result = std::max(result, _cfg.min_bitrate);
-    result = std::min(result, _cfg.max_bitrate);
+    // Clamp order matters: honour the client-requested ceiling and the
+    // configured ceiling first, then ensure we never drop below the
+    // configured floor. Without this, when base_bitrate < min_bitrate the
+    // earlier max() would set result = min_bitrate only to be clobbered by
+    // the final min(result, base_bitrate), returning a value below the floor.
     result = std::min(result, base_bitrate);
+    result = std::min(result, _cfg.max_bitrate);
+    result = std::max(result, _cfg.min_bitrate);
     return result;
   }
 
@@ -90,6 +106,7 @@ namespace video {
     _ewma_rtt = 0.0f;
     _current_scale = 1.0f;
     _in_recovery = false;
+    _primed = false;
   }
 
 }  // namespace video
