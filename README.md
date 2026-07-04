@@ -59,9 +59,7 @@ The whole pipeline runs in real time. On a good local network, the delay is low 
 
 ## Quick install
 
-Clone the repo and run the build script. It auto-detects your Linux distribution and installs all dependencies automatically.
-
-**Arch Linux / CachyOS / Manjaro:**
+The build script auto-detects your Linux distribution from `/etc/os-release` and installs the correct packages. Tested on Arch, CachyOS, Manjaro, EndeavourOS, Ubuntu, Debian, Pop!_OS, Fedora, Nobara, Bazzite, and openSUSE.
 
 ```bash
 git clone https://github.com/vindeckyy/Solar-Flare.git
@@ -71,19 +69,6 @@ sudo cmake --install build
 sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 systemctl --user enable --now sunshine.service
 ```
-
-**Ubuntu / Debian / Fedora / openSUSE:**
-
-```bash
-git clone https://github.com/vindeckyy/Solar-Flare.git
-cd Solar-Flare
-./scripts/cachyos-build.sh
-sudo cmake --install build
-sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
-systemctl --user enable --now sunshine.service
-```
-
-The build script detects your distribution from `/etc/os-release` and installs the correct packages. Tested on Arch, CachyOS, Manjaro, EndeavourOS, Ubuntu, Debian, Pop!_OS, Fedora, Nobara, Bazzite, and openSUSE.
 
 **After installing:**
 
