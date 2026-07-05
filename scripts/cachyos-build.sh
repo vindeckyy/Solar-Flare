@@ -92,6 +92,10 @@ IS_BAZZITE=0
 if [[ "$DISTRO_ID" == "bazzite" ]] || [[ -f /run/ostree-booted ]]; then
   IS_BAZZITE=1
   say "Bazzite / rpm-ostree detected. Will use rpm-ostree for package installs."
+  if ! command -v rpm-ostree >/dev/null 2>&1; then
+    warn "Bazzite detected, but 'rpm-ostree' command not found. Falling back to dnf."
+    IS_BAZZITE=0
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -151,8 +155,10 @@ step "3/7  Build dependencies"
 if [[ "$RUN_PACMAN" -eq 0 ]]; then
   say "Skipping package install (--no-pacman / --no-install)."
 elif [[ "$IS_BAZZITE" -eq 1 ]]; then
-  say "Bazzite uses rpm-ostree for package layering. Installing build deps..."
-  say "NOTE: rpm-ostree layers packages into the next boot. You must reboot after this step."
+  say "Bazzite uses rpm-ostree for package layering. This process is non-destructive but requires a reboot to take effect."
+  say "Installing build dependencies..."
+  warn "IMPORTANT: A reboot is REQUIRED after this step completes for the changes to apply."
+  warn "Run 'systemctl reboot' after the script finishes."
 
   if ! rpm-ostree install --apply-live --allow-inactive \
         gcc-c++ cmake ninja-build git pkgconfig \
@@ -165,9 +171,10 @@ elif [[ "$IS_BAZZITE" -eq 1 ]]; then
         vulkan-devel glslang-devel \
         boost-devel miniupnpc-devel json-devel \
         libpng-devel libXext-devel libXtst-devel nodejs npm 2>&1; then
-    warn "rpm-ostree install returned non-zero. Continuing. The build will tell us if anything's actually missing."
+    die "rpm-ostree install failed. Please check the error messages above. You may need to run it manually."
   fi
-  say "Packages layered. If this is the first run, reboot with: systemctl reboot"
+  say "Packages layered successfully. Please reboot your system now to continue the installation."
+  die "REBOOT REQUIRED: Run 'systemctl reboot'"
 else
   case "${DISTRO_ID}" in
     cachyos|arch|manjaro|endeavouros|arco|garuda)
