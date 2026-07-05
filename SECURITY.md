@@ -53,7 +53,7 @@ patched build, pull the latest master and run `./scripts/cachyos-build.sh`.
 
 The fork follows upstream's release cadence. Critical security fixes
 are cherry-picked onto the fork as soon as upstream ships them (see
-[docs/CHANGELOG-SolarFlare.md](CHANGELOG-SolarFlare.md) for the
+[docs/CHANGELOG-SolarFlare.md](docs/CHANGELOG-SolarFlare.md) for the
 cherry-pick log). The fork does **not** maintain its own security
 advisories; if you need CVE-tracked notifications, watch upstream.
 
