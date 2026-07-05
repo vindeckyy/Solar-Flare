@@ -1246,12 +1246,10 @@ namespace platf {
       return kwin_display(hwdevice_type, display_name, config);
     }
 #endif
-#ifdef SUNSHINE_BUILD_HERMES_KMS
     if (sources[source::HERMES_KMS]) {
-      BOOST_LOG(info) << "Screencasting with Hermes-KMS (stub - capture loop not yet wired)"sv;
+      BOOST_LOG(info) << "Screencasting with Hermes-KMS"sv;
       return hermes_kms_display(hwdevice_type, display_name, config);
     }
-#endif
 
     return nullptr;
   }
