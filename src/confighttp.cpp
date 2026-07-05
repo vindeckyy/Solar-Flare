@@ -1485,6 +1485,74 @@ namespace confighttp {
   }
 
   /**
+   * @brief Push network stats from an HTTP client into the AdaptiveBitrate
+   *        controller. The video loop drains the queue once per frame.
+   *
+   * Body: {"packet_loss_pct": 0.5, "rtt_ms": 23.4}
+   *
+   * @api_examples{/api/stream/network-stats| POST| {"packet_loss_pct":0.5,"rtt_ms":23.4}}
+   */
+  void postNetworkStats(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) return;
+    // Scoped: only callers with LOGS_GET can push stats (loose, matches "read-side" feel).
+    if (!has_scope(auth, config::api_scope_t::LOGS_GET)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    try {
+      auto j = nlohmann::json::parse(ss.str());
+      float loss = j.value("packet_loss_pct", 0.0f);
+      float rtt = j.value("rtt_ms", 0.0f);
+      if (loss < 0 || loss > 100) {
+        bad_request(response, request, "packet_loss_pct must be in [0, 100]");
+        return;
+      }
+      if (rtt < 0) {
+        bad_request(response, request, "rtt_ms must be >= 0");
+        return;
+      }
+      // Push into the same queue the video loop drains.
+      mail::man->event<std::pair<float, float>>(mail::adaptive_bitrate_net_stats)->raise(std::make_pair(loss, rtt));
+    } catch (const std::exception &e) {
+      bad_request(response, request, std::string("Invalid JSON: ") + e.what());
+      return;
+    }
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    send_response(response, tree);
+  }
+
+  /**
+   * @brief Return current adaptive-bitrate state. Read-only.
+   *
+   * @api_examples{/api/stream/bitrate| GET| null}
+   */
+  void getBitrate(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) return;
+    if (!has_scope(auth, config::api_scope_t::CONFIG_GET)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    tree["adaptive_bitrate_enabled"] = config::video.adaptive_bitrate_enabled;
+    tree["adaptive_bitrate_min_kbps"] = config::video.adaptive_bitrate_min;
+    tree["adaptive_bitrate_max_kbps"] = config::video.adaptive_bitrate_max;
+    send_response(response, tree);
+  }
+
+  /**
    * @brief List existing API tokens (admin only).
    * @details Returns the name and granted scopes of each token. Never returns
    *          the hash or salt — those are write-only secrets.
@@ -2230,6 +2298,8 @@ namespace confighttp {
     server.resource["^/api/tokens$"]["GET"] = listTokens;
     server.resource["^/api/tokens$"]["POST"] = createToken;
     server.resource["^/api/tokens/([\\w-]+)$"]["DELETE"] = deleteToken;
+    server.resource["^/api/stream/network-stats$"]["POST"] = postNetworkStats;
+    server.resource["^/api/stream/bitrate$"]["GET"] = getBitrate;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
