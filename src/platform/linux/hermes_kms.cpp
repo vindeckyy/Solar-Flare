@@ -33,9 +33,10 @@ namespace platf {
   namespace {
 
     // Ponytail: read /sys/module/hermes_kms to detect the module is loaded.
-    // Read /dev/dri/renderD* to find the render node. The render node is
-    // the only thing Hermes-KMS exposes — the actual DRM_KMS device lives
-    // on the compositor side.
+    // find_hermes_kms_card() below scans /dev/dri/card* for the card node.
+    // The card node is what Hermes-KMS ioctls work on — render nodes
+    // (renderD*) pass through to the DRM render path which does not forward
+    // Hermes-KMS ioctls.
     bool module_loaded() {
       std::error_code ec;
       return std::filesystem::exists("/sys/module/hermes_kms", ec);
@@ -69,12 +70,12 @@ namespace platf {
     }
     int rn = find_hermes_kms_card();
     if (rn < 0) {
-      s.last_error = "no /dev/dri/renderD* device found";
+      s.last_error = "no /dev/dri/card* device found";
       return s;
     }
     s.card_index = rn;
 
-    // Open the render node and probe capabilities via the UAPI.
+    // Open the card node and probe capabilities via the UAPI.
     std::string node_path = "/dev/dri/card" + std::to_string(rn);
     int fd = open(node_path.c_str(), O_RDWR | O_CLOEXEC);
     if (fd < 0) {
@@ -132,10 +133,10 @@ namespace platf {
   }
 
   /**
-   * @brief Build a display_t bound to the Hermes-KMS render node.
+   * @brief Build a display_t bound to the Hermes-KMS card node.
    * @details STUB. See the header declaration for the full contract.
    *          The real implementation requires working hardware (a loaded
-   *          hermes_kms kernel module + a /dev/dri/renderD* node).
+   *          hermes_kms kernel module + a /dev/dri/card* node).
    */
   std::shared_ptr<display_t> hermes_kms_display(mem_type_e hwdevice_type,
                                                 const std::string &display_name,
@@ -148,17 +149,17 @@ namespace platf {
       return nullptr;
     }
     if (status.card_index < 0) {
-      BOOST_LOG(error) << "hermes_kms: no render node found. "
+      BOOST_LOG(error) << "hermes_kms: no card node found. "
                           "Check 'dmesg | grep hermes_kms' for driver errors.";
       return nullptr;
     }
-    // ponytail: capture loop not yet wired. The render node is present,
+    // ponytail: capture loop not yet wired. The card node is present,
     // but the WAIT_FRAME → ACQUIRE_FRAME → import-DMA-BUF path needs
     // the upstream UAPI structs and a real hermes_kms module to test against.
     // Until then, this is a compile-time-present, runtime-detected option
     // that fails with a clear diagnostic instead of a segfault.
-    BOOST_LOG(warning) << "hermes_kms: render node /dev/dri/renderD"
-                          << (status.card_index - 128)
+    BOOST_LOG(warning) << "hermes_kms: card node /dev/dri/card"
+                          << status.card_index
                           << " found (uapi "
                           << status.uapi_version
                           << "), but the capture loop is not yet wired. "

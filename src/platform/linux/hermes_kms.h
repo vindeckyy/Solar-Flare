@@ -11,7 +11,7 @@
  * We bundle the header here so we don't depend on the kernel module being
  * installed at build time.
  *
- * The capture loop is intentionally minimal: open the render node,
+ * The capture loop is intentionally minimal: open the card node,
  * probe with GET_VERSION/GET_CAPS, run WAIT_FRAME -> ACQUIRE_FRAME to pull
  * DMA-BUFs. The DMA-BUF is then handed off to the existing encoder path
  * (VAAPI / NVENC / AMF) — Hermes-KMS is a capture backend only.
@@ -56,7 +56,7 @@ namespace platf {
    */
   struct hermes_kms_status_t {
     bool module_loaded = false;       ///< True if /sys/module/hermes_kms exists.
-    int card_index = -1;              ///< /dev/dri/renderD* index, -1 if not found.
+    int card_index = -1;              ///< /dev/dri/card* index, -1 if not found.
     std::uint32_t uapi_version = 0;    ///< 0 if GET_VERSION ioctl failed or not run yet.
     hermes_kms_caps_t caps;           ///< Capabilities (only valid if card_index >= 0).
     std::string driver_version;       ///< "M.m.p" from GET_VERSION.
@@ -90,8 +90,8 @@ namespace platf {
    */
   std::vector<std::string> hermes_kms_display_names(mem_type_e hwdevice_type);
   /**
-   * @brief Build a display_t bound to the Hermes-KMS render node.
-   * @details STUB in this commit. The real implementation opens the render
+   * @brief Build a display_t bound to the Hermes-KMS card node.
+   * @details STUB in this commit. The real implementation opens the card
    *          node, runs GET_VERSION + GET_CAPS, then enters the WAIT_FRAME
    *          -> ACQUIRE_FRAME -> import-DMA-BUF-into-encoder loop. For now
    *          this returns nullptr and logs a clear "not implemented" error.
@@ -105,7 +105,7 @@ namespace platf {
                                                 const video::config_t &config);
   /**
    * @brief Quick check: is a working Hermes-KMS device present?
-   * @return true if module_loaded AND a render node was found.
+   * @return true if module_loaded AND a card node was found.
    */
   bool verify_hermes_kms();
 
