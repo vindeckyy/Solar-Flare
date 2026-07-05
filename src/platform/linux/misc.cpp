@@ -1158,6 +1158,14 @@ namespace platf {
   }
 #endif
 
+  // Hermes-KMS capture backend (always compiled in; runtime probe
+  // returns false when the kernel module isn't loaded).
+  std::vector<std::string> hermes_kms_display_names(mem_type_e hwdevice_type);
+  std::shared_ptr<display_t> hermes_kms_display(mem_type_e hwdevice_type,
+                                                const std::string &display_name,
+                                                const video::config_t &config);
+  bool verify_hermes_kms();
+
   std::vector<std::string> display_names(mem_type_e hwdevice_type) {
 #ifdef SUNSHINE_BUILD_CUDA
     // display using NvFBC only supports mem_type_e::cuda
