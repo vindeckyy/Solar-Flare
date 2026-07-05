@@ -41,17 +41,17 @@ namespace platf {
       return std::filesystem::exists("/sys/module/hermes_kms", ec);
     }
 
-    int find_render_node() {
-      // ponytail: scan render nodes, try GET_VERSION on each.
-      // The first one that answers with a match is ours.
+    int find_hermes_kms_card() {
+      // ponytail: Hermes-KMS ioctls work on the card node, not the
+      // render node. Scan /dev/dri/cardN.
       for (int i = 0; i < 16; ++i) {
-        std::string path = "/dev/dri/renderD" + std::to_string(i);
+        std::string path = "/dev/dri/card" + std::to_string(i);
         int fd = open(path.c_str(), O_RDWR | O_CLOEXEC);
         if (fd < 0) continue;
         struct drm_hermes_kms_version ver = {};
         if (ioctl(fd, DRM_IOCTL_HERMES_KMS_GET_VERSION, &ver) == 0) {
           close(fd);
-          return 128 + i;  // card_index = 128 + render_node_index
+          return i;
         }
         close(fd);
       }
@@ -67,7 +67,7 @@ namespace platf {
       s.last_error = "hermes_kms kernel module not loaded";
       return s;
     }
-    int rn = find_render_node();
+    int rn = find_hermes_kms_card();
     if (rn < 0) {
       s.last_error = "no /dev/dri/renderD* device found";
       return s;
@@ -75,7 +75,7 @@ namespace platf {
     s.card_index = rn;
 
     // Open the render node and probe capabilities via the UAPI.
-    std::string node_path = "/dev/dri/renderD" + std::to_string(rn - 128);
+    std::string node_path = "/dev/dri/card" + std::to_string(rn);
     int fd = open(node_path.c_str(), O_RDWR | O_CLOEXEC);
     if (fd < 0) {
       s.last_error = "cannot open " + node_path + ": " + strerror(errno);
