@@ -193,9 +193,9 @@ protected:
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                               ) {
       // Call the actual confighttp::authenticate function
-      const bool authenticated = confighttp::authenticate(response, request);
+      const auto auth = confighttp::authenticate(response, request);
 
-      if (authenticated) {
+      if (auth.authenticated) {
         SimpleWeb::CaseInsensitiveMultimap headers;
         headers.emplace("Content-Type", "text/plain");
         response->write("authenticated", headers);

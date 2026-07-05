@@ -155,17 +155,6 @@ namespace confighttp {
   }
 
   /**
-   * @brief Result of authentication — Basic Auth (admin) and Bearer
-   *        (scoped API token) callers get one of these.
-   */
-  struct auth_result_t {
-    bool authenticated = false;
-    bool is_admin = false;
-    std::string token_name;
-    std::vector<config::api_scope_t> granted_scopes;
-  };
-
-  /**
    * @brief Try to authenticate the request via API token (Bearer scheme).
    *
    * Tokens are stored as `<name>\t<hex_hash>\t<hex_salt>\t<scope1,scope2,...>`.
