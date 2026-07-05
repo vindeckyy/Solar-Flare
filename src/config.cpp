@@ -12,6 +12,7 @@
 #include <functional>
 #include <iostream>
 #include <thread>
+#include <sstream>
 #include <unordered_map>
 #include <utility>
 
@@ -50,6 +51,49 @@ const std::string CERTIFICATE_FILE = std::string(CA_DIR) + "/cacert.pem";
 const std::string APPS_JSON_PATH = platf::appdata().string() + "/apps.json";
 
 namespace config {
+
+  // ===========================================================================
+  // API scope string mapping
+  // ===========================================================================
+
+  const std::string &to_string(api_scope_t scope) {
+    static const std::string STRINGS[] = {
+      "config:get",
+      "config:set",
+      "apps:get",
+      "apps:launch",
+      "apps:close",
+      "clients:list",
+      "clients:pair",
+      "clients:unpair",
+      "logs:get",
+      "display:reset",
+      "tokens:manage",
+      "*",
+    };
+    auto idx = static_cast<size_t>(scope);
+    if (idx >= std::size(STRINGS)) {
+      static const std::string UNKNOWN = "unknown";
+      return UNKNOWN;
+    }
+    return STRINGS[idx];
+  }
+
+  std::optional<api_scope_t> api_scope_from_string(const std::string &s) {
+    if (s == "config:get")     return api_scope_t::CONFIG_GET;
+    if (s == "config:set")     return api_scope_t::CONFIG_SET;
+    if (s == "apps:get")       return api_scope_t::APPS_GET;
+    if (s == "apps:launch")    return api_scope_t::APPS_LAUNCH;
+    if (s == "apps:close")     return api_scope_t::APPS_CLOSE;
+    if (s == "clients:list")   return api_scope_t::CLIENTS_LIST;
+    if (s == "clients:pair")   return api_scope_t::CLIENTS_PAIR;
+    if (s == "clients:unpair") return api_scope_t::CLIENTS_UNPAIR;
+    if (s == "logs:get")       return api_scope_t::LOGS_GET;
+    if (s == "display:reset")  return api_scope_t::DISPLAY_RESET;
+    if (s == "tokens:manage")  return api_scope_t::TOKENS_MANAGE;
+    if (s == "*")              return api_scope_t::STAR;
+    return std::nullopt;
+  }
 
   namespace nv {
 
@@ -1324,6 +1368,73 @@ namespace config {
 
     string_f(vars, "trusted_subnets", nvhttp.trusted_subnets);
     bool_f(vars, "trusted_subnet_auto_pairing", nvhttp.trusted_subnet_auto_pairing);
+
+    // Parse api_tokens: pipe-separated `<name>\t<hex_hash>\t<hex_salt>\t<scope1,scope2,...>`.
+    // Tab separates fields (not colon) because scopes themselves contain colons
+    // (`config:get`, `apps:launch`). Each token's plaintext value is never
+    // persisted — only its SHA-256 hash + per-token salt + the granted scopes.
+    // Use POST /api/tokens (admin only) to mint a new token; the plaintext is
+    // shown once at creation time.
+    //
+    // Example sunshine.conf (tabs are literal tab characters):
+    //   api_tokens = "ci-bot\tabc123...\tdeadbeef...\tconfig:get,apps:launch"
+    {
+      std::string temp;
+      string_f(vars, "api_tokens", temp);
+      nvhttp.api_tokens.clear();
+      if (!temp.empty()) {
+        std::stringstream ss(temp);
+        std::string entry;
+        while (std::getline(ss, entry, '|')) {
+          // Trim whitespace around the whole entry
+          entry.erase(0, entry.find_first_not_of(" \t\r\n"));
+          entry.erase(entry.find_last_not_of(" \t\r\n") + 1);
+          if (entry.empty()) continue;
+
+          // Split on tab into 4 fields. Tab chosen because scopes contain colons.
+          std::vector<std::string> parts;
+          std::string part;
+          std::stringstream ps(entry);
+          while (std::getline(ps, part, '\t')) parts.push_back(part);
+
+          if (parts.size() != 4) {
+            BOOST_LOG(warning) << "config: api_tokens entry malformed (expected 4 colon-separated fields, got " << parts.size() << "); skipping";
+            continue;
+          }
+
+          api_token_t token;
+          token.name = parts[0];
+          token.token_hash = parts[1];
+          token.salt = parts[2];
+
+          if (token.name.empty() || token.token_hash.empty() || token.salt.empty()) {
+            BOOST_LOG(warning) << "config: api_tokens entry '" << token.name << "' missing required field; skipping";
+            continue;
+          }
+
+          // Parse scopes (comma-separated within parts[3])
+          std::stringstream scopes_ss(parts[3]);
+          std::string scope_str;
+          while (std::getline(scopes_ss, scope_str, ',')) {
+            scope_str.erase(0, scope_str.find_first_not_of(" \t\r\n"));
+            scope_str.erase(scope_str.find_last_not_of(" \t\r\n") + 1);
+            if (scope_str.empty()) continue;
+            auto parsed = api_scope_from_string(scope_str);
+            if (!parsed) {
+              BOOST_LOG(warning) << "config: api_tokens entry '" << token.name << "' has unknown scope '" << scope_str << "'; skipping scope";
+              continue;
+            }
+            token.scopes.push_back(*parsed);
+          }
+          if (token.scopes.empty()) {
+            BOOST_LOG(warning) << "config: api_tokens entry '" << token.name << "' has no valid scopes; skipping";
+            continue;
+          }
+          nvhttp.api_tokens.push_back(std::move(token));
+        }
+        BOOST_LOG(info) << "config: loaded " << nvhttp.api_tokens.size() << " api token(s)";
+      }
+    }
 
     // Parse CSRF allowed origins - always include defaults, then append user-configured origins
     std::vector<std::string> user_csrf_origins;

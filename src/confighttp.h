@@ -14,11 +14,16 @@
 #include <Simple-Web-Server/server_https.hpp>
 
 // local includes
+#include "config.h"
 #include "thread_safe.h"
 
 #define WEB_DIR SUNSHINE_ASSETS_DIR "/web/"
 
 namespace confighttp {
+  // Forward decl. The full definition lives in confighttp.cpp. We need it here
+  // because the public authenticate() function returns one.
+  struct auth_result_t;
+
   constexpr auto PORT_HTTPS = 1;
 
   // Type aliases for HTTPS server components
@@ -33,7 +38,18 @@ namespace confighttp {
   void send_response(const resp_https_t &response, const nlohmann::json &output_tree);
   void send_unauthorized(const resp_https_t &response, const req_https_t &request);
   void send_redirect(const resp_https_t &response, const req_https_t &request, const char *path);
-  bool authenticate(const resp_https_t &response, const req_https_t &request);
+  /**
+   * @brief Authenticate the request. Returns the full result (who you are,
+   *        what scopes you hold) so callers can do scope checks.
+   *        Previously this returned bool. See confighttp.cpp for the body.
+   */
+  auth_result_t authenticate(const resp_https_t &response, const req_https_t &request);
+
+  /**
+   * @brief Check whether an authenticated request is allowed to use `scope`.
+   *        Admin (Basic Auth or STAR-scope token) always passes.
+   */
+  bool has_scope(const auth_result_t &auth, config::api_scope_t scope);
   void not_found(const resp_https_t &response, const req_https_t &request, const std::string &error_message = "Not Found");
   void bad_request(const resp_https_t &response, const req_https_t &request, const std::string &error_message = "Bad Request");
   bool check_content_type(const resp_https_t &response, const req_https_t &request, const std::string_view &contentType);

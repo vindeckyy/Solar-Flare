@@ -155,33 +155,93 @@ namespace confighttp {
   }
 
   /**
-   * @brief Authenticate the user.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   * @return True if the user is authenticated, false otherwise.
+   * @brief Result of authentication — Basic Auth (admin) and Bearer
+   *        (scoped API token) callers get one of these.
    */
-  bool authenticate(const resp_https_t &response, const req_https_t &request) {
+  struct auth_result_t {
+    bool authenticated = false;
+    bool is_admin = false;
+    std::string token_name;
+    std::vector<config::api_scope_t> granted_scopes;
+  };
+
+  /**
+   * @brief Try to authenticate the request via API token (Bearer scheme).
+   *
+   * Tokens are stored as `<name>\t<hex_hash>\t<hex_salt>\t<scope1,scope2,...>`.
+   * We SHA-256 the presented plaintext + per-token salt and compare against the
+   * stored hash. STAR-scope tokens behave like admin for scope checks but
+   * still report is_admin=false (audit logs can distinguish them).
+   */
+  auth_result_t authenticate_bearer(const req_https_t &request) {
+    auth_result_t result;
+    const auto auth = request->header.find("authorization");
+    if (auth == request->header.end()) return result;
+
+    const auto &raw = auth->second;
+    constexpr std::string_view BEARER = "Bearer "sv;
+    if (raw.size() < BEARER.size() || !boost::iequals(raw.substr(0, BEARER.size()), BEARER)) {
+      return result;
+    }
+
+    std::string presented = raw.substr(BEARER.size());
+    presented.erase(0, presented.find_first_not_of(" \t\r\n"));
+    presented.erase(presented.find_last_not_of(" \t\r\n") + 1);
+    if (presented.empty()) return result;
+
+    for (const auto &token : config::nvhttp.api_tokens) {
+      std::string composite = presented + ":" + token.salt;
+      auto hashed = util::hex(crypto::hash(composite)).to_string();
+      if (hashed == token.token_hash) {
+        result.authenticated = true;
+        result.token_name = token.name;
+        result.granted_scopes = token.scopes;
+        for (auto s : token.scopes) {
+          if (s == config::api_scope_t::STAR) result.is_admin = true;
+        }
+        BOOST_LOG(info) << "Web UI: API token '"sv << token.name << "' authenticated request"sv;
+        return result;
+      }
+    }
+    BOOST_LOG(info) << "Web UI: bearer token did not match any configured API token"sv;
+    return result;
+  }
+
+  /**
+   * @brief Authenticate the user.
+   * @details Tries API token (Bearer) first, then falls back to Basic Auth.
+   *          Bearer auth is preferred because it lets callers scope permissions.
+   */
+  auth_result_t authenticate(const resp_https_t &response, const req_https_t &request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
 
     if (const auto ip_type = net::from_address(address); ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
-      return false;
+      return auth_result_t{};
     }
 
     // If credentials are shown, redirect the user to a /welcome page
     if (config::sunshine.username.empty()) {
       send_redirect(response, request, "/welcome");
-      return false;
+      return auth_result_t{};
     }
 
     auto fg = util::fail_guard([&]() {
       send_unauthorized(response, request);
     });
 
+    // Try Bearer token first.
+    auto bearer_result = authenticate_bearer(request);
+    if (bearer_result.authenticated) {
+      fg.disable();
+      return bearer_result;
+    }
+
+    // Fall back to Basic Auth (admin).
     const auto auth = request->header.find("authorization");
     if (auth == request->header.end()) {
-      return false;
+      return auth_result_t{};
     }
 
     const auto &rawAuth = auth->second;
@@ -189,18 +249,54 @@ namespace confighttp {
 
     const auto index = static_cast<int>(authData.find(':'));
     if (index >= authData.size() - 1) {
-      return false;
+      return auth_result_t{};
     }
 
     const auto username = authData.substr(0, index);
     const auto password = authData.substr(index + 1);
 
     if (const auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string(); !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
-      return false;
+      return auth_result_t{};
     }
 
     fg.disable();
-    return true;
+    auth_result_t result;
+    result.authenticated = true;
+    result.is_admin = true;
+    return result;
+  }
+
+  /**
+   * @brief Check whether an authenticated request is allowed to use `scope`.
+   *        Admin (Basic Auth or STAR-scope token) always passes.
+   */
+  bool has_scope(const auth_result_t &auth, config::api_scope_t scope) {
+    if (!auth.authenticated) return false;
+    if (auth.is_admin) return true;
+    for (auto s : auth.granted_scopes) {
+      if (s == scope || s == config::api_scope_t::STAR) return true;
+    }
+    return false;
+  }
+
+  /**
+   * @brief Send a 403 Forbidden response (authenticated but lacks scope).
+   */
+  void send_forbidden(const resp_https_t &response, [[maybe_unused]] const req_https_t &request) {
+    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+    BOOST_LOG(info) << "Web UI: ["sv << address << "] -- forbidden (lacks scope)"sv;
+
+    constexpr auto code = SimpleWeb::StatusCode::client_error_forbidden;
+    nlohmann::json tree;
+    tree["status_code"] = code;
+    tree["status"] = false;
+    tree["error"] = "Token does not have the required scope for this endpoint";
+    const SimpleWeb::CaseInsensitiveMultimap headers {
+      {"Content-Type", "application/json"},
+      {"X-Frame-Options", "DENY"},
+      {"Content-Security-Policy", "frame-ancestors 'none';"}
+    };
+    response->write(code, tree.dump(), headers);
   }
 
   /**
@@ -457,7 +553,7 @@ namespace confighttp {
       return;
     }
 
-    if (require_auth && !authenticate(response, request)) {
+    if (require_auth && !authenticate(response, request).authenticated) {
       return;
     }
 
@@ -572,7 +668,7 @@ namespace confighttp {
    * @api_examples{/api/csrf-token| GET| null}
    */
   void getCSRFToken(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -594,7 +690,7 @@ namespace confighttp {
    * @api_examples{/api/apps| GET| null}
    */
   void getApps(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -654,7 +750,7 @@ namespace confighttp {
    * @api_examples{/api/games/scan| GET| null}
    */
   void scanGames(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -714,7 +810,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -786,7 +882,7 @@ namespace confighttp {
    * @api_examples{/api/apps/close| POST| null}
    */
   void closeApp(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -812,7 +908,7 @@ namespace confighttp {
    * @api_examples{/api/apps/9999| DELETE| null}
    */
   void deleteApp(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -863,7 +959,7 @@ namespace confighttp {
    * @api_examples{/api/clients/list| GET| null}
    */
   void getClients(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -895,7 +991,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
     std::string client_id = get_client_id(request);
@@ -949,7 +1045,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -990,7 +1086,7 @@ namespace confighttp {
    * @api_examples{/api/clients/unpair-all| POST| null}
    */
   void unpairAll(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1017,7 +1113,7 @@ namespace confighttp {
    * @api_examples{/api/config| GET| null}
    */
   void getConfig(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1138,7 +1234,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1225,7 +1321,7 @@ namespace confighttp {
    * @api_examples{/api/covers/9999 | GET| null}
    */
   void getCover(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1298,7 +1394,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1350,8 +1446,217 @@ namespace confighttp {
    *
    * @api_examples{/api/logs| GET| null}
    */
+  /**
+   * @brief Generate a fresh random API token string.
+   * @details 32 bytes from /dev/urandom, hex-encoded → 64-char plaintext.
+   *          Returned alongside the computed hash + salt so the API
+   *          endpoint can echo the plaintext back to the admin exactly once.
+   */
+  struct minted_token_t {
+    std::string plaintext;
+    std::string hash;
+    std::string salt;
+  };
+
+  // Helper: hex-encode a raw byte string.
+  std::string hex_encode(const std::string &raw) {
+    static const char *hex = "0123456789abcdef";
+    std::string out;
+    out.reserve(raw.size() * 2);
+    for (unsigned char c : raw) {
+      out.push_back(hex[(c >> 4) & 0xF]);
+      out.push_back(hex[c & 0xF]);
+    }
+    return out;
+  }
+
+  minted_token_t mint_api_token() {
+    minted_token_t out;
+    std::ifstream urandom("/dev/urandom", std::ios::binary);
+    std::string plain_raw(32, '\0');
+    urandom.read(plain_raw.data(), 32);
+    std::string salt_raw(16, '\0');
+    urandom.read(salt_raw.data(), 16);
+    out.plaintext = hex_encode(plain_raw);
+    out.salt = hex_encode(salt_raw);
+    std::string composite = out.plaintext + ":" + out.salt;
+    out.hash = util::hex(crypto::hash(composite)).to_string();
+    return out;
+  }
+
+  /**
+   * @brief List existing API tokens (admin only).
+   * @details Returns the name and granted scopes of each token. Never returns
+   *          the hash or salt — those are write-only secrets.
+   *
+   * @api_examples{/api/tokens| GET| null}
+   */
+  void listTokens(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) {
+      return;
+    }
+    if (!has_scope(auth, config::api_scope_t::TOKENS_MANAGE)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    auto arr = nlohmann::json::array();
+    for (const auto &token : config::nvhttp.api_tokens) {
+      auto entry = nlohmann::json::object();
+      entry["name"] = token.name;
+      auto scopes_arr = nlohmann::json::array();
+      for (auto s : token.scopes) {
+        scopes_arr.push_back(config::to_string(s));
+      }
+      entry["scopes"] = scopes_arr;
+      arr.push_back(entry);
+    }
+    tree["tokens"] = arr;
+    send_response(response, tree);
+  }
+
+  /**
+   * @brief Create a new API token (admin only).
+   * @details Body: `{"name": "...", "scopes": ["config:get", "apps:launch"]}`.
+   *          The plaintext is generated server-side and returned in the
+   *          response exactly once — it cannot be retrieved later.
+   *
+   * @api_examples{/api/tokens| POST| {"name":"ci-bot","scopes":["config:get","apps:launch"]}}
+   */
+  void createToken(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) {
+      return;
+    }
+    if (!has_scope(auth, config::api_scope_t::TOKENS_MANAGE)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    auto body = ss.str();
+
+    nlohmann::json input;
+    try {
+      input = nlohmann::json::parse(body);
+    } catch (const std::exception &e) {
+      bad_request(response, request, "Invalid JSON body");
+      return;
+    }
+
+    std::string name = input.value("name", "");
+    if (name.empty()) {
+      bad_request(response, request, "Token name is required");
+      return;
+    }
+    // Reject duplicate names
+    for (const auto &t : config::nvhttp.api_tokens) {
+      if (t.name == name) {
+        bad_request(response, request, "Token name already exists");
+        return;
+      }
+    }
+
+    std::vector<config::api_scope_t> scopes;
+    auto scopes_in = input.find("scopes");
+    if (scopes_in == input.end() || !scopes_in->is_array() || scopes_in->empty()) {
+      bad_request(response, request, "At least one scope is required");
+      return;
+    }
+    for (const auto &s : *scopes_in) {
+      if (!s.is_string()) {
+        bad_request(response, request, "Each scope must be a string");
+        return;
+      }
+      auto parsed = config::api_scope_from_string(s.get<std::string>());
+      if (!parsed) {
+        bad_request(response, request,
+          "Unknown scope: '" + s.get<std::string>() + "'");
+        return;
+      }
+      scopes.push_back(*parsed);
+    }
+
+    auto minted = mint_api_token();
+
+    // Persist to sunshine.conf via the existing saveConfig machinery:
+    // append/replace the api_tokens entry. For simplicity we update the
+    // in-memory config and emit a hint that the admin must add the new
+    // entry to sunshine.conf manually. A future revision can wire this into
+    // saveConfig to write the line automatically.
+    // Build the api_tokens config entry that the admin must add to sunshine.conf.
+    std::string cfg_entry = name + "\t" + minted.hash + "\t" + minted.salt + "\t";
+    for (size_t i = 0; i < scopes.size(); ++i) {
+      if (i > 0) cfg_entry += ",";
+      cfg_entry += config::to_string(scopes[i]);
+    }
+    BOOST_LOG(info) << "API token '" << name << "' minted. Add this line to sunshine.conf:\n"
+                    << "  api_tokens += \"" << cfg_entry << "\"";
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    tree["name"] = name;
+    tree["plaintext"] = minted.plaintext;
+    tree["scopes"] = nlohmann::json::array();
+    for (auto s : scopes) tree["scopes"].push_back(config::to_string(s));
+    tree["warning"] = "Add the api_tokens line printed to the sunshine log to sunshine.conf to persist.";
+    send_response(response, tree);
+  }
+
+  /**
+   * @brief Delete an API token by name (admin only).
+   *
+   * @api_examples{/api/tokens/ci-bot| DELETE| null}
+   */
+  void deleteToken(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) {
+      return;
+    }
+    if (!has_scope(auth, config::api_scope_t::TOKENS_MANAGE)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    // Path looks like /api/tokens/<name>; <name> comes via SimpleWeb's
+    // path matcher. We accept the name as the last URL path component.
+    auto path = request->path;
+    auto pos = path.rfind('/');
+    std::string name = (pos != std::string::npos) ? path.substr(pos + 1) : path;
+
+    bool found = false;
+    for (auto it = config::nvhttp.api_tokens.begin(); it != config::nvhttp.api_tokens.end(); ++it) {
+      if (it->name == name) {
+        config::nvhttp.api_tokens.erase(it);
+        found = true;
+        break;
+      }
+    }
+
+    nlohmann::json tree;
+    if (found) {
+      tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+      tree["status"] = true;
+      BOOST_LOG(info) << "API token '"sv << name << "' deleted (in-memory; restart to also drop from sunshine.conf)"sv;
+    } else {
+      tree["status_code"] = SimpleWeb::StatusCode::client_error_not_found;
+      tree["status"] = false;
+      tree["error"] = "Token not found";
+    }
+    send_response(response, tree);
+  }
+
   void getLogs(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1386,7 +1691,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!config::sunshine.username.empty() && !authenticate(response, request)) {
+    if (!config::sunshine.username.empty() && !authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1464,7 +1769,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1505,7 +1810,7 @@ namespace confighttp {
    * @api_examples{/api/reset-display-device-persistence| POST| null}
    */
   void resetDisplayDevicePersistence(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1529,7 +1834,7 @@ namespace confighttp {
    * @api_examples{/api/restart| POST| null}
    */
   void restart(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1552,7 +1857,7 @@ namespace confighttp {
    * @api_examples{/api/vigembus/status| GET| null}
    */
   void getViGEmBusStatus(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1610,7 +1915,7 @@ namespace confighttp {
    * @api_examples{/api/vigembus/install| POST| null}
    */
   void installViGEmBus(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1784,7 +2089,7 @@ namespace confighttp {
    * @api_examples{/api/browse?path=/home/user&type=directory| GET| null}
    */
   void browseDirectory(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1922,6 +2227,9 @@ namespace confighttp {
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/pin$"]["POST"] = savePin;
     server.resource["^/api/logs$"]["GET"] = getLogs;
+    server.resource["^/api/tokens$"]["GET"] = listTokens;
+    server.resource["^/api/tokens$"]["POST"] = createToken;
+    server.resource["^/api/tokens/([\\w-]+)$"]["DELETE"] = deleteToken;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;

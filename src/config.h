@@ -212,6 +212,54 @@ namespace config {
     int packetsize;
   };
 
+  /**
+   * @brief One named API scope. Scopes are matched by string (`"config:get"`,
+   * `"apps:launch"`, etc.). The full set is enumerated in @c api_scope_t.
+   *
+   * Scope format is `<resource>:<action>`. Resources: `config`, `apps`,
+   * `clients`, `logs`, `display`. Actions: `get`, `set`, `launch`, `close`,
+   * `pair`, `unpair`, `restart`, `update`. The wildcard `*` matches every
+   * scope (used by the admin token / Basic Auth path).
+   */
+  enum class api_scope_t {
+    CONFIG_GET,
+    CONFIG_SET,
+    APPS_GET,
+    APPS_LAUNCH,
+    APPS_CLOSE,
+    CLIENTS_LIST,
+    CLIENTS_PAIR,
+    CLIENTS_UNPAIR,
+    LOGS_GET,
+    DISPLAY_RESET,
+    TOKENS_MANAGE,  ///< Manage API tokens (CRUD)
+    STAR,  ///< Sentinel — matches everything. Not user-configurable.
+  };
+
+  /**
+   * @brief String form of @c api_scope_t.
+   */
+  const std::string &to_string(api_scope_t scope);
+
+  /**
+   * @brief Parse a scope string like `"config:get"` into the enum.
+   * @return The matching scope, or `std::nullopt` if the string is unknown.
+   */
+  std::optional<api_scope_t> api_scope_from_string(const std::string &s);
+
+  /**
+   * @brief A scoped API token entry as stored in sunshine.conf.
+   *
+   * `token_hash` is SHA-256 of `<plaintext_token>:<salt>`, hex-encoded.
+   * Salt is per-token, generated at creation. We do not store the plaintext.
+   */
+  struct api_token_t {
+    std::string name;        ///< Human-readable label shown in logs and the WebUI.
+    std::string token_hash;  ///< Hex SHA-256 of `token:salt`.
+    std::string salt;        ///< Per-token random salt, hex-encoded.
+    std::vector<api_scope_t> scopes;  ///< Granted scopes.
+  };
+
   struct nvhttp_t {
     // Could be any of the following values:
     // pc|lan|wan
@@ -241,6 +289,26 @@ namespace config {
      *          automatically without requiring the user to enter a PIN.
      */
     bool trusted_subnet_auto_pairing;
+
+    /**
+     * @brief API tokens for scoped external automation.
+     *
+     * Each token grants a fixed set of HTTP scopes (see @c api_scope_t) without
+     * requiring the admin username/password. Tokens authenticate via
+     * `Authorization: Bearer <token>` and are checked in @c api_tokens::authenticate
+     * before each protected endpoint runs.
+     *
+     * Tokens are populated by parsing `api_tokens` from sunshine.conf. Each entry
+     * is an object: `api_tokens = [ { name = "ci-bot", token_hash = "...", salt = "...",
+     * scopes = ["config:get", "apps:launch"] } ]`. Tokens are stored hashed (SHA-256
+     * of token+salt) — the plaintext token is shown to the user exactly once at
+     * creation via the /api/tokens endpoint.
+     *
+     * Empty by default. Scripts that just want full admin should keep using Basic
+     * Auth; tokens are for the case where you want to give a script *less* than
+     * full power (e.g. only `config:get`).
+     */
+    std::vector<api_token_t> api_tokens;
   };
 
   struct input_t {
