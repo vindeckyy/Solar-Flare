@@ -349,7 +349,7 @@ The three services run once at boot and exit cleanly:
 
 Hermes-KMS (`github.com/MrOz59/Hermes-KMS`) is a Linux kernel module that exposes a DRM/KMS virtual output with DMA-BUF frame capture. When loaded (`sudo modprobe hermes_kms`), the source selector shows "HERMES-1". SolarFlare probes the card at startup and reads capabilities through the UAPI — `dmabuf_export`, `frame_wait`, and `frame_acquire` are confirmed present on the host.
 
-The capture loop (WAIT_FRAME → ACQUIRE_FRAME → import DMA-BUF into the encoder) is not yet wired. When selected, the backend logs the detected card node and capabilities, then returns a clear "not yet implemented" error. The integration surface is ready — the kernel module can be built from source and loaded at runtime.
+When selected, the backend opens the card node, runs `WAIT_FRAME` to block until the compositor posts a new frame, then `ACQUIRE_FRAME` to pull its DMA-BUF and push it to the encoder (VAAPI / NVENC / AMF) — no CPU readback. Set `capture = hermes_kms` in your config to pick this backend over KMS / X11 / Wayland / Portal / KWin. The kernel module is built and loaded out of tree; it is not packaged with SolarFlare.
 
 ---
 
