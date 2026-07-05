@@ -58,6 +58,9 @@ namespace confighttp {
   /**
    * @brief Check whether an authenticated request is allowed to use `scope`.
    *        Admin (Basic Auth or STAR-scope token) always passes.
+   * @param auth The result returned by authenticate() for this request.
+   * @param scope The scope the endpoint requires.
+   * @return true if the request is authorized for `scope`.
    */
   bool has_scope(const auth_result_t &auth, config::api_scope_t scope);
   void not_found(const resp_https_t &response, const req_https_t &request, const std::string &error_message = "Not Found");

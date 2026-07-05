@@ -67,6 +67,9 @@ namespace platf {
    * @brief Probe the kernel module + device. Safe to call repeatedly.
    *        Does not open the device for capture — only checks presence and
    *        reads capabilities.
+   * @return hermes_kms_status_t describing the local environment. On a
+   *         clean system without the kernel module, returns
+   *         module_loaded=false and a non-empty last_error string.
    */
   hermes_kms_status_t probe_hermes_kms();
 
@@ -83,6 +86,7 @@ namespace platf {
    *        present, {} otherwise.
    * @param hwdevice_type Unused — Hermes-KMS always exposes a single virtual
    *        output regardless of the encoder memory type.
+   * @return A vector containing "HERMES-1" if the device is present, else empty.
    */
   std::vector<std::string> hermes_kms_display_names(mem_type_e hwdevice_type);
   /**
