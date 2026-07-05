@@ -1,5 +1,14 @@
 # SolarFlare Fork Changelog
 
+n## July 4, 2026
+
+- docs: fix README version badge URL and alt text for shields.io compatibility (cb6a6238)
+- docs: fix README version badge alt text (1dc43af7)
+- docs: update README badges with latest version and commit count (46a490e4)
+- docs: collapse duplicate Quick install blocks into one (f5d2500f)
+- docs: changelog entry for July 4 2026 bug-fix batch (27f8604e)
+- fix: daily bug check on Jul 3 features + Reddit portal/KMS bug report (04a029e1)
+
 All fork-specific changes to
 [vindeckyy/Solar-Flare](https://github.com/vindeckyy/Solar-Flare)
 that are **not** present in upstream
