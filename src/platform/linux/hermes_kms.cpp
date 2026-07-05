@@ -95,6 +95,17 @@ namespace platf {
                      + std::to_string(ver.driver_minor) + "."
                      + std::to_string(ver.driver_patch);
 
+    // Refuse to load an older UAPI than what this build was compiled against.
+    // The header contract: "refuses to load if the kernel module reports an
+    // older version." Older structs would have different layouts and silent
+    // miscompiles.
+    if (s.uapi_version < HERMES_KMS_REQUIRED_UAPI) {
+      s.last_error = "driver UAPI " + std::to_string(s.uapi_version)
+                   + " is older than required " + std::to_string(HERMES_KMS_REQUIRED_UAPI);
+      close(fd);
+      return s;
+    }
+
     // GET_CAPS
     struct drm_hermes_kms_caps caps = {};
     if (ioctl(fd, DRM_IOCTL_HERMES_KMS_GET_CAPS, &caps) < 0) {
@@ -121,6 +132,10 @@ namespace platf {
                                    | HERMES_KMS_CAP_FRAME_ACQUIRE;
     if ((s.caps.flags & NEEDED) != NEEDED) {
       s.last_error = "device missing required caps (need DMABUF_EXPORT + FRAME_WAIT + FRAME_ACQUIRE)";
+      // ponytail: signal failure by clearing card_index so callers (display_names,
+      // verify_hermes_kms) treat the device as absent instead of partially usable.
+      s.card_index = -1;
+      return s;
     }
     return s;
   }

@@ -1326,6 +1326,9 @@ namespace platf {
       sources[source::KWIN] = true;
     }
 #endif
+    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "hermes_kms") && verify_hermes_kms()) {
+      sources[source::HERMES_KMS] = true;
+    }
 
     if (sources.none()) {
       BOOST_LOG(error) << "Unable to initialize capture method"sv;
