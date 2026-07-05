@@ -2,6 +2,8 @@
 
 n## July 5, 2026
 
+- feat(platform/linux): Hermes-KMS kernel module is now packaged with SolarFlare. Vendored from github.com/MrOz59/Hermes-KMS at third-party/hermes-kms (git submodule, GPL-2.0+). scripts/cachyos-build.sh runs packaging/linux/redesign/install-hermes-kms.sh after cmake --install; the script DKMS-installs hermes_kms.ko and loads it with initial_enabled=1 so 'HERMES-1' appears in the source selector. Requires kernel-headers + dkms. Removed the duplicate src/platform/linux/hermes_kms_drm.h; the C++ capture backend now includes the upstream UAPI header directly.
+- docs: README §19 corrected — capture loop description matches the wired implementation (probe + WAIT_FRAME + ACQUIRE_FRAME + DMA-BUF push to encoder) and documents the install path.
 - feat(api): scoped bearer tokens for the config HTTP API (f35cc6a, a8b2767)
 - feat(api): HTTP control surface for adaptive bitrate controller (04a806d)
 - feat(platform/linux): Hermes-KMS capture backend (stub, disabled by default). Compiles out when SUNSHINE_ENABLE_HERMES_KMS=OFF (default). Not a working feature — skeleton only, for future integration.

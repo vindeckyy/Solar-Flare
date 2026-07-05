@@ -349,7 +349,9 @@ The three services run once at boot and exit cleanly:
 
 Hermes-KMS (`github.com/MrOz59/Hermes-KMS`) is a Linux kernel module that exposes a DRM/KMS virtual output with DMA-BUF frame capture. When loaded (`sudo modprobe hermes_kms`), the source selector shows "HERMES-1". SolarFlare probes the card at startup and reads capabilities through the UAPI — `dmabuf_export`, `frame_wait`, and `frame_acquire` are confirmed present on the host.
 
-When selected, the backend opens the card node, runs `WAIT_FRAME` to block until the compositor posts a new frame, then `ACQUIRE_FRAME` to pull its DMA-BUF and push it to the encoder (VAAPI / NVENC / AMF) — no CPU readback. Set `capture = hermes_kms` in your config to pick this backend over KMS / X11 / Wayland / Portal / KWin. The kernel module is built and loaded out of tree; it is not packaged with SolarFlare.
+When selected, the backend opens the card node, runs `WAIT_FRAME` to block until the compositor posts a new frame, then `ACQUIRE_FRAME` to pull its DMA-BUF and push it to the encoder (VAAPI / NVENC / AMF) — no CPU readback. Set `capture = hermes_kms` in your config to pick this backend over KMS / X11 / Wayland / Portal / KWin.
+
+The kernel module source lives at `third-party/hermes-kms/` (vendored from `github.com/MrOz59/Hermes-KMS`, GPL-2.0+). `scripts/cachyos-build.sh` runs `packaging/linux/redesign/install-hermes-kms.sh` after `cmake --install`, which DKMS-installs the module and loads it with `initial_enabled=1`. To install manually: `sudo packaging/linux/redesign/install-hermes-kms.sh`. To uninstall: `sudo ... --uninstall`. Requires `dkms` and your distro's kernel-headers package (CachyOS: `linux-zen-headers`; Debian/Ubuntu: `linux-headers-$(uname -r)`; Fedora: `kernel-devel-$(uname -r)`).
 
 ---
 

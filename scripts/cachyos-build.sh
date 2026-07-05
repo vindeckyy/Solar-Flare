@@ -384,6 +384,27 @@ else
   warn "install-redesign-services.sh missing — skipping."
 fi
 
+# ---------------------------------------------------------------------------
+# Install the Hermes-KMS kernel module from third-party/hermes-kms.
+# Builds + DKMS-installs hermes_kms.ko so the capture backend in
+# src/platform/linux/hermes_kms.cpp can talk to /dev/dri/card*. Requires
+# kernel headers (linux-zen-headers, linux-headers, etc.) — skipped if
+# missing so the build still completes on CI / chroots.
+# ---------------------------------------------------------------------------
+step "post-install  Hermes-KMS kernel module"
+if [[ -x "$REPO_ROOT/packaging/linux/redesign/install-hermes-kms.sh" ]]; then
+  say "Building + DKMS-installing Hermes-KMS from third-party/hermes-kms..."
+  if sudo "$REPO_ROOT/packaging/linux/redesign/install-hermes-kms.sh"; then
+    say "Hermes-KMS installed and loaded. 'HERMES-1' should now appear in the source selector."
+  else
+    warn "Hermes-KMS install failed (likely missing kernel-headers or dkms). Non-fatal."
+    warn "  Fix later: install kernel-headers and rerun"
+    warn "    sudo packaging/linux/redesign/install-hermes-kms.sh"
+  fi
+else
+  warn "install-hermes-kms.sh missing — skipping."
+fi
+
 # Verify the binary is on $PATH.
 if command -v sunshine >/dev/null 2>&1; then
   say "Verified: $(command -v sunshine) is on PATH"

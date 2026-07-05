@@ -10,7 +10,7 @@
  *      the fd via the existing encoder import path; no CPU readback.
  */
 #include "hermes_kms.h"
-#include "hermes_kms_drm.h"
+#include "third-party/hermes-kms/include/uapi/drm/hermes_kms_drm.h"
 
 #include <cerrno>
 #include <cstring>
