@@ -75,6 +75,7 @@ const props = defineProps([
             <option value="x11">X11</option>
             <option value="kwin">KWin Screencast</option>
             <option value="portal">XDG Portal</option>
+            <option value="hermes_kms">Hermes-KMS (virtual display)</option>
           </template>
           <template #windows>
             <option value="ddx">Desktop Duplication API</option>
