@@ -4,7 +4,7 @@ n## July 5, 2026
 
 - feat(api): scoped bearer tokens for the config HTTP API (f35cc6a, a8b2767)
 - feat(api): HTTP control surface for adaptive bitrate controller (04a806d)
-- feat(platform/linux): Hermes-KMS capture backend stub behind SUNSHINE_ENABLE_HERMES_KMS=OFF default (f9b932e)
+- feat(platform/linux): Hermes-KMS capture backend (stub, disabled by default). Compiles out when SUNSHINE_ENABLE_HERMES_KMS=OFF (default). Not a working feature — skeleton only, for future integration.
 - feat(packaging): ship fork redesign services (cpu-performance, nic-tuning, nvidia-clock-lock) from the repo with an idempotent install script (6a7a5f2)
 - fix: doxygen documentation for all new public types (api_scope_t, api_token_t, auth_result_t, hermes_kms_* structs and functions) to satisfy BUILD_WERROR=ON (560d9c2, 65014c1)
 - fix: test_confighttp.cpp updated for authenticate() returning auth_result_t not bool (a6ac96a)

@@ -41,7 +41,6 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
     - [Scoped API tokens](#16-scoped-api-tokens)
     - [Adaptive bitrate HTTP endpoint](#17-adaptive-bitrate-http-endpoint)
     - [Packaged redesign services](#18-packaged-redesign-services)
-    - [Hermes-KMS virtual display backend stub](#19-hermes-kms-virtual-display-backend-stub)
 5. [All config settings](#all-config-settings)
 6. [Building from source](#building-from-source)
 7. [Testing](#testing)
@@ -344,12 +343,6 @@ The three services run once at boot and exit cleanly:
 - **cpu-performance** — Forces the CPU governor to `performance` on every core with a writable scaling-governor file. Skips offline CPUs and read-only sysfs nodes.
 - **nic-tuning** — Configures the Ethernet NIC for low latency. Probes the actual driver name (works with r8169, e1000e, igc, etc.) and only writes to knobs the driver supports.
 - **nvidia-clock-lock** — Reads the GPU's maximum boost clock and locks the NVENC clock to that value, preventing frequency-down on idle periods.
-
-### 19. Hermes-KMS virtual display backend (stub)
-
-Hermes-KMS (`github.com/MrOz59/Hermes-KMS`) is a Linux DRM/KMS virtual display driver that exports DMA-BUF frames from a compositor-side scanout. At ~8 µs/frame capture cost (vs ~180 µs for EVDI), it is the fastest virtual-display capture path on Linux.
-
-SolarFlare includes the integration skeleton — type declarations, device probing, and a source-enum bit — behind the build flag `-DSUNSHINE_ENABLE_HERMES_KMS=ON` (default: OFF). The actual capture loop is a stub. Full integration requires the `hermes_kms` kernel module loaded on the host — the code is ready for a follow-up that wires the WAIT_FRAME → ACQUIRE_FRAME → import-DMA-BUF loop.
 
 ---
 
