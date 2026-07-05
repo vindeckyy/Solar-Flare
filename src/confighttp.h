@@ -20,9 +20,19 @@
 #define WEB_DIR SUNSHINE_ASSETS_DIR "/web/"
 
 namespace confighttp {
-  // Forward decl. The full definition lives in confighttp.cpp. We need it here
-  // because the public authenticate() function returns one.
-  struct auth_result_t;
+  /**
+   * @brief Result of authentication. Returned by authenticate() so callers
+   *        can do per-scope authorization checks. `authenticated` is the
+   *        "did the request include valid creds" flag; `is_admin` is true
+   *        for Basic Auth callers and STAR-scope token holders;
+   *        `granted_scopes` is the set of scopes the token holds.
+   */
+  struct auth_result_t {
+    bool authenticated = false;     ///< Did the request pass auth?
+    bool is_admin = false;          ///< Basic Auth or STAR-scope token.
+    std::string token_name;         ///< For Bearer: matched token's label.
+    std::vector<config::api_scope_t> granted_scopes;  ///< Token scopes.
+  };
 
   constexpr auto PORT_HTTPS = 1;
 
