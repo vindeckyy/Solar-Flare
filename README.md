@@ -41,6 +41,7 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
     - [Scoped API tokens](#16-scoped-api-tokens)
     - [Adaptive bitrate HTTP endpoint](#17-adaptive-bitrate-http-endpoint)
     - [Packaged redesign services](#18-packaged-redesign-services)
+    - [Hermes-KMS virtual display backend](#19-hermes-kms-virtual-display-backend)
 5. [All config settings](#all-config-settings)
 6. [Building from source](#building-from-source)
 7. [Testing](#testing)
@@ -343,6 +344,12 @@ The three services run once at boot and exit cleanly:
 - **cpu-performance** — Forces the CPU governor to `performance` on every core with a writable scaling-governor file. Skips offline CPUs and read-only sysfs nodes.
 - **nic-tuning** — Configures the Ethernet NIC for low latency. Probes the actual driver name (works with r8169, e1000e, igc, etc.) and only writes to knobs the driver supports.
 - **nvidia-clock-lock** — Reads the GPU's maximum boost clock and locks the NVENC clock to that value, preventing frequency-down on idle periods.
+
+### 19. Hermes-KMS virtual display backend
+
+Hermes-KMS (`github.com/MrOz59/Hermes-KMS`) is a Linux kernel module that exposes a DRM/KMS virtual output with DMA-BUF frame capture. When loaded (`sudo modprobe hermes_kms`), the source selector shows "HERMES-1". SolarFlare probes the card at startup and reads capabilities through the UAPI — `dmabuf_export`, `frame_wait`, and `frame_acquire` are confirmed present on the host.
+
+The capture loop (WAIT_FRAME → ACQUIRE_FRAME → import DMA-BUF into the encoder) is not yet wired. When selected, the backend logs the detected card node and capabilities, then returns a clear "not yet implemented" error. The integration surface is ready — the kernel module can be built from source and loaded at runtime.
 
 ---
 
