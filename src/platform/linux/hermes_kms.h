@@ -26,25 +26,39 @@
 
 namespace platf {
 
-  // Hermes-KMS UAPI version we require. Bump when upstream adds fields.
+  /**
+   * @brief Hermes-KMS UAPI version we require.
+   * @details Bump this constant when upstream adds fields. The consumer
+   *          checks GET_VERSION on probe and refuses to load if the
+   *          kernel module reports an older version.
+   */
   constexpr std::uint32_t HERMES_KMS_REQUIRED_UAPI = 7;
 
+  /**
+   * @brief Reported capabilities of a Hermes-KMS device.
+   * @details Populated from the GET_CAPS ioctl. flags is a bitmask of
+   *          HERMES_KMS_CAP_* values defined in the upstream UAPI header.
+   */
   struct hermes_kms_caps_t {
-    std::uint64_t flags = 0;
-    std::uint32_t min_width = 0;
-    std::uint32_t min_height = 0;
-    std::uint32_t max_width = 0;
-    std::uint32_t max_height = 0;
-    std::uint32_t preferred_width = 0;
-    std::uint32_t preferred_height = 0;
-    std::uint32_t max_refresh_hz = 0;
+    std::uint64_t flags = 0;            ///< Capability bitmask (HERMES_KMS_CAP_*).
+    std::uint32_t min_width = 0;        ///< Smallest scanout width the device accepts.
+    std::uint32_t min_height = 0;       ///< Smallest scanout height.
+    std::uint32_t max_width = 0;        ///< Largest scanout width.
+    std::uint32_t max_height = 0;       ///< Largest scanout height.
+    std::uint32_t preferred_width = 0;  ///< Compositor's preferred width.
+    std::uint32_t preferred_height = 0; ///< Compositor's preferred height.
+    std::uint32_t max_refresh_hz = 0;   ///< Maximum supported refresh rate in Hz.
   };
 
+  /**
+   * @brief Result of probe_hermes_kms(). Describes the local environment for
+   *        the Hermes-KMS driver and the device (if any).
+   */
   struct hermes_kms_status_t {
     bool module_loaded = false;       ///< True if /sys/module/hermes_kms exists.
-    int card_index = -1;              ///< /dev/dri/cardN, -1 if not found.
-    std::uint32_t uapi_version = 0;    ///< 0 if GET_VERSION ioctl failed.
-    hermes_kms_caps_t caps;
+    int card_index = -1;              ///< /dev/dri/renderD* index, -1 if not found.
+    std::uint32_t uapi_version = 0;    ///< 0 if GET_VERSION ioctl failed or not run yet.
+    hermes_kms_caps_t caps;           ///< Capabilities (only valid if card_index >= 0).
     std::string driver_version;       ///< "M.m.p" from GET_VERSION.
     std::string last_error;           ///< Human-readable error if probing failed.
   };
@@ -64,10 +78,31 @@ namespace platf {
    *  - hermes_kms_display(): build a display_t bound to the device.
    *  - verify_hermes_kms(): true if a working device is present.
    */
+  /**
+   * @brief List Hermes-KMS outputs. Returns {"HERMES-1"} if the device is
+   *        present, {} otherwise.
+   * @param hwdevice_type Unused — Hermes-KMS always exposes a single virtual
+   *        output regardless of the encoder memory type.
+   */
   std::vector<std::string> hermes_kms_display_names(mem_type_e hwdevice_type);
+  /**
+   * @brief Build a display_t bound to the Hermes-KMS render node.
+   * @details STUB in this commit. The real implementation opens the render
+   *          node, runs GET_VERSION + GET_CAPS, then enters the WAIT_FRAME
+   *          -> ACQUIRE_FRAME -> import-DMA-BUF-into-encoder loop. For now
+   *          this returns nullptr and logs a clear "not implemented" error.
+   * @param hwdevice_type Encoder memory type (DMA / VAAPI / CUDA).
+   * @param display_name The output name; expected to be "HERMES-1".
+   * @param config The video config for the current stream.
+   * @return A display_t on success, nullptr on failure.
+   */
   std::shared_ptr<display_t> hermes_kms_display(mem_type_e hwdevice_type,
                                                 const std::string &display_name,
                                                 const video::config_t &config);
+  /**
+   * @brief Quick check: is a working Hermes-KMS device present?
+   * @return true if module_loaded AND a render node was found.
+   */
   bool verify_hermes_kms();
 
 }  // namespace platf

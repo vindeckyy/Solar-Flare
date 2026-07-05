@@ -222,18 +222,18 @@ namespace config {
    * scope (used by the admin token / Basic Auth path).
    */
   enum class api_scope_t {
-    CONFIG_GET,
-    CONFIG_SET,
-    APPS_GET,
-    APPS_LAUNCH,
-    APPS_CLOSE,
-    CLIENTS_LIST,
-    CLIENTS_PAIR,
-    CLIENTS_UNPAIR,
-    LOGS_GET,
-    DISPLAY_RESET,
-    TOKENS_MANAGE,  ///< Manage API tokens (CRUD)
-    STAR,  ///< Sentinel — matches everything. Not user-configurable.
+    CONFIG_GET,     ///< Read /api/config.
+    CONFIG_SET,     ///< Write /api/config.
+    APPS_GET,       ///< List apps via /api/apps.
+    APPS_LAUNCH,    ///< Launch an app via POST /api/apps.
+    APPS_CLOSE,     ///< Stop a running app via POST /api/apps/close.
+    CLIENTS_LIST,   ///< List paired clients via /api/clients/list.
+    CLIENTS_PAIR,   ///< Pair a new client.
+    CLIENTS_UNPAIR, ///< Unpair one or all clients.
+    LOGS_GET,       ///< Read the log file via /api/logs.
+    DISPLAY_RESET,  ///< Reset display-device persistence.
+    TOKENS_MANAGE,  ///< Manage API tokens (CRUD via /api/tokens).
+    STAR,  ///< Sentinel — matches every scope. Not user-configurable.
   };
 
   /**
@@ -243,6 +243,7 @@ namespace config {
 
   /**
    * @brief Parse a scope string like `"config:get"` into the enum.
+   * @param s Scope string in the form `<resource>:<action>` or the wildcard `*`.
    * @return The matching scope, or `std::nullopt` if the string is unknown.
    */
   std::optional<api_scope_t> api_scope_from_string(const std::string &s);

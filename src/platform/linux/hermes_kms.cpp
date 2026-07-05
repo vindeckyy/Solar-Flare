@@ -72,6 +72,12 @@ namespace platf {
     return {"HERMES-1"};
   }
 
+  /**
+   * @copydoc platf::hermes_kms_display
+   * @details STUB. See header for the planned behavior. The real
+   *          implementation requires working hardware (a loaded
+   *          hermes_kms kernel module + a /dev/dri/renderD* node).
+   */
   std::shared_ptr<display_t> hermes_kms_display(mem_type_e, const std::string &, const video::config_t &) {
     BOOST_LOG(warning) << "hermes_kms: capture loop not yet implemented. "
                           "Compile-time stub returns no display. See hermes_kms.h "

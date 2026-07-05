@@ -1447,16 +1447,25 @@ namespace confighttp {
    * @api_examples{/api/logs| GET| null}
    */
   /**
-   * @brief Generate a fresh random API token string.
-   * @details 32 bytes from /dev/urandom, hex-encoded → 64-char plaintext.
-   *          Returned alongside the computed hash + salt so the API
-   *          endpoint can echo the plaintext back to the admin exactly once.
+   * @brief One freshly-minted API token, returned from mint_api_token().
+   * @details The plaintext is shown to the admin exactly once (in the
+   *          POST /api/tokens response). It is not stored anywhere; only
+   *          the SHA-256 hash + per-token salt land in the config.
    */
   struct minted_token_t {
-    std::string plaintext;
-    std::string hash;
-    std::string salt;
+    std::string plaintext;  ///< The 64-char hex plaintext to display once.
+    std::string hash;       ///< Hex SHA-256 of `plaintext:salt`.
+    std::string salt;       ///< Per-token random salt, hex-encoded.
   };
+
+  /**
+   * @brief Generate a fresh random API token.
+   * @details Reads 32 bytes of randomness from /dev/urandom for the plaintext
+   *          and 16 bytes for the per-token salt. Computes SHA-256(plaintext:salt)
+   *          as the stored hash.
+   * @return A minted_token_t with the plaintext, hash, and salt.
+   */
+  minted_token_t mint_api_token();
 
   // Helper: hex-encode a raw byte string.
   std::string hex_encode(const std::string &raw) {
