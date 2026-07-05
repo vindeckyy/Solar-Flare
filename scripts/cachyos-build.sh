@@ -167,10 +167,9 @@ elif [[ "$IS_BAZZITE" -eq 1 ]]; then
         libevdev-devel opus-devel \
         pipewire-devel libportal-devel \
         wayland-devel wayland-protocols-devel \
-        systemd-devel libcap-devel libnatpmp-devel \
+        systemd-devel libcap-devel \
         vulkan-devel glslang-devel \
-        boost-devel miniupnpc-devel json-devel \
-        libpng-devel libXext-devel libXtst-devel nodejs npm 2>&1; then
+        miniupnpc-devel nodejs npm 2>&1; then
     die "rpm-ostree install failed. Please check the error messages above. You may need to run it manually."
   fi
   say "Packages layered successfully. Please reboot your system now to continue the installation."
@@ -218,13 +217,12 @@ else
             gcc-c++ cmake ninja-build git pkgconfig \
             openssl-devel libcurl-devel pulseaudio-libs-devel libdrm-devel libva-devel \
             libX11-devel libXfixes-devel libXrandr-devel libxcb-devel libxkbcommon-devel \
-            libevdev-devel opus-devel ffmpeg-devel \
+            libevdev-devel opus-devel \
             pipewire-devel libportal-devel \
             wayland-devel wayland-protocols-devel \
-            systemd-devel libcap-devel libnatpmp-devel \
-            vulkan-devel glslang-devel spirv-tools \
-            boost-devel miniupnpc-devel json-devel \
-            libpng-devel libXext-devel libXtst-devel; then
+            systemd-devel libcap-devel \
+            vulkan-devel glslang-devel \
+            miniupnpc-devel; then
         warn "dnf returned non-zero. Continuing. The build will tell us if anything's actually missing."
       fi
       ;;
