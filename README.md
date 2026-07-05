@@ -67,8 +67,17 @@ cd Solar-Flare
 ./scripts/cachyos-build.sh
 sudo cmake --install build
 sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
-systemctl --user enable --now sunshine.service
+systemctl --user enable --now sunshine
 ```
+
+`cmake --install` places a user systemd unit at `/usr/lib/systemd/user/` with `Alias=sunshine.service`, so the `systemctl enable` command above finds it automatically. The unit waits for `graphical-session.target` (your DE) before starting Sunshine and stops automatically when you log out.
+
+> If you are running a development build directly out of the repo instead
+> of installing to `/usr/local`, replace the `sudo cmake --install` line
+> above with a manual `sudo setcap` on your build-directory binary and
+> point `ExecStart=` in the service unit at that path. Capabilities are
+> stored per-file — setting caps on `/usr/local/bin/sunshine` does not
+> carry over to a build-directory binary.
 
 **After installing:**
 
