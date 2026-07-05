@@ -63,3 +63,4 @@ test_sunshine.log
 sunshine_state.json
 write_file_test_*.txt
 third-party-check
+*.deb
