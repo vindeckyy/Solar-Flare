@@ -3748,6 +3748,58 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### vk_min_qp
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Minimum QP bound for the Vulkan encoder. Caps the encoder's
+            lowest quality per-frame, flattening encode-time variance for
+            a more predictable per-frame latency. 0 disables the bound.
+            @note{This option only applies when using Vulkan [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vk_min_qp = 18
+            @endcode</td>
+    </tr>
+</table>
+
+### vk_max_qp
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Maximum QP bound for the Vulkan encoder. Caps the encoder's
+            highest quality per-frame, flattening encode-time variance for
+            a more predictable per-frame latency. 0 disables the bound.
+            @note{This option only applies when using Vulkan [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vk_max_qp = 36
+            @endcode</td>
+    </tr>
+</table>
+
 ## Software Encoder
 
 ### sw_preset

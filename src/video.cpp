@@ -1036,10 +1036,13 @@ namespace video {
         {"idr_interval"s, std::numeric_limits<int>::max()},
         {"tune"s, &config::video.vk.tune},
         {"rc_mode"s, &config::video.vk.rc_mode},
+        {"repeat_headers"s, 1},
         {"units"s, 0},
         {"usage"s, "stream"s},
         {"content"s, "rendered"s},
         {"async_depth"s, 1},
+        {"min_qp"s, &config::video.vk.min_qp},
+        {"max_qp"s, &config::video.vk.max_qp},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -1054,10 +1057,13 @@ namespace video {
         {"idr_interval"s, std::numeric_limits<int>::max()},
         {"tune"s, &config::video.vk.tune},
         {"rc_mode"s, &config::video.vk.rc_mode},
+        {"repeat_headers"s, 1},
         {"units"s, 0},
         {"usage"s, "stream"s},
         {"content"s, "rendered"s},
         {"async_depth"s, 1},
+        {"min_qp"s, &config::video.vk.min_qp},
+        {"max_qp"s, &config::video.vk.max_qp},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -1072,10 +1078,13 @@ namespace video {
         {"idr_interval"s, std::numeric_limits<int>::max()},
         {"tune"s, &config::video.vk.tune},
         {"rc_mode"s, &config::video.vk.rc_mode},
+        {"repeat_headers"s, 1},
         {"units"s, 0},
         {"usage"s, "stream"s},
         {"content"s, "rendered"s},
         {"async_depth"s, 1},
+        {"min_qp"s, &config::video.vk.min_qp},
+        {"max_qp"s, &config::video.vk.max_qp},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options

@@ -163,6 +163,15 @@ namespace vk {
       if (config::video.vk.rc_mode == 4) {
         ctx->rc_min_rate = 0;
       }
+
+      // Pin the CBR rate-control buffer to one frame's worth of bitrate.
+      // rc_buffer_size defaults to ~1 second of bitrate, which forces the
+      // rate controller to look ahead ~1s of frames — adds significant
+      // latency. bit_rate / fps = exactly one frame of bitrate, which
+      // matches what the encoder can actually verify per-frame.
+      if (ctx->bit_rate > 0 && ctx->framerate.num > 0) {
+        ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
+      }
     }
 
     int set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx_buf) override {
@@ -722,10 +731,9 @@ namespace vk {
         num_imgs++;
       }
 
-      // Rotate to next command buffer. With CMD_RING_SIZE slots, the buffer
-      // we're about to reuse was submitted CMD_RING_SIZE frames ago.
-      // At 60fps that's ~50ms for a <1ms compute dispatch — always complete.
-      // No fences, no semaphore waits, no CPU blocking.
+      // 1-slot ring: reuse the only command buffer (already complete -
+      // the encoder consumed it last frame). No fences, no semaphore
+      // waits, no CPU blocking.
       auto cmd_buf = cmd.ring[cmd.ring_idx];
       cmd.ring_idx = (cmd.ring_idx + 1) % CMD_RING_SIZE;
 
@@ -970,7 +978,10 @@ namespace vk {
 
     // Command submission — ring of buffers to avoid reuse while in-flight.
     // No CPU waits: by the time we wrap around, the old submission is long done.
-    static constexpr int CMD_RING_SIZE = 3;
+    // 1-slot ring: the compute dispatch is sub-millisecond, so 3 frames
+    // in flight adds ~33ms of fixed pipeline latency at 60fps for no
+    // real benefit. Bump to 2 if a target GPU shows compute >1 frame time.
+    static constexpr int CMD_RING_SIZE = 1;
 
     struct cmd_submission_t {
       VkCommandPool pool = VK_NULL_HANDLE;

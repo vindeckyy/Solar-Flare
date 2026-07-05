@@ -104,6 +104,8 @@ namespace config {
     struct {
       int tune;  // 0=default, 1=hq, 2=ll, 3=ull, 4=lossless
       int rc_mode;  // 0=driver, 1=cqp, 2=cbr, 4=vbr
+      int min_qp;  // 0 = unset (use codec default). Bounds QP from below to flatten encode-time variance.
+      int max_qp;  // 0 = unset (use codec default). Bounds QP from above to flatten encode-time variance.
     } vk;
 
     std::string capture;
