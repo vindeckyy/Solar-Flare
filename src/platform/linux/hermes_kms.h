@@ -91,10 +91,9 @@ namespace platf {
   std::vector<std::string> hermes_kms_display_names(mem_type_e hwdevice_type);
   /**
    * @brief Build a display_t bound to the Hermes-KMS card node.
-   * @details STUB in this commit. The real implementation opens the card
-   *          node, runs GET_VERSION + GET_CAPS, then enters the WAIT_FRAME
-   *          -> ACQUIRE_FRAME -> import-DMA-BUF-into-encoder loop. For now
-   *          this returns nullptr and logs a clear "not implemented" error.
+   * @details Opens the card node, runs GET_VERSION + GET_CAPS, then enters the
+   *          WAIT_FRAME -> ACQUIRE_FRAME loop, importing each frame's DMA-BUF
+   *          into the encoder consumer (VAAPI / NVENC / AMF).
    * @param hwdevice_type Encoder memory type (DMA / VAAPI / CUDA).
    * @param display_name The output name; expected to be "HERMES-1".
    * @param config The video config for the current stream.

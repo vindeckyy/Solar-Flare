@@ -1,18 +1,13 @@
 /**
  * @file src/platform/linux/hermes_kms.cpp
- * @brief Hermes-KMS capture backend. Stub — capture loop is TODO.
+ * @brief Hermes-KMS capture backend.
  *
- * Why a stub: the full capture path needs working hardware + kernel module
- * for end-to-end verification, which doesn't fit in a single commit. This
- * file implements:
- *
+ * Implements:
  *   1. Module + device detection (probe_hermes_kms)
- *   2. The source-selector entry points (display_names / display / verify)
- *   3. A display_t stub that returns a clear "not implemented" error on init
- *      so the user gets a useful log instead of a confusing segfault.
- *
- * Capture loop (WAIT_FRAME -> ACQUIRE_FRAME -> import DMA-BUF into encoder)
- * is left as a follow-up. The header documents the planned API.
+ *   2. Source-selector entry points (display_names / display / verify)
+ *   3. The capture loop: WAIT_FRAME -> ACQUIRE_FRAME -> push the DMA-BUF
+ *      to the encoder consumer (VAAPI / NVENC / AMF). The consumer imports
+ *      the fd via the existing encoder import path; no CPU readback.
  */
 #include "hermes_kms.h"
 #include "hermes_kms_drm.h"
@@ -149,9 +144,10 @@ namespace platf {
 
   /**
    * @brief Build a display_t bound to the Hermes-KMS card node.
-   * @details STUB. See the header declaration for the full contract.
-   *          The real implementation requires working hardware (a loaded
-   *          hermes_kms kernel module + a /dev/dri/card* node).
+   * @details Opens the card node, re-runs probe_hermes_kms() to confirm the
+   *          device is present, and constructs a hermes_kms_display_t that
+   *          runs the WAIT_FRAME -> ACQUIRE_FRAME capture loop on the fd.
+   *          Returns nullptr (with a log line) if the probe fails.
    */
   // ponytail: minimal DMA-BUF-backed image. The data pointer is nullptr
   // because pixel data lives in a GPU buffer imported by the encoder.

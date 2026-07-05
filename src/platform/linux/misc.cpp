@@ -1169,6 +1169,15 @@ namespace platf {
                                                 const video::config_t &config);
   bool verify_hermes_kms();
 
+  /**
+   * @brief Enumerate available capture outputs for the current set of
+   *        auto-detected sources.
+   * @details Walks the @c sources bitset in priority order (NVFBC, Wayland,
+   *          KMS, X11, Portal, KWin, Hermes-KMS) and returns the output
+   *          names reported by the first matching source.
+   * @param hwdevice_type The encoder memory type requested by the caller.
+   * @return Vector of output names; empty if no source is usable.
+   */
   std::vector<std::string> display_names(mem_type_e hwdevice_type) {
 #ifdef SUNSHINE_BUILD_CUDA
     // display using NvFBC only supports mem_type_e::cuda
@@ -1201,6 +1210,11 @@ namespace platf {
       return kwin_display_names();
     }
 #endif
+    if (sources[source::HERMES_KMS]) {
+      // Hermes-KMS exports exactly one virtual output named "HERMES-1".
+      // Mirrors the dispatch in display() below.
+      return hermes_kms_display_names(hwdevice_type);
+    }
     return {};
   }
 
