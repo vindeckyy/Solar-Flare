@@ -1,6 +1,18 @@
 # SolarFlare Fork Changelog
 
-n## July 4, 2026
+n## July 5, 2026
+
+- feat(api): scoped bearer tokens for the config HTTP API (f35cc6a, a8b2767)
+- feat(api): HTTP control surface for adaptive bitrate controller (04a806d)
+- feat(platform/linux): Hermes-KMS capture backend stub behind SUNSHINE_ENABLE_HERMES_KMS=OFF default (f9b932e)
+- feat(packaging): ship fork redesign services (cpu-performance, nic-tuning, nvidia-clock-lock) from the repo with an idempotent install script (6a7a5f2)
+- fix: doxygen documentation for all new public types (api_scope_t, api_token_t, auth_result_t, hermes_kms_* structs and functions) to satisfy BUILD_WERROR=ON (560d9c2, 65014c1)
+- fix: test_confighttp.cpp updated for authenticate() returning auth_result_t not bool (a6ac96a)
+- fix: hermes_kms_display() call site gated behind SUNSHINE_BUILD_HERMES_KMS ifdef so it compiles with the default OFF option (560d9c2)
+- docs: README updated with sections 16-19 (scoped tokens, adaptive bitrate endpoint, redesign services, Hermes-KMS stub) and api_tokens config key
+- Verified: `cmake --build --target sunshine --target test_sunshine` exits 0 on CachyOS box. Full `make all` only fails on the `docs` target (3622 pre-existing doxygen warnings in Windows/X11 files, none from this batch).
+
+## July 4, 2026
 
 - docs: fix README version badge URL and alt text for shields.io compatibility (cb6a6238)
 - docs: fix README version badge alt text (1dc43af7)

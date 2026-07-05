@@ -38,6 +38,10 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
     - [Headless stream with smart backend selection](#13-headless-stream-with-smart-backend-selection)
     - [Game library import scanner](#14-game-library-import-scanner)
     - [KWin screencast privilege-drop retry](#15-kwin-screencast-privilege-drop-retry)
+    - [Scoped API tokens](#16-scoped-api-tokens)
+    - [Adaptive bitrate HTTP endpoint](#17-adaptive-bitrate-http-endpoint)
+    - [Packaged redesign services](#18-packaged-redesign-services)
+    - [Hermes-KMS virtual display backend stub](#19-hermes-kms-virtual-display-backend-stub)
 5. [All config settings](#all-config-settings)
 6. [Building from source](#building-from-source)
 7. [Testing](#testing)
@@ -288,6 +292,65 @@ compositor_backend = auto
 
 When Sunshine runs with `CAP_SYS_ADMIN`, KWin sometimes refuses the screencast Wayland connection. The `kwingrab` backend now detects this and automatically drops all elevated privileges, re-creates the screencast session, and retries. No more silent failures when running as root or with file capabilities set.
 
+### 16. Scoped API tokens
+
+Scripts and CI bots that talk to the Sunshine API historically needed the admin password — full power over config, apps, pairing, and display reset. Scoped API tokens let you mint a bearer token with only the permissions a script actually needs.
+
+You create tokens from the web UI Config tab or from the CLI:
+
+```bash
+curl -k -u admin:password -X POST https://localhost:47990/api/tokens \
+  -H "Content-Type: application/json" \
+  -d '{"name":"readonly-ci","scopes":["config:get","logs:get"]}'
+```
+
+The server returns the plaintext token exactly once. It is stored hashed (SHA-256 of plaintext + per-token salt) so the plaintext is never on disk. Callers use it as a Bearer token:
+
+```bash
+curl -k -H "Authorization: Bearer <token>" https://localhost:47990/api/config
+```
+
+Available scopes: `config:get`, `config:set`, `apps:get`, `apps:launch`, `apps:close`, `clients:list`, `clients:pair`, `clients:unpair`, `logs:get`, `display:reset`, `tokens:manage`. The wildcard `*` matches everything (equivalent to admin, without being admin).
+
+### 17. Adaptive bitrate HTTP endpoint
+
+The EWMA-based adaptive bitrate controller (section 12) already adjusts bitrate based on internal encode stats. The new HTTP endpoint lets clients push their own network stats into the same controller, so a Moonlight client or an external monitor can fine-tune bitrate for current network conditions:
+
+```bash
+curl -k -H "Authorization: Bearer <token>" \
+  -X POST https://localhost:47990/api/stream/network-stats \
+  -H "Content-Type: application/json" \
+  -d '{"packet_loss_pct":0.5,"rtt_ms":23.4}'
+```
+
+Read the current bitrate state with:
+
+```bash
+curl -k -H "Authorization: Bearer <token>" \
+  https://localhost:47990/api/stream/bitrate
+```
+
+### 18. Packaged redesign services
+
+SolarFlare ships three systemd services that tune the host for low-latency streaming. Install and manage them with a single script:
+
+```bash
+sudo /usr/share/sunshine/redesign/install-redesign-services.sh     # install
+sudo /usr/share/sunshine/redesign/install-redesign-services.sh --uninstall  # remove
+```
+
+The three services run once at boot and exit cleanly:
+
+- **cpu-performance** — Forces the CPU governor to `performance` on every core with a writable scaling-governor file. Skips offline CPUs and read-only sysfs nodes.
+- **nic-tuning** — Configures the Ethernet NIC for low latency. Probes the actual driver name (works with r8169, e1000e, igc, etc.) and only writes to knobs the driver supports.
+- **nvidia-clock-lock** — Reads the GPU's maximum boost clock and locks the NVENC clock to that value, preventing frequency-down on idle periods.
+
+### 19. Hermes-KMS virtual display backend (stub)
+
+Hermes-KMS (`github.com/MrOz59/Hermes-KMS`) is a Linux DRM/KMS virtual display driver that exports DMA-BUF frames from a compositor-side scanout. At ~8 µs/frame capture cost (vs ~180 µs for EVDI), it is the fastest virtual-display capture path on Linux.
+
+SolarFlare includes the integration skeleton — type declarations, device probing, and a source-enum bit — behind the build flag `-DSUNSHINE_ENABLE_HERMES_KMS=ON` (default: OFF). The actual capture loop is a stub. Full integration requires the `hermes_kms` kernel module loaded on the host — the code is ready for a follow-up that wires the WAIT_FRAME → ACQUIRE_FRAME → import-DMA-BUF loop.
+
 ---
 
 ## All config settings
@@ -306,6 +369,7 @@ All SolarFlare-specific settings live in `~/.config/sunshine/sunshine.conf` and 
 | `dscp_qos` | bool | true | — | Tag streaming packets so routers prioritize them over bulk traffic |
 | `gpu_governor` | bool | true | — | Force AMD GPU into performance mode while streaming |
 | `headless_virtual_display` | bool | false | — | Create a virtual display if no physical monitor is detected |
+| `api_tokens` | string | — | — | Managed via /api/tokens web endpoint — not intended for hand-editing |
 
 ### Audio processing
 
