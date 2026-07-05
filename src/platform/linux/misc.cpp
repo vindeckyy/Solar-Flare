@@ -1095,6 +1095,7 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_PORTAL
       PORTAL,  ///< XDG PORTAL
 #endif
+      HERMES_KMS,  ///< Hermes-KMS (github.com/MrOz59/Hermes-KMS) — GPL-2.0+
       MAX_FLAGS  ///< The maximum number of flags
     };
   }  // namespace source
@@ -1245,6 +1246,10 @@ namespace platf {
       return kwin_display(hwdevice_type, display_name, config);
     }
 #endif
+    if (sources[source::HERMES_KMS]) {
+      BOOST_LOG(info) << "Screencasting with Hermes-KMS (stub - capture loop not yet wired)"sv;
+      return hermes_kms_display(hwdevice_type, display_name, config);
+    }
 
     return nullptr;
   }

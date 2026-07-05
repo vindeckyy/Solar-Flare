@@ -97,6 +97,16 @@ if(LIBDRM_FOUND)
                 "${CMAKE_SOURCE_DIR}/src/platform/linux/kmsgrab.cpp")
         list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
     endif()
+    # Hermes-KMS: a separate DRM/KMS virtual display driver from upstream
+    # github.com/MrOz59/Hermes-KMS (GPL-2.0+). Defaults off — build it in only
+    # if the user explicitly opts in via -DSUNSHINE_ENABLE_HERMES_KMS=ON.
+    # The user is also expected to have the hermes_kms kernel module loaded.
+    option(SUNSHINE_ENABLE_HERMES_KMS "Build the Hermes-KMS capture backend stub" OFF)
+    if(${SUNSHINE_ENABLE_HERMES_KMS})
+        add_compile_definitions(SUNSHINE_BUILD_HERMES_KMS)
+        list(APPEND PLATFORM_TARGET_FILES
+                "${CMAKE_SOURCE_DIR}/src/platform/linux/hermes_kms.cpp")
+    endif()
 endif()
 
 # Capabilities
