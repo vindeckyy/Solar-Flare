@@ -1,0 +1,12 @@
+[Unit]
+Description=Force CPU governor to performance (Solar-Flare fork: low jitter for streaming)
+After=sysinit.target
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cpu-performance.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -10,14 +10,32 @@ do_udev_reload() {
   modprobe uhid || true
 }
 
+# Install the Solar-Flare fork's boot-time redesign services (cpu-performance,
+# nic-tuning, nvidia-clock-lock). These are best-effort: each unit probes the
+# hardware first and skips cleanly if the relevant sysfs / driver / GPU API
+# isn\'t present, so a fresh install on different hardware won\'t stall boot.
+do_redesign_services() {
+  if [[ -x /usr/share/sunshine/redesign/install-redesign-services.sh ]]; then
+    /usr/share/sunshine/redesign/install-redesign-services.sh
+  fi
+}
+
 post_install() {
   do_setcap
   do_udev_reload
   modprobe uhid
+  do_redesign_services
 }
 
 post_upgrade() {
   do_setcap
   do_udev_reload
   modprobe uhid
+  do_redesign_services
+}
+
+pre_remove() {
+  if [[ -x /usr/share/sunshine/redesign/install-redesign-services.sh ]]; then
+    /usr/share/sunshine/redesign/install-redesign-services.sh --uninstall
+  fi
 }

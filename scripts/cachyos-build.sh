@@ -367,6 +367,25 @@ fi
 say "Reloading user systemd manager..."
 systemctl --user daemon-reload 2>/dev/null || true
 
+# ---------------------------------------------------------------------------
+# Install the Solar-Flare fork's boot-time redesign services.
+# These are the cpu-performance / nic-tuning / nvidia-clock-lock units that
+# live in packaging/linux/redesign/. They probe hardware first and skip
+# cleanly on boxes where the relevant sysfs / driver / GPU API is absent,
+# so a fresh install on different hardware does not stall boot.
+# ---------------------------------------------------------------------------
+step "post-install  fork redesign services"
+if [[ -x "$REPO_ROOT/packaging/linux/redesign/install-redesign-services.sh" ]]; then
+  say "Installing fork redesign services..."
+  if sudo "$REPO_ROOT/packaging/linux/redesign/install-redesign-services.sh"; then
+    say "Fork redesign services installed and enabled."
+  else
+    warn "Fork redesign services install failed (non-fatal; you can rerun it manually later)."
+  fi
+else
+  warn "install-redesign-services.sh missing — skipping."
+fi
+
 # Verify the binary is on $PATH.
 if command -v sunshine >/dev/null 2>&1; then
   say "Verified: $(command -v sunshine) is on PATH"

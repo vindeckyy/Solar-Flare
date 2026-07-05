@@ -1,0 +1,16 @@
+[Unit]
+Description=NIC low-latency tuning (Solar-Flare fork)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Apply ethtool coalescing + ring tuning to a list of candidate NICs.
+# The helper probes each interface name and silently skips NICs whose
+# driver does not expose these knobs (e.g. r8169). Best-effort: never
+# a hard boot dependency.
+ExecStart=/usr/local/sbin/nic-tuning.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
