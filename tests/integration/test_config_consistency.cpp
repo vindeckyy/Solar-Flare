@@ -471,6 +471,8 @@ static std::set<std::string, std::less<>> make_internal_options() {
     "dscp_qos",
     "gpu_governor",
     "headless_virtual_display",
+    // ponytail: api_tokens are managed via /api/tokens CRUD, not the web UI.
+    "api_tokens",
   };
 }
 

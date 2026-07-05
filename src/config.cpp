@@ -1398,7 +1398,7 @@ namespace config {
           while (std::getline(ps, part, '\t')) parts.push_back(part);
 
           if (parts.size() != 4) {
-            BOOST_LOG(warning) << "config: api_tokens entry malformed (expected 4 colon-separated fields, got " << parts.size() << "); skipping";
+            BOOST_LOG(warning) << "config: api_tokens entry malformed (expected 4 tab-separated fields, got " << parts.size() << "); skipping";
             continue;
           }
 

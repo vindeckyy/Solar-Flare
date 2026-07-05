@@ -1158,8 +1158,11 @@ namespace platf {
   }
 #endif
 
-  // Hermes-KMS capture backend (always compiled in; runtime probe
-  // returns false when the kernel module isn't loaded).
+  /**
+   * @brief Hermes-KMS forward declarations (see hermes_kms.h for full API).
+   * @details Always compiled in; runtime probe returns false when the
+   *          kernel module isn't loaded.
+   */
   std::vector<std::string> hermes_kms_display_names(mem_type_e hwdevice_type);
   std::shared_ptr<display_t> hermes_kms_display(mem_type_e hwdevice_type,
                                                 const std::string &display_name,
