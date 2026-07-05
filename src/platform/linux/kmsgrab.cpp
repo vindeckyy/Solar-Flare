@@ -1612,6 +1612,8 @@ namespace platf {
       for (auto &card_descriptor : cds) {
         for (auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
           if (monitor_descriptor.index == index && monitor_descriptor.type == type) {
+            monitor_descriptor.viewport.width = monitor->viewport.width;
+            monitor_descriptor.viewport.height = monitor->viewport.height;
             monitor_descriptor.viewport.offset_x = monitor->viewport.offset_x;
             monitor_descriptor.viewport.offset_y = monitor->viewport.offset_y;
             monitor_descriptor.viewport.logical_width = monitor->viewport.logical_width;
