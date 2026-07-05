@@ -138,34 +138,114 @@ namespace platf {
    *          The real implementation requires working hardware (a loaded
    *          hermes_kms kernel module + a /dev/dri/card* node).
    */
+  // ponytail: minimal DMA-BUF-backed image. The data pointer is nullptr
+  // because pixel data lives in a GPU buffer imported by the encoder.
+  struct hermes_kms_img_t : platf::img_t {
+    int dma_buf_fd = -1;
+    ~hermes_kms_img_t() override {
+      if (dma_buf_fd >= 0) close(dma_buf_fd);
+    }
+  };
+
+  // ponytail: minimal display_t that captures from a Hermes-KMS card.
+  // The capture loop is WAIT_FRAME → ACQUIRE_FRAME → push the DMA-BUF
+  // as an hermes_kms_img_t. The encoder consumer imports the fd via
+  // VAAPI/CUDA — no CPU readback.
+  struct hermes_kms_display_t : platf::display_t {
+    int card_fd;
+    std::uint32_t width;
+    std::uint32_t height;
+
+    hermes_kms_display_t(int fd, std::uint32_t w, std::uint32_t h)
+      : card_fd(fd), width(w), height(h) {}
+    ~hermes_kms_display_t() override { close(card_fd); }
+
+    std::shared_ptr<platf::img_t> alloc_img() override {
+      return std::make_shared<hermes_kms_img_t>();
+    }
+
+    int dummy_img(platf::img_t *img) override {
+      img->width = (std::int32_t)width;
+      img->height = (std::int32_t)height;
+      img->row_pitch = (std::int32_t)(width * 4);
+      img->pixel_pitch = 4;
+      img->data = nullptr;  // DMA-BUF images have no CPU data
+      return 0;
+    }
+
+    capture_e capture(const push_captured_image_cb_t &push_captured_image_cb,
+                      const pull_free_image_cb_t &pull_free_image_cb,
+                      bool * /*cursor*/) override {
+      while (true) {
+        // WAIT_FRAME — blocks until the compositor pushes a new frame
+        struct drm_hermes_kms_wait_frame wait = {};
+        wait.timeout_ms = 500;
+        if (ioctl(card_fd, DRM_IOCTL_HERMES_KMS_WAIT_FRAME, &wait) < 0) {
+          if (errno == EINTR) continue;
+          BOOST_LOG(error) << "hermes_kms: WAIT_FRAME failed: " << strerror(errno);
+          return capture_e::error;
+        }
+
+        // ACQUIRE_FRAME — get the DMA-BUF fd and metadata
+        struct drm_hermes_kms_acquire_frame frame = {};
+        frame.flags = HERMES_KMS_FRAME_REQUEST_DMABUF;
+        if (ioctl(card_fd, DRM_IOCTL_HERMES_KMS_ACQUIRE_FRAME, &frame) < 0) {
+          BOOST_LOG(error) << "hermes_kms: ACQUIRE_FRAME failed: " << strerror(errno);
+          return capture_e::error;
+        }
+
+        // Pull a free image from the pool
+        std::shared_ptr<platf::img_t> img;
+        if (!pull_free_image_cb(img) || !img) {
+          return capture_e::interrupted;
+        }
+
+        auto *hk_img = dynamic_cast<hermes_kms_img_t *>(img.get());
+        if (!hk_img) {
+          BOOST_LOG(error) << "hermes_kms: image pool returned non-Hermes-KMS image";
+          return capture_e::error;
+        }
+
+        // Close any previous DMA-BUF before storing the new one
+        if (hk_img->dma_buf_fd >= 0) close(hk_img->dma_buf_fd);
+        hk_img->dma_buf_fd = frame.dma_buf_fd[0];  // take ownership
+        hk_img->width = (std::int32_t)frame.width;
+        hk_img->height = (std::int32_t)frame.height;
+        hk_img->row_pitch = (std::int32_t)frame.pitch[0];
+        hk_img->pixel_pitch = 4;  // ponytail: DRM_FORMAT_XRGB8888 = 4 bytes per pixel
+        hk_img->frame_timestamp = std::chrono::steady_clock::now();
+
+        // Push the image to the consumer (encoder)
+        if (!push_captured_image_cb(std::move(img), true)) {
+          return capture_e::ok;  // consumer asked us to stop
+        }
+      }
+    }
+  };
+
   std::shared_ptr<display_t> hermes_kms_display(mem_type_e hwdevice_type,
                                                 const std::string &display_name,
                                                 const video::config_t &config) {
     auto status = probe_hermes_kms();
     if (!status.module_loaded) {
-      BOOST_LOG(error) << "hermes_kms: kernel module not loaded. "
-                          "Install hermes_kms from github.com/MrOz59/Hermes-KMS "
-                          "and load it with 'modprobe hermes_kms'.";
+      BOOST_LOG(error) << "hermes_kms: kernel module not loaded";
       return nullptr;
     }
     if (status.card_index < 0) {
-      BOOST_LOG(error) << "hermes_kms: no card node found. "
-                          "Check 'dmesg | grep hermes_kms' for driver errors.";
+      BOOST_LOG(error) << "hermes_kms: no card node found";
       return nullptr;
     }
-    // ponytail: capture loop not yet wired. The card node is present,
-    // but the WAIT_FRAME → ACQUIRE_FRAME → import-DMA-BUF path needs
-    // the upstream UAPI structs and a real hermes_kms module to test against.
-    // Until then, this is a compile-time-present, runtime-detected option
-    // that fails with a clear diagnostic instead of a segfault.
-    BOOST_LOG(warning) << "hermes_kms: card node /dev/dri/card"
-                          << status.card_index
-                          << " found (uapi "
-                          << status.uapi_version
-                          << "), but the capture loop is not yet wired. "
-                             "See src/platform/linux/hermes_kms.h for the planned API.";
-    return nullptr;
+    std::string node_path = "/dev/dri/card" + std::to_string(status.card_index);
+    int fd = open(node_path.c_str(), O_RDWR | O_CLOEXEC);
+    if (fd < 0) {
+      BOOST_LOG(error) << "hermes_kms: cannot open " << node_path << ": " << strerror(errno);
+      return nullptr;
+    }
+    return std::make_shared<hermes_kms_display_t>(fd,
+                                                  status.caps.preferred_width,
+                                                  status.caps.preferred_height);
   }
+
 
   bool verify_hermes_kms() {
     auto status = probe_hermes_kms();
