@@ -105,6 +105,9 @@ case "$action" in
             echo "       Install it via your distro package manager (dkms on all major distros)." >&2
             exit 1
         fi
+        # idempotent: clean any prior dkms tree for this version so re-runs
+        # don't fail with "DKMS tree already contains".
+        ( cd "$HK_SRC" && make dkms-uninstall ) 2>/dev/null || true
         echo "[install] building + DKMS-installing Hermes-KMS..."
         ( cd "$HK_SRC" && make dkms-install )
         echo "[install] loading hermes_kms with initial_enabled=1..."
