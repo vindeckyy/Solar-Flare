@@ -47,15 +47,40 @@ namespace http {
     bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
     origin_web_ui_allowed = net::from_enum_string(config::nvhttp.origin_web_ui_allowed);
 
-    if (clean_slate) {
+    // Persist cert/pkey in appdata/credentials/ so they survive reboots.
+    // Previously these lived under temp_directory_path()/Sunshine/, which
+    // is wiped by systemd-tmpfiles on reboot and by some package-manager
+    // hooks. After a reboot Sunshine would start with no cert on disk
+    // and SSL_CTX_use_certificate_chain_file() would silently fail; every
+    // HTTPS handshake aborted at server hello and Moonlight could not pair.
+    auto creds_dir = platf::appdata() / "credentials"sv;
+    if (clean_slate || config::nvhttp.cert.empty() || config::nvhttp.pkey.empty()) {
+      // Generate a unique suffix so multiple Sunshine instances on the
+      // same machine (different ports) don't trample each other.
       unique_id = uuid_util::uuid_t::generate().string();
-      auto dir = std::filesystem::temp_directory_path() / "Sunshine"sv;
-      config::nvhttp.cert = (dir / ("cert-"s + unique_id)).string();
-      config::nvhttp.pkey = (dir / ("pkey-"s + unique_id)).string();
+      config::nvhttp.cert = (creds_dir / ("cert-"s + unique_id)).string();
+      config::nvhttp.pkey = (creds_dir / ("pkey-"s + unique_id)).string();
     }
 
+    // Generate cert/key if either file is missing. Missing-after-reboot is
+    // the common case this protects against; missing-on-fresh-install is
+    // the original case.
     if ((!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) &&
         create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
+      return -1;
+    }
+
+    // If the path still doesn't point at a real file (e.g. the user
+    // hand-set `cert` in sunshine.conf to a directory), refuse to start
+    // with a clear error rather than silently serving TLS handshakes
+    // that always fail at server hello.
+    if (fs::is_directory(config::nvhttp.cert) || !fs::is_regular_file(config::nvhttp.cert)) {
+      BOOST_LOG(fatal) << "nvhttp.cert is not a regular file: "sv << config::nvhttp.cert;
+      BOOST_LOG(fatal) << "Set `cert` in sunshine.conf to a writable file path, or remove the cert/pkey keys to let Sunshine generate fresh ones under "sv << creds_dir;
+      return -1;
+    }
+    if (fs::is_directory(config::nvhttp.pkey) || !fs::is_regular_file(config::nvhttp.pkey)) {
+      BOOST_LOG(fatal) << "nvhttp.pkey is not a regular file: "sv << config::nvhttp.pkey;
       return -1;
     }
     if (!user_creds_exist(config::sunshine.credentials_file)) {

@@ -847,6 +847,17 @@ namespace config {
       input = temp;
     }
 
+    // Treat empty input as "no default" rather than "relative to appdata".
+    // fs::path("").is_relative() returns true on libstdc++, which made
+    // `config::nvhttp.cert` resolve to the appdata directory itself --
+    // a directory passed to SSL_CTX_use_certificate_chain_file() silently
+    // fails to load a cert, and every HTTPS handshake aborts at server
+    // hello. Callers that want a default path should set it explicitly
+    // (see httpcommon::init() for the cert/pkey case).
+    if (input.empty()) {
+      return;
+    }
+
     if (input.is_relative()) {
       input = appdata / input;
     }
