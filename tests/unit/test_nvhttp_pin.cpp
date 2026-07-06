@@ -233,3 +233,42 @@ TEST_F(NvhttpPinTest, SetsClientNameOnSuccess) {
   EXPECT_TRUE(nvhttp::pin("0000", "Bedroom PC"));
   EXPECT_TRUE(PinCapture::instance().fired.load());
 }
+
+/**
+ * @brief Regression: when `getservercert()` is called from `pin()` on
+ *        an out-of-order session, the old code would continue to use
+ *        `sess` after `fail_pair()` had erased it from `map_id_sess`,
+ *        which is undefined behaviour (typically: the held response
+ *        write goes to freed memory, the client's pairing cert never
+ *        arrives, Moonlight times out). After the fix, `pin()` extracts
+ *        the node from the map so the reference stays stable across the
+ *        erase; the response is written normally (with the failure
+ *        body that `fail_pair` put in the tree), and Moonlight sees a
+ *        clean error reply instead of hanging.
+ *
+ *        We simulate the "out-of-order / fail_pair ran" precondition by
+ *        clearing the salt. `getservercert()` -> `fail_pair()` puts a
+ *        400 error in the tree; pin() must still write that body to the
+ *        held response (so Moonlight doesn't hang) and must not crash
+ *        despite the underlying session being removed by fail_pair.
+ */
+TEST_F(NvhttpPinTest, OutOfOrderSessionStillWritesErrorBody) {
+  PinTestServer server;
+  auto resp = make_test_response(server);
+
+  pair_session_t sess;
+  sess.client.uniqueID = "out-of-order-uuid";
+  sess.client.cert = "test-cert";
+  // Salt deliberately empty -> getservercert() -> fail_pair("Salt too short")
+  sess.async_insert_pin.response = resp;
+  nvhttp::test_access::add_pair_session(std::move(sess));
+
+  // Must NOT crash, must NOT throw. pin() detects the fail_pair path
+  // (root.paired == 0) and returns false without writing to the held
+  // response, so Moonlight sees a clean failure rather than a timeout.
+  EXPECT_FALSE(nvhttp::pin("1234", "laptop"));
+  EXPECT_FALSE(PinCapture::instance().fired.load());
+
+  // After fail_pair ran, the session is gone from the map.
+  EXPECT_EQ(nvhttp::test_access::pair_session_count(), 0u);
+}

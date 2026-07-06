@@ -551,14 +551,15 @@ namespace nvhttp {
     tree.put("root.<xmlattr>.status_code", 404);
 
     std::ostringstream data;
-
     pt::write_xml(data, tree);
-    response->write(data.str());
 
-    *response
-      << "HTTP/1.1 404 NOT FOUND\r\n"
-      << data.str();
-
+    // Write the body once via SimpleWeb's API so the status line, the
+    // Content-Length header, and the XML body are framed correctly. The
+    // previous version hand-appended a literal "HTTP/1.1 404 NOT FOUND"
+    // status line *into* the response stream after `response->write()`
+    // had already emitted "HTTP/1.1 200 OK" + Content-Length, producing
+    // a malformed wire response that confused strict HTTP clients.
+    response->write(SimpleWeb::StatusCode::client_error_not_found, data.str());
     response->close_connection_after_response = true;
   }
 
@@ -595,7 +596,28 @@ namespace nvhttp {
         sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
 
         BOOST_LOG(debug) << sess.client.cert;
-        auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
+        auto [ptr, inserted] = map_id_sess.emplace(sess.client.uniqueID, std::move(sess));
+
+        if (!inserted) {
+          // Retry / reconnect from the same client. The previous attempt may
+          // have left `last_phase` past PAIR_PHASE::NONE (e.g. if the client
+          // aborted mid-flow after `clientchallenge`), which would cause
+          // `getservercert()` to call `fail_pair()` -> `remove_session()`
+          // and invalidate the reference we are about to use. Reset all
+          // pairing state so this attempt starts cleanly. The previously
+          // held async response is released here too — its custom deleter
+          // posts `send_on_delete` to the now-dead socket, which is
+          // harmless (the write fails, the deleter's error callback is a
+          // no-op).
+          BOOST_LOG(info) << "Replacing stale pairing session for client: "sv << ptr->second.client.uniqueID;
+          ptr->second.last_phase = PAIR_PHASE::NONE;
+          ptr->second.cipher_key.reset();
+          ptr->second.clienthash.clear();
+          ptr->second.serversecret.clear();
+          ptr->second.serverchallenge.clear();
+          ptr->second.async_insert_pin = {};
+          ptr->second.client.name.clear();
+        }
 
         ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
 
@@ -679,8 +701,37 @@ namespace nvhttp {
       return false;
     }
 
-    auto &sess = std::begin(map_id_sess)->second;
-    getservercert(sess, tree, pin);
+    // `map_id_sess` is `std::unordered_map` so `std::begin` returns an
+    // arbitrary element. To avoid (a) operating on the wrong session if
+    // a stale one is sitting in the map from a previous failed attempt
+    // and (b) holding a reference that may be invalidated by
+    // `getservercert()` -> `fail_pair()` -> `remove_session()`, we use
+    // `extract()` to take ownership of the picked node. The extracted
+    // node keeps the `pair_session_t` alive at a stable address even if
+    // `fail_pair` later erases the same key from `map_id_sess` (a no-op
+    // on a missing key). The node is re-inserted on the success path so
+    // subsequent pairing phases can find it.
+    auto picked_it = map_id_sess.begin();
+    if (picked_it == std::end(map_id_sess)) {
+      return false;
+    }
+    auto node = map_id_sess.extract(picked_it);
+    getservercert(node.mapped(), tree, pin);
+
+    // Detect the `fail_pair` path: when it runs, `tree.paired` is set
+    // to 0 (vs. 1 on success). We have to inspect the tree directly
+    // because `getservercert()` doesn't return a status — `fail_pair`
+    // just mutates `tree` and returns. This also discards the extracted
+    // node so the map stays consistent with the failed pairing.
+    if (tree.get<int>("root.paired", 1) == 0) {
+      return false;
+    }
+
+    // Success path. Re-insert the (now-updated) node so subsequent
+    // clientchallenge / serverchallengeresp / clientpairingsecret phases
+    // can find the session by uniqueID.
+    auto insert_result = map_id_sess.insert(std::move(node));
+    auto &sess = insert_result.position->second;
     sess.client.name = name;
 
     // response to the request for pin
@@ -698,7 +749,8 @@ namespace nvhttp {
       resp->close_connection_after_response = true;
 #ifdef SUNSHINE_TESTS
       if (pin_observer) {
-        pin_observer({resp->close_connection_after_response, resp->size()});
+        test_access::PinResponseSnapshot snap {resp->close_connection_after_response, resp->size()};
+        pin_observer(snap);
       }
 #endif
     } else if (async_response.has_right() && async_response.right()) {
@@ -707,7 +759,8 @@ namespace nvhttp {
       resp->close_connection_after_response = true;
 #ifdef SUNSHINE_TESTS
       if (pin_observer) {
-        pin_observer({resp->close_connection_after_response, resp->size()});
+        test_access::PinResponseSnapshot snap {resp->close_connection_after_response, resp->size()};
+        pin_observer(snap);
       }
 #endif
     } else {
