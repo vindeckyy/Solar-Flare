@@ -1211,7 +1211,7 @@ namespace config {
   // declarations must come BEFORE apply_config() so the calls at the top
   // of apply_config resolve correctly.
   static void apply_solarflare_keys(std::unordered_map<std::string, std::string> &vars);
-  void apply_audio_fx_runtime(const solarflare_audio_fx_t &af);
+  void apply_opus_tuning_runtime(const solarflare_audio_fx_t &af);
   void apply_nvenc_tuning_preset();
 
   void apply_config(std::unordered_map<std::string, std::string> &&vars) {
@@ -1551,7 +1551,7 @@ namespace config {
     // used by the audio encode thread. Centralising this here keeps audio.cpp
     // free of config-aware code; the hot reload path calls the same helper so
     // a config edit at runtime actually takes effect on the next session.
-    apply_audio_fx_runtime(solarflare.audio_fx);
+    apply_opus_tuning_runtime(solarflare.audio_fx);
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
@@ -1897,7 +1897,7 @@ namespace config {
   }
 
   /**
-   * @brief Propagate parsed audio_fx values into the runtime Opus tuning.
+   * @brief Propagate parsed @c sf_opus_* values into the runtime Opus tuning.
    *
    * @c g_opus_tuning is read by the audio encode thread when it constructs
    * the Opus encoder. Updating the struct from the config loader side is
@@ -1905,11 +1905,17 @@ namespace config {
    * in-flight stream continues with whatever values it was created with
    * (intentional -- mid-stream tuning changes can glitch audio).
    *
+   * Only the six @c sf_opus_* fields are wired here. The remaining
+   * @c audio_fx fields (AGC/VAD/Ducker/noise-gate enable flags +
+   * tunables) are read directly by @c audio.cpp every time a new
+   * @c PreProcessor is built for a session, so they take effect on the
+   * next stream without going through this helper.
+   *
    * Called from both apply_config() and the hot-reload watcher so that
-   * editing sf_opus_* in sunshine.conf actually takes effect on the next
-   * stream.
+   * editing @c sf_opus_* in sunshine.conf actually takes effect on the
+   * next stream.
    */
-  void apply_audio_fx_runtime(const solarflare_audio_fx_t &af) {
+  void apply_opus_tuning_runtime(const solarflare_audio_fx_t &af) {
     // Note: ::audio (global namespace) is used here because config::audio
     // is the audio-config struct and would otherwise shadow the audio namespace.
     auto &tuning = ::audio::opus_tuning();
@@ -1952,7 +1958,7 @@ namespace config {
       // global. Same helpers as the initial config load, so a fork tweak
       // edits the right struct AND its shadow in audio::opus_tuning().
       apply_solarflare_keys(vars);
-      apply_audio_fx_runtime(solarflare.audio_fx);
+      apply_opus_tuning_runtime(solarflare.audio_fx);
 
       BOOST_LOG(info) << "SolarFlare config reloaded from "sv << sunshine.config_file;
     } catch (const std::exception &e) {

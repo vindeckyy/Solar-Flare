@@ -303,14 +303,14 @@ TEST(SolarflareConfigCompileTime, StructIsReasonablySmall) {
 }
 
 // ----------------------------------------------------------------------------
-// Regression test for the apply_audio_fx_runtime helper. The previous code
+// Regression test for the apply_opus_tuning_runtime helper. The previous code
 // inlined the opus_application / opus_vbr / ... -> g_opus_tuning propagation
 // in apply_config() and never ran it from the hot-reload watcher, so editing
 // sf_opus_* in sunshine.conf silently did nothing until restart.
 // ----------------------------------------------------------------------------
 #include <src/audio.h>
 
-TEST_F(SolarflareConfigTest, ApplyAudioFxRuntimePropagatesOpusTuning) {
+TEST_F(SolarflareConfigTest, ApplyOpusTuningRuntimePropagatesOpusTuning) {
   // Snapshot the global Opus tuning so we can restore it on TearDown.
   auto &saved_tuning = ::audio::opus_tuning();
   auto saved_application = saved_tuning.application;
@@ -328,7 +328,7 @@ TEST_F(SolarflareConfigTest, ApplyAudioFxRuntimePropagatesOpusTuning) {
   af.opus_fec = false;
   af.opus_expected_loss_pct = 17;
   af.opus_bandwidth_extension = false;
-  config::apply_audio_fx_runtime(af);
+  config::apply_opus_tuning_runtime(af);
 
   EXPECT_EQ(saved_tuning.application, ::audio::opus_tuning_t::application_e::AUDIO);
   EXPECT_EQ(saved_tuning.vbr, ::audio::opus_tuning_t::vbr_e::CONSTRAINED);
@@ -348,27 +348,35 @@ TEST_F(SolarflareConfigTest, ApplyAudioFxRuntimePropagatesOpusTuning) {
   saved_tuning.enable_bandwidth_extension = saved_bwe;
 }
 
-TEST_F(SolarflareConfigTest, ApplyAudioFxRuntimeMapsAllEnumValues) {
+TEST_F(SolarflareConfigTest, ApplyOpusTuningRuntimeMapsAllEnumValues) {
   auto &tuning = ::audio::opus_tuning();
   config::solarflare_t::audio_fx_t af {};
 
   // application: 0 -> LOWDELAY, 1 -> VOIP, 2 -> AUDIO, anything else -> LOWDELAY
-  af.opus_application = 0; config::apply_audio_fx_runtime(af);
+  af.opus_application = 0;
+  config::apply_opus_tuning_runtime(af);
   EXPECT_EQ(tuning.application, ::audio::opus_tuning_t::application_e::LOWDELAY);
-  af.opus_application = 1; config::apply_audio_fx_runtime(af);
+  af.opus_application = 1;
+  config::apply_opus_tuning_runtime(af);
   EXPECT_EQ(tuning.application, ::audio::opus_tuning_t::application_e::VOIP);
-  af.opus_application = 2; config::apply_audio_fx_runtime(af);
+  af.opus_application = 2;
+  config::apply_opus_tuning_runtime(af);
   EXPECT_EQ(tuning.application, ::audio::opus_tuning_t::application_e::AUDIO);
-  af.opus_application = 99; config::apply_audio_fx_runtime(af);
+  af.opus_application = 99;
+  config::apply_opus_tuning_runtime(af);
   EXPECT_EQ(tuning.application, ::audio::opus_tuning_t::application_e::LOWDELAY);
 
   // vbr: 0 -> OFF, 1 -> CONSTRAINED, 2 -> FULL, else -> OFF
-  af.opus_vbr = 0; config::apply_audio_fx_runtime(af);
+  af.opus_vbr = 0;
+  config::apply_opus_tuning_runtime(af);
   EXPECT_EQ(tuning.vbr, ::audio::opus_tuning_t::vbr_e::OFF);
-  af.opus_vbr = 1; config::apply_audio_fx_runtime(af);
+  af.opus_vbr = 1;
+  config::apply_opus_tuning_runtime(af);
   EXPECT_EQ(tuning.vbr, ::audio::opus_tuning_t::vbr_e::CONSTRAINED);
-  af.opus_vbr = 2; config::apply_audio_fx_runtime(af);
+  af.opus_vbr = 2;
+  config::apply_opus_tuning_runtime(af);
   EXPECT_EQ(tuning.vbr, ::audio::opus_tuning_t::vbr_e::FULL);
-  af.opus_vbr = 99; config::apply_audio_fx_runtime(af);
+  af.opus_vbr = 99;
+  config::apply_opus_tuning_runtime(af);
   EXPECT_EQ(tuning.vbr, ::audio::opus_tuning_t::vbr_e::OFF);
 }

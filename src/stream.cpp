@@ -109,6 +109,8 @@ namespace stream {
       std::error_code ec;
       fs::path net_dir {"/sys/class/net"};
       if (!fs::exists(net_dir, ec) || ec) {
+        BOOST_LOG(warning) << "rate_cap_pct: /sys/class/net unavailable, falling back to 1 Gbps. "
+                              "If your link is slower, set rate_cap_pct low enough to compensate.";
         return FALLBACK_BPS;
       }
 
@@ -124,12 +126,16 @@ namespace stream {
       // whose address matches local_address.
       struct ifaddrs *addrs = nullptr;
       if (::getifaddrs(&addrs) != 0 || !addrs) {
+        BOOST_LOG(warning) << "rate_cap_pct: getifaddrs failed, falling back to 1 Gbps. "
+                              "If your link is slower, set rate_cap_pct low enough to compensate.";
         return FALLBACK_BPS;
       }
 
       std::string matched_iface;
       for (auto *ifa = addrs; ifa != nullptr; ifa = ifa->ifa_next) {
-        if (!ifa->ifa_addr || !ifa->ifa_name) continue;
+        if (!ifa->ifa_addr || !ifa->ifa_name) {
+          continue;
+        }
         auto family = ifa->ifa_addr->sa_family;
         if (family == AF_INET && local_address.is_v4()) {
           auto in = reinterpret_cast<struct sockaddr_in *>(ifa->ifa_addr);
@@ -151,23 +157,36 @@ namespace stream {
       ::freeifaddrs(addrs);
 
       if (matched_iface.empty()) {
+        BOOST_LOG(warning) << "rate_cap_pct: no local interface matched " << local_address
+                           << ", falling back to 1 Gbps.";
         return FALLBACK_BPS;
       }
 
       fs::path speed_file = net_dir / matched_iface / "speed";
       std::ifstream f {speed_file};
       if (!f) {
+        BOOST_LOG(warning) << "rate_cap_pct: cannot read " << speed_file
+                           << ", falling back to 1 Gbps.";
         return FALLBACK_BPS;
       }
       long mbps = 0;
       f >> mbps;
       if (mbps <= 0) {
         // -1 means "unknown"; fall back rather than pacing to zero.
+        BOOST_LOG(warning) << "rate_cap_pct: " << speed_file
+                           << " reported " << mbps
+                           << " Mbps, falling back to 1 Gbps.";
         return FALLBACK_BPS;
       }
-      return static_cast<size_t>(mbps) * 1'000'000;
+      const size_t detected = static_cast<size_t>(mbps) * 1'000'000;
+      BOOST_LOG(info) << "rate_cap_pct: detected link " << matched_iface
+                      << " @ " << mbps << " Mbps; capping at "
+                      << config::solarflare.rate_cap_pct << "%.";
+      return detected;
 #else
       (void) local_address;
+      BOOST_LOG(warning) << "rate_cap_pct: link detection not implemented on this platform, "
+                            "falling back to 1 Gbps.";
       return FALLBACK_BPS;
 #endif
     }
@@ -1513,7 +1532,9 @@ namespace stream {
         size_t link_bps = detail::detect_link_speed_bps(session->localAddress);
         size_t ratecontrol_packets_in_1ms =
           link_bps * (size_t) config::solarflare.rate_cap_pct / 100 / 1000 / blocksize / 8;
-        if (ratecontrol_packets_in_1ms < 1) ratecontrol_packets_in_1ms = 1;
+        if (ratecontrol_packets_in_1ms < 1) {
+          ratecontrol_packets_in_1ms = 1;
+        }
 
         // Send less than 64K in a single batch.
         // On Windows, batches above 64K seem to bypass SO_SNDBUF regardless of its size,
@@ -1622,13 +1643,11 @@ namespace stream {
               session->video.cipher->encrypt(std::string_view {(char *) inspect, (size_t) blocksize}, prefix->tag, (uint8_t *) inspect, &iv);
             }
 
-            if (x - next_shard_to_send + 1 >= send_batch_size ||
-                x + 1 == shards.size()) {
+            if (x - next_shard_to_send + 1 >= send_batch_size || x + 1 == shards.size()) {
               // Do pacing within the frame.
               // Also trigger pacing before the first send_batch() of the frame
               // to account for the last send_batch() of the previous frame.
-              if (ratecontrol_group_packets_sent >= ratecontrol_packets_in_1ms ||
-                  ratecontrol_frame_packets_sent == 0) {
+              if (ratecontrol_group_packets_sent >= ratecontrol_packets_in_1ms || ratecontrol_frame_packets_sent == 0) {
                 auto due = ratecontrol_frame_start +
                            std::chrono::duration_cast<std::chrono::nanoseconds>(1ms) *
                              ratecontrol_frame_packets_sent / ratecontrol_packets_in_1ms;

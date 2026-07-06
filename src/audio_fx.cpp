@@ -93,17 +93,14 @@ namespace audio::fx {
   // AGC
   // ---------------------------------------------------------------------
 
-  AGC::AGC(): AGC(config_t {}) {}
+  AGC::AGC():
+      AGC(config_t {}) {}
 
   AGC::AGC(const config_t &cfg):
       _cfg(cfg) {
     if (_cfg.sample_rate <= 0.0f) {
       _cfg.sample_rate = 48000.0f;
     }
-    // Pre-compute frame_ms for a 5 ms default frame; will be re-derived from
-    // the actual frame size passed to process(). Stored here only for
-    // initial alpha so a single-frame call does not see a 0-ms alpha.
-    _frame_ms = 5.0f;
   }
 
   void AGC::process(float *samples, std::size_t frame_count, int channels) {
@@ -114,7 +111,6 @@ namespace audio::fx {
     // Derive the frame duration from the actual call so per-frame smoothing
     // is correct regardless of how process() is invoked.
     const float frame_ms = (1000.0f * static_cast<float>(frame_count)) / _cfg.sample_rate;
-    _frame_ms = frame_ms;
 
     const float attack_alpha = detail::ms_to_alpha(_cfg.attack_ms, frame_ms);
     const float release_alpha = detail::ms_to_alpha(_cfg.release_ms, frame_ms);
@@ -166,14 +162,14 @@ namespace audio::fx {
   // VAD
   // ---------------------------------------------------------------------
 
-  VAD::VAD(): VAD(config_t {}) {}
+  VAD::VAD():
+      VAD(config_t {}) {}
 
   VAD::VAD(const config_t &cfg):
       _cfg(cfg) {
     if (_cfg.sample_rate <= 0.0f) {
       _cfg.sample_rate = 48000.0f;
     }
-    _frame_ms = 5.0f;
   }
 
   bool VAD::process(const float *samples, std::size_t frame_count, int channels) {
@@ -182,7 +178,6 @@ namespace audio::fx {
     }
 
     const float frame_ms = (1000.0f * static_cast<float>(frame_count)) / _cfg.sample_rate;
-    _frame_ms = frame_ms;
 
     const float rms = detail::rms_db(samples, frame_count, channels);
     const float enter_threshold = _cfg.threshold_db;
@@ -228,14 +223,14 @@ namespace audio::fx {
   // Ducker
   // ---------------------------------------------------------------------
 
-  Ducker::Ducker(): Ducker(config_t {}) {}
+  Ducker::Ducker():
+      Ducker(config_t {}) {}
 
   Ducker::Ducker(const config_t &cfg):
       _cfg(cfg) {
     if (_cfg.sample_rate <= 0.0f) {
       _cfg.sample_rate = 48000.0f;
     }
-    _frame_ms = 5.0f;
   }
 
   void Ducker::process(float *samples, std::size_t frame_count, int channels, bool voice_active) {
@@ -244,7 +239,6 @@ namespace audio::fx {
     }
 
     const float frame_ms = (1000.0f * static_cast<float>(frame_count)) / _cfg.sample_rate;
-    _frame_ms = frame_ms;
 
     const float target_db = voice_active ? _cfg.target_attenuation_db : 0.0f;
     const float tau_ms = (target_db < _current_gain_db) ? _cfg.attack_ms : _cfg.release_ms;
@@ -271,7 +265,8 @@ namespace audio::fx {
   // PreProcessor (composite)
   // ---------------------------------------------------------------------
 
-  PreProcessor::PreProcessor(): PreProcessor(config_t {}) {}
+  PreProcessor::PreProcessor():
+      PreProcessor(config_t {}) {}
 
   PreProcessor::PreProcessor(const config_t &cfg):
       _cfg(cfg),
@@ -283,9 +278,15 @@ namespace audio::fx {
     // divide-by-zero), but we also pin the noise gate to whichever sample
     // rate the AGC/VAD/Ducker agreed on so a 44.1 kHz stream gets the right
     // smoothing constants.
-    if (_cfg.agc.sample_rate <= 0.0f) _cfg.agc.sample_rate = 48000.0f;
-    if (_cfg.vad.sample_rate <= 0.0f) _cfg.vad.sample_rate = _cfg.agc.sample_rate;
-    if (_cfg.ducker.sample_rate <= 0.0f) _cfg.ducker.sample_rate = _cfg.agc.sample_rate;
+    if (_cfg.agc.sample_rate <= 0.0f) {
+      _cfg.agc.sample_rate = 48000.0f;
+    }
+    if (_cfg.vad.sample_rate <= 0.0f) {
+      _cfg.vad.sample_rate = _cfg.agc.sample_rate;
+    }
+    if (_cfg.ducker.sample_rate <= 0.0f) {
+      _cfg.ducker.sample_rate = _cfg.agc.sample_rate;
+    }
     _noise_gate_sample_rate = _cfg.agc.sample_rate;
   }
 

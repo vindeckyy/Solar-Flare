@@ -533,16 +533,22 @@ namespace config {
   void stop_config_watcher();
 
   /**
-   * @brief Apply the parsed @c solarflare_t::audio_fx sub-tunables to the
-   *        runtime Opus tuning struct used by the audio encode thread.
+   * @brief Apply the parsed Opus tuning fields from
+   *        @c solarflare_t::audio_fx to the runtime Opus tuning struct used
+   *        by the audio encode thread.
+   *
+   * Only the six @c sf_opus_* fields are propagated here. The other fields
+   * on @c audio_fx (AGC / VAD / Ducker / noise-gate enable flags and
+   * tunables) are consumed directly by @c audio.cpp when the PreProcessor
+   * is built per-stream — see apply_solarflare_keys() for the parser side.
    *
    * Called by the config loader (initial parse + hot reload) so that editing
-   * a fork audio_fx key in sunshine.conf actually takes effect on the next
-   * session. Must NOT be called from inside the encode thread.
+   * a fork @c sf_opus_* key in sunshine.conf actually takes effect on the
+   * next session. Must NOT be called from inside the encode thread.
    *
-   * @param af The parsed fork audio_fx sub-struct (see solarflare_t::audio_fx_t).
+   * @param af The parsed fork audio_fx sub-struct (see @c solarflare_audio_fx_t).
    */
-  void apply_audio_fx_runtime(const solarflare_audio_fx_t &af);
+  void apply_opus_tuning_runtime(const solarflare_audio_fx_t &af);
 
   extern video_t video;
   extern audio_t audio;

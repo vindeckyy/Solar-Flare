@@ -105,7 +105,6 @@ namespace audio::fx {
     config_t _cfg;
     float _current_gain_linear = 1.0f;
     float _hold_remaining_samples = 0.0f;
-    float _frame_ms = 0.0f;
   };
 
   /**
@@ -172,7 +171,6 @@ namespace audio::fx {
     bool _is_speech = false;
     float _speech_samples = 0.0f;
     float _silence_samples = 0.0f;
-    float _frame_ms = 0.0f;
   };
 
   /**
@@ -240,7 +238,6 @@ namespace audio::fx {
   private:
     config_t _cfg;
     float _current_gain_db = 0.0f;
-    float _frame_ms = 0.0f;
   };
 
   /**
