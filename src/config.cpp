@@ -1462,7 +1462,7 @@ namespace config {
       }
     }
     if (csrf_invalid_config) {
-      BOOST_LOG(warning) << "Please refer to: https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2configuration.html#csrf_allowed_origins"sv;
+      BOOST_LOG(warning) << "Please refer to: https://github.com/vindeckyy/Solar-Flare#all-config-settings"sv;
     }
 
     int to = -1;

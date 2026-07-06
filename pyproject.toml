@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Sunshine"
-version = "2026.999.0"
+version = "2026.999.2"
 description = "Python tooling for Sunshine"
 requires-python = ">=3.14"
 license = {text = "GPL-3.0-only"}
 authors = [
-    {name = "LizardByte", email = "lizardbyte@users.noreply.github.com"}
+    {name = "vindeckyy", email = "vindeckyy@users.noreply.github.com"}
 ]
 
 dependencies = [
@@ -32,9 +32,9 @@ flatpak = [
 ]
 
 [project.urls]
-Homepage = "https://app.lizardbyte.dev/Sunshine"
-Repository = "https://github.com/LizardByte/Sunshine"
-Issues = "https://github.com/LizardByte/Sunshine/issues"
+Homepage = "https://github.com/vindeckyy/Solar-Flare"
+Repository = "https://github.com/vindeckyy/Solar-Flare"
+Issues = "https://github.com/vindeckyy/Solar-Flare/issues"
 
 [tool.setuptools]
 py-modules = []

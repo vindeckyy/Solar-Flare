@@ -10,8 +10,8 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0"></a>
   <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf.svg" alt="Fork of Sunshine"></a>
   <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-v2026.999.2-orange.svg" alt="Version: v2026.999.2-solarflare"></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-418%20passed%20%2F%205%20skipped-brightgreen.svg" alt="Tests"></a>
-  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-154-blueviolet.svg" alt="Commits since fork"></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-438%20passed%20%2F%205%20skipped-brightgreen.svg" alt="Tests"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-61-blueviolet.svg" alt="Commits since fork"></a>
   <a href="#building-from-source"><img src="https://img.shields.io/badge/target-CachyOS%20x86__64-1793d1.svg" alt="Target: CachyOS"></a>
 </p>
 
@@ -248,11 +248,11 @@ Combined with `-flto` (link-time optimization), `-O3` (aggressive optimization),
 
 **Fork identity:** Running `sunshine --version` prints the fork name, repository URL, and commit hash so you can confirm you are running SolarFlare.
 
-**Self-contained CI:** The fork has its own GitHub Actions workflow (`ci-solarflare.yml`) that builds and tests on an Arch Linux container without depending on LizardByte's release infrastructure.
+**Self-contained CI:** The fork uses its own release workflow (`release.yml`) that builds and packages Linux binaries without depending on LizardByte's release infrastructure.
 
-**Upstream sync:** 23 commits from upstream LizardByte/Sunshine have been cherry-picked since the fork was created in June 2026. These include build fixes, PipeWire improvements, OpenSSL 4.x compatibility, and KMS DRM fixes.
+**Upstream sync:** 24 commits from upstream LizardByte/Sunshine have been cherry-picked since the fork was created in June 2026. These include build fixes, PipeWire improvements, OpenSSL 4.x compatibility, and KMS DRM fixes.
 
-**Regression guards:** 9 tests verify that cherry-picked upstream fixes are still in place and fail the build if someone accidentally reverts them.
+**Regression guards:** Cherry-picked upstream fixes are guarded by regression tests that verify the fix is still in place.
 
 **Pinned workflows:** 22 LizardByte workflow files are pinned to specific commits so they never accidentally run on the fork.
 
