@@ -17,7 +17,7 @@ namespace video {
   public:
     struct config_t {
       bool enabled = false;
-      int min_bitrate = 2000;   ///< kbps, floor
+      int min_bitrate = 2000;  ///< kbps, floor
       int max_bitrate = 100000;  ///< kbps, ceiling
     };
 
@@ -50,6 +50,14 @@ namespace video {
   private:
     static constexpr float EWMA_ALPHA = 0.3f;
     static constexpr float RECOVERY_RATE = 0.4f;
+    /// Minimum EWMA seed for round-trip time. Used when the first network
+    /// sample arrives with rtt_ms=0 (common at session bring-up before the
+    /// client has measured RTT). Without a seed floor the EWMA would stay
+    /// near zero, then every subsequent real reading would falsely
+    /// register as an rtt_spike (rtt_ms > 2x ~0). Set high enough that a
+    /// healthy first real reading (typically >= 1ms on a LAN) does not
+    /// trigger a spike against the seed.
+    static constexpr float MIN_EWMA_RTT_MS = 5.0f;
     static constexpr std::chrono::seconds RECOVERY_TIMEOUT {10};
 
     config_t _cfg;

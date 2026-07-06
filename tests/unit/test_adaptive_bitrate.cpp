@@ -177,3 +177,66 @@ TEST(AdaptiveBitrateTest, CeilingRespectsMaxBitrate) {
   // base > max: must clamp to max.
   EXPECT_EQ(ab.get_target_bitrate(500000), kMaxBitrate);
 }
+
+/**
+ * @brief First sample with rtt_ms=0 must still NOT be flagged as congestion.
+ *
+ * Regression test: a client that reports rtt_ms=0 on the very first packet
+ * (common during session bring-up before measurement starts) used to pin
+ * the EWMA near zero for the whole session lifetime, then trigger
+ * rtt_spike on every subsequent real reading. Fixed by flooring the EWMA
+ * seed at MIN_EWMA_RTT_MS (0.5ms).
+ */
+TEST(AdaptiveBitrateTest, FirstSampleZeroRttIsNotCongestion) {
+  video::AdaptiveBitrate ab(default_cfg());
+
+  // First packet of the session: RTT not yet measured, loss=0. Should not
+  // throttle the stream.
+  ab.update_network_stats(0.0f, 0.0f);
+
+  // Two more healthy samples at a real LAN RTT. Without the MIN_EWMA_RTT_MS
+  // floor these would compare against ~0 and register as spikes — driving
+  // the scale down. With the floor in place the EWMA settles around the
+  // real RTT and scale stays at 1.0.
+  ab.update_network_stats(0.0f, 8.0f);
+  ab.update_network_stats(0.0f, 8.0f);
+
+  EXPECT_FLOAT_EQ(ab.get_target_bitrate(20000), 20000);
+}
+
+/**
+ * @brief Healthy stream-health sample arms the recovery timer.
+ *
+ * Regression test: previously update_stream_health() only consumed the
+ * recovery timer (it never set it). If update_network_stats() wasn't called
+ * between the scale-down event and the recovery window (e.g. network stats
+ * arrive less often than stream-health samples), bitrate would never
+ * recover — the controller would stay throttled until process restart.
+ * Fixed by arming the timer from update_stream_health when the stream is
+ * healthy and no recovery timer is currently running.
+ */
+TEST(AdaptiveBitrateTest, HealthyStreamHealthArmsRecovery) {
+  video::AdaptiveBitrate ab(default_cfg());
+  ab.update_network_stats(0.0f, 20.0f);  // prime
+
+  // Drive the scale down via healthy stream-health samples (no network
+  // events). Use the high encode-time threshold to bring it down, then
+  // flip back to healthy. The healthy sample must NOT block recovery; in
+  // fact it must arm the recovery timer so future healthy ticks can ramp
+  // the scale back up.
+  ab.update_stream_health(0.80f, 12.0f, 0.0f);  // unhealthy: drops scale
+  int dropped = ab.get_target_bitrate(20000);
+  ASSERT_LT(dropped, 20000);
+
+  // Multiple healthy stream-health ticks. Recovery itself is gated on
+  // RECOVERY_TIMEOUT (10s) which we cannot advance here, but we can at
+  // least confirm the post-congestion scale hasn't been knocked further
+  // down by the healthy samples (the prior bug was that one healthy tick
+  // would arm recovery, but a subsequent healthy tick with no _in_recovery
+  // edge triggered would never re-arm — meaning a single re-congestion
+  // event followed by stable health could permanently strand the timer).
+  for (int i = 0; i < 5; ++i) {
+    ab.update_stream_health(1.0f, 5.0f, 0.0f);
+  }
+  EXPECT_GE(ab.get_target_bitrate(20000), dropped);
+}

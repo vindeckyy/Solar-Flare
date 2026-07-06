@@ -163,13 +163,18 @@ namespace platf {
   // as an hermes_kms_img_t. The encoder consumer imports the fd via
   // VAAPI/CUDA — no CPU readback.
   struct hermes_kms_display_t : platf::display_t {
-    int card_fd;
+    int card_fd = -1;
     std::uint32_t width;
     std::uint32_t height;
 
     hermes_kms_display_t(int fd, std::uint32_t w, std::uint32_t h)
       : card_fd(fd), width(w), height(h) {}
-    ~hermes_kms_display_t() override { close(card_fd); }
+    ~hermes_kms_display_t() override {
+      if (card_fd >= 0) {
+        close(card_fd);
+        card_fd = -1;
+      }
+    }
 
     std::shared_ptr<platf::img_t> alloc_img() override {
       return std::make_shared<hermes_kms_img_t>();
@@ -204,16 +209,29 @@ namespace platf {
           BOOST_LOG(error) << "hermes_kms: ACQUIRE_FRAME failed: " << strerror(errno);
           return capture_e::error;
         }
+        // Guard against the driver claiming success without handing back a
+        // DMA-BUF fd. Without this, an hk_img with fd=-1 but populated
+        // width/height/pitch would be pushed into the encoder, which would
+        // then attempt to import -1 and fail in a much harder-to-diagnose
+        // place.
+        if (frame.dma_buf_fd[0] < 0) {
+          BOOST_LOG(error) << "hermes_kms: ACQUIRE_FRAME returned no DMA-BUF fd";
+          return capture_e::error;
+        }
 
         // Pull a free image from the pool
         std::shared_ptr<platf::img_t> img;
         if (!pull_free_image_cb(img) || !img) {
+          // Driver gave us a DMA-BUF fd but we're not consuming it now —
+          // close it ourselves to avoid leaking the descriptor.
+          if (frame.dma_buf_fd[0] >= 0) close(frame.dma_buf_fd[0]);
           return capture_e::interrupted;
         }
 
         auto *hk_img = dynamic_cast<hermes_kms_img_t *>(img.get());
         if (!hk_img) {
           BOOST_LOG(error) << "hermes_kms: image pool returned non-Hermes-KMS image";
+          if (frame.dma_buf_fd[0] >= 0) close(frame.dma_buf_fd[0]);
           return capture_e::error;
         }
 

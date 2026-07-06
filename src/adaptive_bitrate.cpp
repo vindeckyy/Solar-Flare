@@ -22,11 +22,14 @@ namespace video {
     // very first update.
     if (!_primed) {
       _ewma_loss = packet_loss_pct;
-      _ewma_rtt = rtt_ms;
+      // Floor the EWMA seed at MIN_EWMA_RTT_MS so a first sample with rtt_ms=0
+      // (the client hasn't measured RTT yet, which happens frequently on
+      // session start) cannot pin the long-term EWMA near zero and then have
+      // every subsequent reading register as an rtt_spike (rtt_ms > 2x ~0).
+      _ewma_rtt = std::max(MIN_EWMA_RTT_MS, rtt_ms);
       _primed = true;
       return;
     }
-
     _ewma_loss = EWMA_ALPHA * packet_loss_pct + (1.0f - EWMA_ALPHA) * _ewma_loss;
     _ewma_rtt = EWMA_ALPHA * rtt_ms + (1.0f - EWMA_ALPHA) * _ewma_rtt;
 
@@ -80,11 +83,20 @@ namespace video {
       return;
     }
 
-    if (_in_recovery) {
-      auto now = std::chrono::steady_clock::now();
-      if (now - _recovery_start >= RECOVERY_TIMEOUT) {
-        _current_scale = std::min(_current_scale + RECOVERY_RATE * 0.01f, 1.0f);
-      }
+    // If the stream is healthy but the network-driven recovery timer hasn't
+    // been started yet (e.g. update_network_stats hasn't been called recently
+    // or the network just transitioned out of congestion), arm it now so the
+    // user can actually see bitrate recover. Without this, bitrate would only
+    // ever decrease until the process restarts on a flaky link.
+    if (!_in_recovery) {
+      _in_recovery = true;
+      _recovery_start = std::chrono::steady_clock::now();
+      return;
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    if (now - _recovery_start >= RECOVERY_TIMEOUT) {
+      _current_scale = std::min(_current_scale + RECOVERY_RATE * 0.01f, 1.0f);
     }
   }
 
