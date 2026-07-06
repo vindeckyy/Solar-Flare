@@ -6,6 +6,8 @@
 #pragma once
 
 // standard includes
+#include <cstddef>
+#include <optional>
 #include <string>
 
 // lib includes
@@ -209,4 +211,58 @@ namespace nvhttp {
    * @examples_end
    */
   void erase_all_clients();
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Test-only helpers for inspecting internal pairing state.
+   *
+   * These exist only when the test binary is being built (i.e. when
+   * `SUNSHINE_TESTS` is defined). They are not part of the public API.
+   */
+  namespace test_access {
+    /**
+     * @brief Test-only: insert a pairing session directly into the
+     *        internal map. The session is keyed by its `client.uniqueID`.
+     * @param sess The session to insert.
+     */
+    void add_pair_session(pair_session_t sess);
+
+    /**
+     * @brief Test-only: clear all pairing sessions from the internal map.
+     */
+    void clear_pair_sessions();
+
+    /**
+     * @brief Test-only: number of sessions currently held in the internal
+     *        map. Used by tests that need to confirm a session was either
+     *        kept or removed by a public API call.
+     */
+    std::size_t pair_session_count();
+
+    /**
+     * @brief Snapshot of the held async response captured by the pin
+     *        observer right before `pin()` releases the response.
+     */
+    struct PinResponseSnapshot {
+      bool close_connection_after_response = false;  ///< Flag at capture time.
+      std::size_t body_size = 0;  ///< Bytes written to the response's stream buffer.
+    };
+
+    /**
+     * @brief Test-only: register a callback that fires from inside
+     *        `pin()` immediately after the held async response is written
+     *        to, but before it is released. The callback receives a
+     *        snapshot of the response's state (close flag + body size) so
+     *        tests can verify the fix without depending on the response
+     *        outliving `pin()`.
+     *
+     * @details
+     * The callback is consumed by a single `pin()` invocation. Register
+     * again before each call you want to observe. Pass `nullptr` to
+     * clear.
+     */
+    using PinObserver = void (*)(const PinResponseSnapshot &);
+    void set_pin_observer(PinObserver obs);
+  }  // namespace test_access
+#endif  // SUNSHINE_TESTS
 }  // namespace nvhttp

@@ -8,6 +8,7 @@
 // standard includes
 #include <filesystem>
 #include <format>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -146,6 +147,14 @@ namespace nvhttp {
 
   // Set by TLS verify callback, read by launch/resume handler (single-threaded HTTPS server)
   std::string last_verified_client_cert;  // NOSONAR(cpp:S5421) - intentionally mutable global
+
+#ifdef SUNSHINE_TESTS
+  // Test-only: set by the test_access::set_pin_observer() helper, fires
+  // from inside pin() right after the held response is written, so tests
+  // can verify close_connection_after_response and body size without
+  // having to keep the response object alive past the function return.
+  test_access::PinObserver pin_observer = nullptr;
+#endif  // SUNSHINE_TESTS
 
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SunshineHTTPS>::Response>;
@@ -680,9 +689,27 @@ namespace nvhttp {
 
     auto &async_response = sess.async_insert_pin.response;
     if (async_response.has_left() && async_response.left()) {
-      async_response.left()->write(data.str());
+      auto resp = async_response.left();
+      resp->write(data.str());
+      // Mirror the fail_guard in pair(): the held response must be closed
+      // after sending, otherwise SimpleWeb keeps the underlying socket in
+      // keep-alive mode and the client never sees a complete reply, causing
+      // the Moonlight pairing handshake to time out.
+      resp->close_connection_after_response = true;
+#ifdef SUNSHINE_TESTS
+      if (pin_observer) {
+        pin_observer({resp->close_connection_after_response, resp->size()});
+      }
+#endif
     } else if (async_response.has_right() && async_response.right()) {
-      async_response.right()->write(data.str());
+      auto resp = async_response.right();
+      resp->write(data.str());
+      resp->close_connection_after_response = true;
+#ifdef SUNSHINE_TESTS
+      if (pin_observer) {
+        pin_observer({resp->close_connection_after_response, resp->size()});
+      }
+#endif
     } else {
       return false;
     }
@@ -1293,4 +1320,24 @@ namespace nvhttp {
     }
     return true;
   }
+
+#ifdef SUNSHINE_TESTS
+  namespace test_access {
+    void add_pair_session(pair_session_t sess) {
+      map_id_sess.emplace(sess.client.uniqueID, std::move(sess));
+    }
+
+    void clear_pair_sessions() {
+      map_id_sess.clear();
+    }
+
+    std::size_t pair_session_count() {
+      return map_id_sess.size();
+    }
+
+    void set_pin_observer(PinObserver obs) {
+      pin_observer = obs;
+    }
+  }  // namespace test_access
+#endif  // SUNSHINE_TESTS
 }  // namespace nvhttp
