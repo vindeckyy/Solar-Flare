@@ -83,6 +83,20 @@ systemctl --user enable --now sunshine
 > stored per-file — setting caps on `/usr/local/bin/sunshine` does not
 > carry over to a build-directory binary.
 
+### Updating an existing install
+
+```bash
+cd Solar-Flare
+git pull
+git submodule update --init --recursive
+./scripts/cachyos-build.sh --clean
+sudo cmake --install build
+sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
+systemctl --user restart sunshine
+```
+
+A plain `git pull` followed by an incremental `./scripts/cachyos-build.sh` will often fail: stale `build/` state (cached CMake targets, generated config headers, half-applied submodule updates) collides with the new tree and produces confusing errors such as missing files, undefined references, or version mismatches. The `--clean` flag wipes `build/` and rebuilds from scratch, which is what a successful update actually needs. If `--clean` is not enough (for example after a major version bump that changed submodules), delete the project directory and clone fresh as in the install steps above.
+
 **After installing:**
 
 1. Open your browser and go to `https://localhost:47990`
