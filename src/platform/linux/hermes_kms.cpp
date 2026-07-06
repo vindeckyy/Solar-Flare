@@ -22,6 +22,15 @@
 #include <unistd.h>
 
 #include "src/logging.h"
+#if defined(SUNSHINE_BUILD_CUDA)
+  #include "cuda.h"
+#endif
+#if defined(SUNSHINE_BUILD_VAAPI)
+  #include "vaapi.h"
+#endif
+#if defined(SUNSHINE_BUILD_VULKAN)
+  #include "vulkan_encode.h"
+#endif
 
 namespace platf {
 
@@ -167,8 +176,9 @@ namespace platf {
     std::uint32_t width;
     std::uint32_t height;
 
-    hermes_kms_display_t(int fd, std::uint32_t w, std::uint32_t h)
-      : card_fd(fd), width(w), height(h) {}
+    mem_type_e hwdevice_type {mem_type_e::system};
+    hermes_kms_display_t(int fd, mem_type_e ht, std::uint32_t w, std::uint32_t h)
+      : hwdevice_type(ht), card_fd(fd), width(w), height(h) {}
     ~hermes_kms_display_t() override {
       if (card_fd >= 0) {
         close(card_fd);
@@ -188,6 +198,53 @@ namespace platf {
       img->data = nullptr;  // DMA-BUF images have no CPU data
       return 0;
     }
+
+    // ponytail: encode-device factory. Hermes-KMS delivers raw DMA-BUFs,
+    // so the encoder needs a hwdevice that can import them. Mirrors the
+    // kmsgrab.cpp:1270 dispatch pattern (vaapi / cuda / vulkan).
+
+    std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+      BOOST_LOG(info) << "hermes_kms::make_avcodec_encode_device enter hwdevice_type=" << (int)hwdevice_type;
+      (void)pix_fmt;
+
+#ifdef SUNSHINE_BUILD_VAAPI
+      if (hwdevice_type == mem_type_e::vaapi) {
+        // ponytail: open the AMD Renoir renderD129 explicitly. The default
+        // resolve_render_device() returns renderD128 (NVIDIA, which fails
+        // vaInitialize here) so we bypass it and pin to the AMD VAAPI
+        // which ffmpeg CLI has confirmed works on this Mesa 26.x.
+        int dev_fd = ::open("/dev/dri/renderD129", O_RDWR | O_CLOEXEC);
+        if (dev_fd < 0) {
+          BOOST_LOG(warning) << "hermes_kms: open /dev/dri/renderD129 failed: " << strerror(errno);
+          return nullptr;
+        }
+        file_t card(dev_fd);
+        auto dev = va::make_avcodec_encode_device((int)width, (int)height, std::move(card), 0, 0, false);
+        BOOST_LOG(info) << "hermes_kms: vaapi(AMD) device: " << (dev ? "ok" : "null") << " " << (int)width << "x" << (int)height;
+        return dev;
+      }
+#endif
+
+#ifdef SUNSHINE_BUILD_VULKAN
+      if (hwdevice_type == mem_type_e::vulkan) {
+        // ponytail: use the RAM path. RADV Vulkan Video cannot import the
+        // hermes_kms DMA-BUF (Mesa bug with the format produced here).
+        auto dev = vk::make_avcodec_encode_device_ram((int)width, (int)height);
+        BOOST_LOG(info) << "hermes_kms: vulkan device (RAM): " << (dev ? "ok" : "null");
+        return dev;
+      }
+#endif
+
+      if (hwdevice_type == mem_type_e::cuda) {
+        BOOST_LOG(warning) << "hermes_kms: this binary was built without SUNSHINE_ENABLE_CUDA";
+        return nullptr;
+      }
+
+      BOOST_LOG(info) << "hermes_kms: no encode-device available for hwdevice_type=" << (int)hwdevice_type;
+      return std::make_unique<avcodec_encode_device_t>();
+    }
+
+
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb,
                       const pull_free_image_cb_t &pull_free_image_cb,
@@ -271,6 +328,7 @@ namespace platf {
       return nullptr;
     }
     return std::make_shared<hermes_kms_display_t>(fd,
+                                                  hwdevice_type,
                                                   status.caps.preferred_width,
                                                   status.caps.preferred_height);
   }
