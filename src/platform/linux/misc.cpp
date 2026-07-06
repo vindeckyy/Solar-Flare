@@ -427,22 +427,39 @@ namespace platf {
     }
 
 #if !defined(__FreeBSD__)
-    // CachyOS / Linux local-LAN fast path: for the streaming capture thread
-    // also push it onto SCHED_RR (kernel real-time round-robin) and pin it
-    // to a non-IRQ, non-SMT sibling core. SCHED_RR removes the 5-15 ms CFS
-    // tail-latency spikes that show up as frame jitter, and the affinity
-    // hint keeps the thread's L1/L2 cache warm frame-to-frame.
+    // CachyOS / Linux local-LAN fast path. For the streaming capture thread:
+    //   - pin to a non-IRQ, non-SMT sibling core so L1/L2 stays warm
+    //     frame-to-frame and we don't pay the migration cost on every vblank.
+    //   - leave it on plain CFS rather than SCHED_RR. The capture thread is
+    //     mostly blocked on GPU fences / Wayland-KMS vblank waits; SCHED_RR
+    //     only helps when the thread is runnable, and when it IS runnable a
+    //     full SCHED_RR time slice (up to 100 ms) starves the game's main
+    //     thread. Reported symptom on Steam/Proton games (e.g. Meatboy 3D via
+    //     Non-Steam / Big Picture): the loader stalls while Sunshine is
+    //     streaming and the disconnect/reconnect dance unsticks it. Pinning
+    //     alone gives the cache-locality win without the priority-inversion
+    //     risk on I/O-bound waits.
+    //
+    // SCHED_RR is still applied to short-burst threads that call in with
+    // `critical` and aren't the capture loop (audio capture, control
+    // broadcast) -- those benefit from the lower wakeup latency.
     //
     // These calls fail silently under containers / systemd-run / non-PRI
     // users. That's fine: the thread already has the nice level from above.
     //
-    // SolarFlare fork knob: `cpu_pinning = false` skips the SCHED_RR + affinity
-    // block entirely (the RTKit/nice path above still applies).
-    if (want_realtime && config::solarflare.cpu_pinning) {
-      struct sched_param sp {};
-      sp.sched_priority = 10;  // lowest RT priority that still beats CFS
-      if (::pthread_setschedparam(pthread_self(), SCHED_RR, &sp) != 0) {
-        BOOST_LOG(debug) << "SCHED_RR not available; falling back to nice only"sv;
+    // SolarFlare fork knob: `cpu_pinning = false` skips both SCHED_RR (when
+    // applied below) and the affinity block entirely. The RTKit/nice path
+    // above still applies.
+    char current_name[16] = {};
+    ::pthread_getname_np(pthread_self(), current_name, sizeof(current_name));
+    bool is_capture_thread = std::strncmp(current_name, "video::capture", 14) == 0;
+    if (config::solarflare.cpu_pinning) {
+      if (want_realtime && !is_capture_thread) {
+        struct sched_param sp {};
+        sp.sched_priority = 10;  // lowest RT priority that still beats CFS
+        if (::pthread_setschedparam(pthread_self(), SCHED_RR, &sp) != 0) {
+          BOOST_LOG(debug) << "SCHED_RR not available; falling back to nice only"sv;
+        }
       }
 
       // Pick a non-SMT core to pin to. The naive `nproc / 2` heuristic we
