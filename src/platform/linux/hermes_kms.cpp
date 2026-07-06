@@ -278,7 +278,11 @@ namespace platf {
 
   bool verify_hermes_kms() {
     auto status = probe_hermes_kms();
-    return status.module_loaded && status.card_index >= 0;
+    if (!status.module_loaded || status.card_index < 0) {
+      BOOST_LOG(error) << "hermes_kms probe failed: " << status.last_error;
+      return false;
+    }
+    return true;
   }
 
 }  // namespace platf
