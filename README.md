@@ -10,8 +10,8 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0"></a>
   <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf.svg" alt="Fork of Sunshine"></a>
   <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-v2026.999.2-orange.svg" alt="Version: v2026.999.2-solarflare"></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-438%20passed%20%2F%205%20skipped-brightgreen.svg" alt="Tests"></a>
-  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-61-blueviolet.svg" alt="Commits since fork"></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-457%20passed%20%2F%2012%20skipped-brightgreen.svg" alt="Tests"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-66-blueviolet.svg" alt="Commits since fork"></a>
   <a href="#building-from-source"><img src="https://img.shields.io/badge/target-CachyOS%20x86__64-1793d1.svg" alt="Target: CachyOS"></a>
 </p>
 
@@ -509,13 +509,12 @@ SolarFlare auto-detects your Zen CPU generation and sets the correct `-march` fl
 
 ## Testing
 
-412 automated tests verify correctness. Current status:
+469 automated tests verify correctness. Current status:
 
-- **406 tests pass**
-- **5 tests skipped** — pre-existing issues inherited from upstream Sunshine (Inputtino and Evdev input TODOs). Not SolarFlare bugs.
-- **1 test skipped** — a config documentation consistency check. SolarFlare's expert-level kernel tunables are intentionally not exposed in the web UI, which this test flags as a documentation gap.
+- **457 tests pass**
+- **12 tests skipped** — environment-bound: NVENC/VAAPI/software encoder variants require hardware, the AudioTest surround-channel parameterizations require extra audio config, MouseHID tests need a physical input device, and the Windows-only UTF utility test is skipped on Linux. None are SolarFlare regressions.
 
-42 SolarFlare-specific tests cover config key defaults, NVENC preset application, audio processing behavior, and cherry-pick regression guards.
+102 SolarFlare-specific tests cover config key defaults, NVENC preset application, audio processing, capture backends, adaptive bitrate, the Hermes-KMS probe, and cherry-pick regression guards.
 
 To run tests:
 
