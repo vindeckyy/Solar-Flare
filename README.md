@@ -549,7 +549,7 @@ Your `~/.config/sunshine/` folder stays intact and is compatible with both.
 
 **A game freezes during its loading screen. Sunshine didn't do that. How do I fix it?**
 
-Fixed in `<commit>`. Root cause was the capture thread being on `SCHED_RR`: when a Steam/Proton game's loader is mostly blocked on GPU fences and shader compile, a SCHED_RR capture thread waking up can run a full ~100 ms time slice before the kernel preempts it, starving the game's main thread. The fix keeps core pinning (cache locality) but drops the capture thread off SCHED_RR onto plain CFS, so the game's threads can preempt it at timer-tick granularity. No config change needed; `cpu_pinning` keeps its `true` default.
+Fixed in `8060cf3`. Root cause was the capture thread being on `SCHED_RR`: when a Steam/Proton game's loader is mostly blocked on GPU fences and shader compile, a SCHED_RR capture thread waking up can run a full ~100 ms time slice before the kernel preempts it, starving the game's main thread. The fix keeps core pinning (cache locality) but drops the capture thread off SCHED_RR onto plain CFS, so the game's threads can preempt it at timer-tick granularity. No config change needed; `cpu_pinning` keeps its `true` default.
 
 **Does this work on Windows?**
 
