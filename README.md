@@ -544,9 +544,13 @@ Nothing bad happens. Every SolarFlare setting has a sensible default. If a setti
 
 On Arch: `sudo pacman -Rns sunshine && sudo pacman -S sunshine`
 
-If installed from source: `sudo cmake --install build --uninstall`, then install Sunshine through your package manager.
+If installed from source, run `sudo xargs rm < build/install_manifest.txt` from the build directory, then install Sunshine through your package manager. (CMake's `--install` subcommand does not support an `--uninstall` flag; the manifest-based removal is what CMake itself documents.)
 
 Your `~/.config/sunshine/` folder stays intact and is compatible with both.
+
+**A game freezes during its loading screen. Sunshine didn't do that. How do I fix it?**
+
+Steam/Proton loading screens (shader compiles, Proton translation cache rebuilds, asset decompression) can saturate every CPU core for several seconds. SolarFlare's default `cpu_pinning = true` puts the capture thread on `SCHED_RR` and a fixed physical core, which can be starved by a CPU-hog on that core and stall frame delivery. Set `cpu_pinning = false` in `sunshine.conf` to fall back to the upstream scheduler. The latency benefit over regular Sunshine shrinks but stays positive on most setups.
 
 **Does this work on Windows?**
 
