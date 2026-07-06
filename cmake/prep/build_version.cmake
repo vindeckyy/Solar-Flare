@@ -80,7 +80,7 @@ else()
             # re-tagged release) still differ. Format:
             #   <count>-<short-sha>             # clean
             #   <count>-<short-sha>-dirty       # uncommitted changes
-            # The default fallback (no git) is the hard-coded 2026.999.0
+            # The default fallback (no git) is the hard-coded 2026.999.2
             # from CMakeLists.txt.
             if(NOT GIT_REV_COUNT_ERROR AND NOT "${GIT_REV_COUNT}" STREQUAL "")
                 set(PROJECT_VERSION "${GIT_REV_COUNT}-${GIT_DESCRIBE_VERSION}")

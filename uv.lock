@@ -415,7 +415,7 @@ wheels = [
 
 [[package]]
 name = "sunshine"
-version = "2026.999.0"
+version = "2026.999.2"
 source = { editable = "." }
 dependencies = [
     { name = "lizardbyte-common" },
