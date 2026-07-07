@@ -1,0 +1,2 @@
+# Enable multitouch for Sunshine virtual touchscreen on X11
+ACTION=="add|change", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="*Touch passthrough*", ENV{ID_INPUT_TOUCHSCREEN}="1", ENV{ID_INPUT}="1"
