@@ -16,10 +16,9 @@
 #include "video.h"
 
 namespace stream {
-  constexpr auto VIDEO_STREAM_PORT = 9;
-  constexpr auto CONTROL_PORT = 10;
-  constexpr auto AUDIO_STREAM_PORT = 11;
-  constexpr auto HTTPS_PORT_OFFSET = -5;  // ponytail: mirrors nvhttp::PORT_HTTPS, stream ports must match client's https_port+offset math
+  constexpr auto VIDEO_STREAM_PORT = 16;
+  constexpr auto CONTROL_PORT = 26;
+  constexpr auto AUDIO_STREAM_PORT = 26;
 
   struct session_t;
 

@@ -53,9 +53,6 @@ namespace nvhttp {
     SunshineHTTPSServer(const std::string &certification_file, const std::string &private_key_file):
         ServerBase<SunshineHTTPS>::ServerBase(443),
         context(boost::asio::ssl::context::tls_server) {
-      // Disabling TLS 1.0 and 1.1 (see RFC 8996)
-      context.set_options(boost::asio::ssl::context::no_tlsv1);
-      context.set_options(boost::asio::ssl::context::no_tlsv1_1);
       context.use_certificate_chain_file(certification_file);
       context.use_private_key_file(private_key_file, boost::asio::ssl::context::pem);
     }
