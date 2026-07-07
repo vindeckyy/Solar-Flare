@@ -9,9 +9,9 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0"></a>
   <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf.svg" alt="Fork of Sunshine"></a>
-  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-v2026.999.2-orange.svg" alt="Version: v2026.999.2-solarflare"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-80--91d5a71--dirty-orange.svg" alt="Version: 80-91d5a71-dirty-solarflare"></a>
   <a href="#testing"><img src="https://img.shields.io/badge/tests-457%20passed%20%2F%2012%20skipped-brightgreen.svg" alt="Tests"></a>
-  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-66-blueviolet.svg" alt="Commits since fork"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-213-blueviolet.svg" alt="Commits since fork"></a>
   <a href="#building-from-source"><img src="https://img.shields.io/badge/target-CachyOS%20x86__64-1793d1.svg" alt="Target: CachyOS"></a>
 </p>
 
