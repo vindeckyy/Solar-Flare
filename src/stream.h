@@ -18,7 +18,7 @@
 namespace stream {
   constexpr auto VIDEO_STREAM_PORT = 16;
   constexpr auto CONTROL_PORT = 26;
-  constexpr auto AUDIO_STREAM_PORT = 26;
+  constexpr auto AUDIO_STREAM_PORT = 27;
 
   struct session_t;
 
