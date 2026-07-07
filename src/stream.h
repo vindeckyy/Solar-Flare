@@ -16,8 +16,11 @@
 #include "video.h"
 
 namespace stream {
+  /// @brief UDP port offset for the video stream (relative to config::sunshine.port).
   constexpr auto VIDEO_STREAM_PORT = 16;
+  /// @brief UDP port offset for the ENet control channel (relative to config::sunshine.port).
   constexpr auto CONTROL_PORT = 26;
+  /// @brief UDP port offset for the audio stream (relative to config::sunshine.port).
   constexpr auto AUDIO_STREAM_PORT = 27;
 
   struct session_t;

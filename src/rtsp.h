@@ -12,6 +12,7 @@
 #include "thread_safe.h"
 
 namespace rtsp_stream {
+  /// @brief TCP port offset for the RTSP SETUP listener (relative to config::sunshine.port).
   constexpr auto RTSP_SETUP_PORT = 21;
 
   struct launch_session_t {

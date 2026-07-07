@@ -30,6 +30,7 @@
 
 // local includes
 #include "src/config.h"
+#include <src/audio.h>
 
 namespace {
 
@@ -201,6 +202,9 @@ protected:
   bool saved_enet_4mib_buffer;
   int saved_pipewire_latency_ms;
   bool saved_cpu_pinning;
+  bool saved_dscp_qos;
+  bool saved_gpu_governor;
+  bool saved_headless_virtual_display;
 
   void SetUp() override {
     saved_busy_poll_us = config::solarflare.busy_poll_us;
@@ -208,6 +212,9 @@ protected:
     saved_enet_4mib_buffer = config::solarflare.enet_4mib_buffer;
     saved_pipewire_latency_ms = config::solarflare.pipewire_latency_ms;
     saved_cpu_pinning = config::solarflare.cpu_pinning;
+    saved_dscp_qos = config::solarflare.dscp_qos;
+    saved_gpu_governor = config::solarflare.gpu_governor;
+    saved_headless_virtual_display = config::solarflare.headless_virtual_display;
   }
 
   void TearDown() override {
@@ -216,6 +223,9 @@ protected:
     config::solarflare.enet_4mib_buffer = saved_enet_4mib_buffer;
     config::solarflare.pipewire_latency_ms = saved_pipewire_latency_ms;
     config::solarflare.cpu_pinning = saved_cpu_pinning;
+    config::solarflare.dscp_qos = saved_dscp_qos;
+    config::solarflare.gpu_governor = saved_gpu_governor;
+    config::solarflare.headless_virtual_display = saved_headless_virtual_display;
   }
 };
 
@@ -288,6 +298,33 @@ TEST_F(SolarflareConfigRuntimeTest, DefaultsExactlyMatchPreForkHardcodedValues) 
   // Pre-fork: misc.cpp always did the SCHED_RR + affinity block on
   // critical priority.
   EXPECT_TRUE(config::solarflare.cpu_pinning);
+  // Added with the per-game NVENC preset work; pre-fork all three were
+  // implicitly on. dscp_qos=off means no setsockopt(IP_TOS) is called;
+  // gpu_governor=off skips the sysfs power-profile switch on AMD; the
+  // headless virtual display stays opt-in (default false).
+  EXPECT_TRUE(config::solarflare.dscp_qos);
+  EXPECT_TRUE(config::solarflare.gpu_governor);
+  EXPECT_FALSE(config::solarflare.headless_virtual_display);
+}
+
+// Verify the three new bool toggles can be flipped at runtime without
+// the host having to restart (the hot-reload watcher in src/config.cpp
+// picks them up via reload_solarflare_keys() within 2 seconds).
+TEST_F(SolarflareConfigRuntimeTest, NewBoolsCanBeToggled) {
+  config::solarflare.dscp_qos = false;
+  EXPECT_FALSE(config::solarflare.dscp_qos);
+  config::solarflare.dscp_qos = true;
+  EXPECT_TRUE(config::solarflare.dscp_qos);
+
+  config::solarflare.gpu_governor = false;
+  EXPECT_FALSE(config::solarflare.gpu_governor);
+  config::solarflare.gpu_governor = true;
+  EXPECT_TRUE(config::solarflare.gpu_governor);
+
+  config::solarflare.headless_virtual_display = true;
+  EXPECT_TRUE(config::solarflare.headless_virtual_display);
+  config::solarflare.headless_virtual_display = false;
+  EXPECT_FALSE(config::solarflare.headless_virtual_display);
 }
 
 // All five fields must fit in a small struct so it's cheap to copy
@@ -308,8 +345,6 @@ TEST(SolarflareConfigCompileTime, StructIsReasonablySmall) {
 // in apply_config() and never ran it from the hot-reload watcher, so editing
 // sf_opus_* in sunshine.conf silently did nothing until restart.
 // ----------------------------------------------------------------------------
-#include <src/audio.h>
-
 TEST_F(SolarflareConfigTest, ApplyOpusTuningRuntimePropagatesOpusTuning) {
   // Snapshot the global Opus tuning so we can restore it on TearDown.
   auto &saved_tuning = ::audio::opus_tuning();

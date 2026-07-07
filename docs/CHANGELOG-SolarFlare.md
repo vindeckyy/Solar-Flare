@@ -1,6 +1,6 @@
 # SolarFlare Fork Changelog
 
-n## July 5, 2026
+## July 5, 2026
 
 - feat(platform/linux): Hermes-KMS kernel module is now packaged with SolarFlare. Vendored from github.com/MrOz59/Hermes-KMS at third-party/hermes-kms (git submodule, GPL-2.0+). scripts/cachyos-build.sh runs packaging/linux/redesign/install-hermes-kms.sh after cmake --install; the script DKMS-installs hermes_kms.ko and loads it with initial_enabled=1 so 'HERMES-1' appears in the source selector. Requires kernel-headers + dkms. Removed the duplicate src/platform/linux/hermes_kms_drm.h; the C++ capture backend now includes the upstream UAPI header directly.
 - docs: README §19 corrected — capture loop description matches the wired implementation (probe + WAIT_FRAME + ACQUIRE_FRAME + DMA-BUF push to encoder) and documents the install path.
@@ -13,6 +13,19 @@ n## July 5, 2026
 - fix: hermes_kms_display() call site gated behind SUNSHINE_BUILD_HERMES_KMS ifdef so it compiles with the default OFF option (560d9c2)
 - docs: README updated with sections 16-19 (scoped tokens, adaptive bitrate endpoint, redesign services, Hermes-KMS stub) and api_tokens config key
 - Verified: `cmake --build --target sunshine --target test_sunshine` exits 0 on CachyOS box. Full `make all` only fails on the `docs` target (3622 pre-existing doxygen warnings in Windows/X11 files, none from this batch).
+
+## July 7, 2026
+
+- fix(stream): give audio its own UDP port (AUDIO_STREAM_PORT 26 -> 27) so the audio socket no longer collides with the ENet control server on the same port (d80b3f9). Tests added to lock in the new constant.
+- fix(proc): keep detached app sessions alive indefinitely; removed the now-stale "within 5 seconds of launch" log message (39eb549).
+- fix(stream): align stream port offsets with what Moonlight actually expects relative to https_port. VIDEO_STREAM_PORT 9->16, CONTROL_PORT 10->26, AUDIO_STREAM_PORT 11->27, dropping the now-unneeded HTTPS_PORT_OFFSET (1dfc58f, 9798fa7).
+- fix(certs+stream): empty nvhttp.cert defaults + remove blocking set_options(no_tlsv1, no_tlsv1_1) on the TLS context (9798fa7). The TLS option changes were leaving the SSL_CTX unable to complete a handshake.
+- fix(certs): persist TLS cert/key in appdata/credentials/, survive reboots (ba5b6a6). path_f() on empty input no longer resolves to the appdata directory.
+- fix(nvhttp): reset stale pairing session on retry + safe pin() lookup; not_found() double-write fix; held PIN response sets close_connection_after_response (3195968, 748b17b).
+- fix(x11): remove INPUT_PROP_DIRECT from uinput touch device, restore X11 pointer emulation (91d5a71).
+- fix(platform/linux): drop SCHED_RR from the video capture thread (8060cf3).
+- tests: SolarflareConfigRuntimeTest fixture now snapshots the three new booleans (dscp_qos, gpu_governor, headless_virtual_display) so test ordering can't leak state. Added NewBoolsCanBeToggled and the dscp_qos/gpu_governor/headless_virtual_display assertions to DefaultsExactlyMatchPreForkHardcodedValues. Three new StreamPortConstants tests guard against the d80b3f9 audio/control collision re-appearing.
+- docs: doxygen on the stream/rtsp port constants.
 
 ## July 4, 2026
 
