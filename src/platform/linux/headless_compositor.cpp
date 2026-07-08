@@ -93,14 +93,32 @@ namespace platf::headless {
     return !bp::search_path("gamescope").empty();
   }
 
+  // niri exposes itself via XDG_CURRENT_DESKTOP=niri AND its own WAYLAND_DISPLAY
+  // name (wayland-1 typically, but the compositor binary on the path is the
+  // strongest signal). Detection: env var + binary, or the socket pointed
+  // at by WAYLAND_DISPLAY belongs to a process named niri.
+  bool is_niri_running() {
+    auto *xdg = std::getenv("XDG_CURRENT_DESKTOP");
+    if (xdg && std::string_view {xdg} == "niri"sv) return true;
+    if (!bp::search_path("niri").empty()) return true;
+    auto *session = std::getenv("XDG_SESSION_DESKTOP");
+    if (session && std::string_view {session} == "niri"sv) return true;
+    return false;
+  }
+
   backend_e compositor_t::resolve_backend() const {
     if (_backend == backend_e::labwc) return backend_e::labwc;
     if (_backend == backend_e::krfb) return backend_e::krfb;
     if (_backend == backend_e::gamescope) return backend_e::gamescope;
+    if (_backend == backend_e::niri) return backend_e::niri;
 
     if (is_kwin_running() && !bp::search_path("krfb-virtualmonitor").empty()) {
       BOOST_LOG(info) << "headless_compositor: detected KWin, using krfb-virtualmonitor backend"sv;
       return backend_e::krfb;
+    }
+    if (is_niri_running()) {
+      BOOST_LOG(info) << "headless_compositor: detected niri, using niri backend"sv;
+      return backend_e::niri;
     }
     if (is_gamescope_running()) {
       BOOST_LOG(info) << "headless_compositor: detected Gamescope, using nested gamescope backend"sv;
@@ -123,6 +141,10 @@ namespace platf::headless {
     if (backend == backend_e::gamescope) {
       _using_gamescope = true;
       return start_gamescope(width, height, refresh_hz, game_cmd);
+    }
+    if (backend == backend_e::niri) {
+      _using_niri = true;
+      return start_niri(width, height, refresh_hz);
     }
     return start_labwc(width, height, refresh_hz, game_cmd);
   }
@@ -176,6 +198,99 @@ namespace platf::headless {
     BOOST_LOG(info) << "headless_compositor: krfb virtual output \""sv << _output_name
                     << "\" created at "sv << width << 'x' << height << '@' << refresh_hz;
     return true;
+  }
+
+  // niri is a Smithay-based Wayland compositor. It does not implement
+  // wlr-screencopy directly; capture goes through niri's own
+  // niri-screencast protocol. Unlike labwc, niri is not a headless
+  // backend -- it manages the real session, so the fork attaches to
+  // the running niri and uses one of its existing outputs.
+  //
+  // To enable SolarFlare streaming on niri, add a virtual output to
+  // ~/.config/niri/config.kdl:
+  //
+  //   output "Virtual-1" {
+  //     mode "1920x1080"
+  //     scale 1.0
+  //   }
+  //
+  // SolarFlare picks the first output named "Virtual-*" (configurable
+  // via headless_output_name). If no virtual output is configured,
+  // start_niri() fails with a clear log message instead of silently
+  // capturing the wrong screen.
+  bool compositor_t::start_niri(int width, int height, int refresh_hz) {
+    if (width <= 0 || height <= 0) {
+      BOOST_LOG(error) << "headless_compositor: invalid dimensions "sv << width << 'x' << height;
+      return false;
+    }
+    if (!is_niri_running()) {
+      BOOST_LOG(error) << "headless_compositor: niri is not running (no niri binary on PATH, XDG_CURRENT_DESKTOP!=niri, XDG_SESSION_DESKTOP!=niri)"sv;
+      return false;
+    }
+    auto niri_path = bp::search_path("niri");
+    if (niri_path.empty()) {
+      BOOST_LOG(error) << "headless_compositor: niri binary not found in PATH"sv;
+      return false;
+    }
+    // Probe niri for configured outputs. niri's 'niri msg --json output'
+    // prints one JSON object per line; we just need a name starting with
+    // "Virtual-". If none, the user must add one to ~/.config/niri/config.kdl.
+    bp::ipstream niri_out;
+    std::error_code ec;
+    bp::child niri_proc(niri_path, "msg", "--json", "output",
+        bp::std_out > niri_out, bp::std_err > niri_out, ec);
+    if (ec) {
+      BOOST_LOG(warning) << "headless_compositor: could not spawn 'niri msg': "sv << ec.message()
+                         << " -- assuming user has configured a virtual output manually"sv;
+      _output_name = "Virtual-1";  // best guess; capture will fail loudly if missing
+    } else {
+      // ponytail: line-based parse, not full JSON -- this is the "is there a
+      // Virtual-* output" check, not a structured config dump. If we ever need
+      // the full output (resolution, mode flags, etc.) swap this for a real
+      // JSON parser; the schema is stable in niri 0.1+.
+      std::string line;
+      std::string first_match;
+      while (std::getline(niri_out, line)) {
+        // Match the "name": "Virtual-N" pattern emitted by `niri msg --json output`.
+        auto name_pos = line.find("\"name\"");
+        if (name_pos == std::string::npos) continue;
+        auto colon = line.find(':', name_pos);
+        if (colon == std::string::npos) continue;
+        auto open_q = line.find('"', colon);
+        if (open_q == std::string::npos) continue;
+        auto close_q = line.find('"', open_q + 1);
+        if (close_q == std::string::npos) continue;
+        if (line.compare(open_q + 1, close_q - open_q - 1, "Virtual-") >= 0 &&
+            line.compare(open_q + 1, 8, "Virtual-") == 0) {
+          first_match = line.substr(open_q + 1, close_q - open_q - 1);
+        }
+      }
+      niri_proc.wait(ec);
+      if (first_match.empty()) {
+        BOOST_LOG(error) << "headless_compositor: no Virtual-* output in niri config. Add to ~/.config/niri/config.kdl:"sv;
+        BOOST_LOG(error) << "  output \"Virtual-1\" { mode \"" << width << "x" << height << "\" scale 1.0 }"sv;
+        return false;
+      }
+      _output_name = first_match;
+    }
+    // niri does not need a forked compositor process -- we attach to the
+    // running session. Use the discovered niri WAYLAND_DISPLAY (or the
+    // current one) for capture.
+    auto *wayland = std::getenv("WAYLAND_DISPLAY");
+    _wayland_socket = wayland ? wayland : "wayland-1"sv;
+    _using_niri = true;
+    BOOST_LOG(info) << "headless_compositor: niri attached, output="sv << _output_name
+                    << " socket="sv << _wayland_socket;
+    return true;
+  }
+
+  void compositor_t::stop_niri() {
+    if (!_using_niri) return;
+    // Nothing to clean up -- niri keeps running.
+    _using_niri = false;
+    _output_name.clear();
+    _wayland_socket.clear();
+    BOOST_LOG(info) << "headless_compositor: niri detached"sv;
   }
 
   bool compositor_t::start_gamescope(int width, int height, int refresh_hz, const std::string &game_cmd) {
@@ -431,6 +546,8 @@ namespace platf::headless {
       stop_krfb();
     } else if (_using_gamescope) {
       stop_gamescope();
+    } else if (_using_niri) {
+      stop_niri();
     } else {
       stop_labwc();
     }

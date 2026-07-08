@@ -1,7 +1,8 @@
 /**
  * @file src/platform/linux/headless_compositor.h
  * @brief Declarations for the headless compositor used for private game
- *        streaming. Supports labwc (wlroots) for general Wayland and
+ *        streaming. Supports labwc (wlroots) for general Wayland,
+ *        niri (Smithay) for niri-managed sessions, and
  *        krfb-virtualmonitor for KDE/KWin sessions.
  */
 #pragma once
@@ -19,6 +20,7 @@ namespace platf::headless {
     labwc,        ///< Force labwc wlroots headless compositor
     krfb,         ///< Force krfb-virtualmonitor (KDE only)
     gamescope,    ///< Force nested Gamescope headless (Steam Deck / game mode)
+    niri,         ///< Force niri (Smithay-based Wayland compositor, attach to existing session)
   };
 
   /**
@@ -26,6 +28,12 @@ namespace platf::headless {
    * @return true if Gamescope is running.
    */
   bool is_gamescope_running();
+
+  /**
+   * @brief Detect whether niri is the active Wayland compositor.
+   * @return true if niri is running.
+   */
+  bool is_niri_running();
 
   /**
    * @brief Manages a headless display backend.
@@ -108,13 +116,16 @@ namespace platf::headless {
     bool start_labwc(int width, int height, int refresh_hz, const std::string &game_cmd);
     bool start_krfb(int width, int height, int refresh_hz);
     bool start_gamescope(int width, int height, int refresh_hz, const std::string &game_cmd);
+    bool start_niri(int width, int height, int refresh_hz);
     void stop_labwc();
     void stop_krfb();
     void stop_gamescope();
+    void stop_niri();
 
     backend_e _backend = backend_e::auto_detect;
     bool _using_krfb = false;
     bool _using_gamescope = false;
+    bool _using_niri = false;
     int _pid = -1;
     std::string _wayland_socket;
     std::string _x11_display;
