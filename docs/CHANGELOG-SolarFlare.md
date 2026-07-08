@@ -571,7 +571,5 @@ Final fork state: 57 commits + 1 fork-specific release tag,
 - [docs/changelog.md](changelog.md) — upstream changelog (inlined
   from LizardByte).
 - [README.md](../README.md) — fork entry point.
-- [PUSH-INSTRUCTIONS.md](../PUSH-INSTRUCTIONS.md) — what the original
-  `cachyos-fastpath.patch` covers and what it doesn't.
 - [cachyos-fastpath.patch](../cachyos-fastpath.patch) — the original
   7-file latency-tuning patch (kept as a historical artifact).

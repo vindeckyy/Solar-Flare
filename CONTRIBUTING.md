@@ -127,8 +127,6 @@ an issue first so we can agree on scope.
 ## See also
 
 - [README.md](README.md) — fork entry point
-- [PUSH-INSTRUCTIONS.md](PUSH-INSTRUCTIONS.md) — what the original
-  `cachyos-fastpath.patch` covers
 - [docs/PORTING.md](docs/PORTING.md) — multi-distro build instructions
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — fork config keys
 - [docs/CHANGELOG-SolarFlare.md](docs/CHANGELOG-SolarFlare.md) — fork
