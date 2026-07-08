@@ -232,26 +232,22 @@ namespace platf::headless {
       BOOST_LOG(error) << "headless_compositor: niri binary not found in PATH"sv;
       return false;
     }
-    // Probe niri for configured outputs. niri's 'niri msg --json output'
-    // prints one JSON object per line; we just need a name starting with
-    // "Virtual-". If none, the user must add one to ~/.config/niri/config.kdl.
+    // Probe niri for configured outputs. niri's 'niri msg --json outputs' returns
+    // a single-line JSON reply wrapping a map of output-name -> Output. We just need
+    // a name starting with "Virtual-". If none, the user must add one to
+    // ~/.config/niri/config.kdl.
     bp::ipstream niri_out;
     std::error_code ec;
-    bp::child niri_proc(niri_path, "msg", "--json", "output",
+    bp::child niri_proc(niri_path, "msg", "--json", "outputs",
         bp::std_out > niri_out, bp::std_err > niri_out, ec);
     if (ec) {
       BOOST_LOG(warning) << "headless_compositor: could not spawn 'niri msg': "sv << ec.message()
                          << " -- assuming user has configured a virtual output manually"sv;
       _output_name = "Virtual-1";  // best guess; capture will fail loudly if missing
     } else {
-      // ponytail: line-based parse, not full JSON -- this is the "is there a
-      // Virtual-* output" check, not a structured config dump. If we ever need
-      // the full output (resolution, mode flags, etc.) swap this for a real
-      // JSON parser; the schema is stable in niri 0.1+.
       std::string line;
       std::string first_match;
       while (std::getline(niri_out, line)) {
-        // Match the "name": "Virtual-N" pattern emitted by `niri msg --json output`.
         auto name_pos = line.find("\"name\"");
         if (name_pos == std::string::npos) continue;
         auto colon = line.find(':', name_pos);
@@ -260,8 +256,10 @@ namespace platf::headless {
         if (open_q == std::string::npos) continue;
         auto close_q = line.find('"', open_q + 1);
         if (close_q == std::string::npos) continue;
-        if (line.compare(open_q + 1, close_q - open_q - 1, "Virtual-") >= 0 &&
-            line.compare(open_q + 1, 8, "Virtual-") == 0) {
+        // Match names starting with "Virtual-". ponytail: hand-rolled substring
+        // match -- if we ever need resolution/mode info, swap this for a real JSON
+        // parser (boost::json or nlohmann). The schema is stable in niri 0.1+.
+        if (line.compare(open_q + 1, 8, "Virtual-") == 0) {
           first_match = line.substr(open_q + 1, close_q - open_q - 1);
         }
       }

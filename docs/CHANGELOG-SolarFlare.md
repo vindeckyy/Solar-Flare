@@ -1,5 +1,16 @@
 # SolarFlare Fork Changelog
 
+## July 8, 2026
+
+- fix(headless): niri probe used wrong subcommand (singular `output` instead of
+  plural `outputs`). niri's CLI exposes `msg output <name> <action>` as a
+  configuration mutator, not a lister; the correct lister is `msg outputs`.
+  The probe was failing with a clap parse error on every real niri install,
+  producing the misleading "no Virtual-* output" message. start_niri() now
+  invokes the correct subcommand and the parser handles the single-line
+  wrapped JSON reply (HashMap of name -> Output). Also dropped a dead-code
+  first compare() in the Virtual- prefix check.
+
 ## July 5, 2026
 
 - feat(platform/linux): Hermes-KMS kernel module is now packaged with SolarFlare. Vendored from github.com/MrOz59/Hermes-KMS at third-party/hermes-kms (git submodule, GPL-2.0+). scripts/cachyos-build.sh runs packaging/linux/redesign/install-hermes-kms.sh after cmake --install; the script DKMS-installs hermes_kms.ko and loads it with initial_enabled=1 so 'HERMES-1' appears in the source selector. Requires kernel-headers + dkms. Removed the duplicate src/platform/linux/hermes_kms_drm.h; the C++ capture backend now includes the upstream UAPI header directly.
