@@ -54,6 +54,22 @@ else()
                 RESULT_VARIABLE GIT_COMMIT_FULL_ERROR
                 OUTPUT_STRIP_TRAILING_WHITESPACE
         )
+        # Gather closest semver-style tag if HEAD is on or near a release.
+        # `git describe --tags` returns "v2026.708.0-solarflare" (clean on tag)
+        # or "v2026.708.0-solarflare-1-g543eed3" (N commits past the tag).
+        # Both forms already encode the release date (YYYY.DDD.N), so the
+        # internal version string matches the GitHub release tag exactly.
+        # Falls back to commit-count + short-SHA if no tag exists.
+        execute_process(
+                COMMAND ${GIT_EXECUTABLE} describe --tags --long HEAD
+                OUTPUT_VARIABLE GIT_DESCRIBE_LONG
+                RESULT_VARIABLE GIT_DESCRIBE_LONG_ERROR
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        # Strip "v" prefix and "-solarflare" suffix from the tag portion.
+        # "v2026.708.0-solarflare-1-g543eed3" -> "2026.708.0-1-g543eed3"
+        # "v2026.708.0-solarflare" -> "2026.708.0"
+        string(REGEX REPLACE "^v|\-solarflare" "" GIT_DESCRIBE_RELEASE "${GIT_DESCRIBE_LONG}")
         # Gather total commit count, used as the version base so every
         # commit produces a unique, monotonically-increasing version string.
         # `git rev-list --count HEAD` returns N (the position of HEAD in
@@ -82,7 +98,11 @@ else()
             #   <count>-<short-sha>-dirty       # uncommitted changes
             # The default fallback (no git) is the hard-coded 2026.999.2
             # from CMakeLists.txt.
-            if(NOT GIT_REV_COUNT_ERROR AND NOT "${GIT_REV_COUNT}" STREQUAL "")
+            if(NOT GIT_DESCRIBE_LONG_ERROR AND NOT "${GIT_DESCRIBE_RELEASE}" STREQUAL "")
+                # Use the tag-based version. Format: YYYY.DDD.N or YYYY.DDD.N-M-g<sha>.
+                set(PROJECT_VERSION "${GIT_DESCRIBE_RELEASE}")
+                MESSAGE("Sunshine Version: ${PROJECT_VERSION} (tag-based)")
+            elseif(NOT GIT_REV_COUNT_ERROR AND NOT "${GIT_REV_COUNT}" STREQUAL "")
                 set(PROJECT_VERSION "${GIT_REV_COUNT}-${GIT_DESCRIBE_VERSION}")
                 MESSAGE("Sunshine Version: ${PROJECT_VERSION} (commit count ${GIT_REV_COUNT})")
             else()
