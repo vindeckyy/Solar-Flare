@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
+
+<head>
+  <%- header %>
+</head>
+
+<body id="app" v-cloak>
+  <Navbar></Navbar>
+  <div id="content" class="container">
+
+    <!-- SolarFlare status hero -->
+    <div class="solarflare-hero card my-4">
+      <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div class="solarflare-hero-mark">
+          <img src="/images/logo-solarflare-45.svg" height="56" alt="SolarFlare" class="solarflare-logo solarflare-pulse">
+        </div>
+        <div class="solarflare-hero-text flex-grow-1">
+          <h2 class="solarflare-hero-title mb-1">SolarFlare</h2>
+          <p class="solarflare-hero-tagline mb-0">
+            A SolarFlare fork tuned for sub-frame local LAN streaming on Zen-class CPUs.
+            <span v-if="version" class="solarflare-hero-version">v{{ version.version }}</span>
+          </p>
+        </div>
+        <div class="solarflare-hero-status">
+          <span class="solarflare-status-dot" :class="solarflareStatusClass"></span>
+          <span class="solarflare-status-text">{{ solarflareStatusText }}</span>
+        </div>
+      </div>
+    </div>
+
+    <h1 class="my-4">{{ $t('index.welcome') }}</h1>
+    <p>{{ $t('index.description') }}</p>
+
+    <!-- Fatal Errors Alert -->
+    <div class="alert alert-danger my-4" v-if="fancyLogs.find(x => x.level === 'Fatal')">
+      <div>
+        <div class="d-flex align-items-center mb-3">
+          <alert-circle :size="32" class="icon-lg me-3"></alert-circle>
+          <div v-html="$t('index.startup_errors')"></div>
+        </div>
+        <ul class="mb-3">
+          <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
+        </ul>
+        <a class="btn btn-danger" href="./troubleshooting#logs">
+          <file-text :size="18" class="icon"></file-text>
+          View Logs
+        </a>
+      </div>
+    </div>
+
+    <!-- ViGEmBus Warning -->
+    <div class="alert alert-warning my-4" v-if="platform === 'windows' && controllerEnabled && vigembus && (!vigembus.installed || !vigembus.version_compatible)">
+      <div>
+        <div class="d-flex align-items-center mb-3">
+          <alert-triangle :size="32" class="icon-lg me-3"></alert-triangle>
+          <div>
+            <div v-if="!vigembus.installed">
+              <p class="mb-1"><strong>{{ $t('index.vigembus_not_installed_title') }}</strong></p>
+              <p class="mb-0">{{ $t('index.vigembus_not_installed_desc') }}</p>
+            </div>
+            <div v-else-if="!vigembus.version_compatible">
+              <p class="mb-1"><strong>{{ $t('index.vigembus_outdated_title') }}</strong></p>
+              <p class="mb-0">{{ $t('index.vigembus_outdated_desc', { version: vigembus.version }) }}</p>
+            </div>
+          </div>
+        </div>
+        <a class="btn btn-warning" href="./troubleshooting#vigembus">
+          <wrench :size="18" class="icon"></wrench>
+          {{ $t('index.fix_now') }}
+        </a>
+      </div>
+    </div>
+
+    <!-- Version -->
+    <div class="card my-4">
+      <div class="card-body" v-if="version">
+        <h2>Version {{version.version}}</h2>
+
+        <div v-if="loading" class="my-3">
+          {{ $t('index.loading_latest') }}
+        </div>
+
+        <div class="alert alert-success my-3" v-if="buildVersionIsDirty">
+          <package :size="18" class="icon"></package>
+          {{ $t('index.version_dirty') }} 🌇
+        </div>
+
+        <div class="alert alert-info my-3" v-if="installedVersionNotStable">
+          <info :size="18" class="icon"></info>
+          {{ $t('index.installed_version_not_stable') }}
+        </div>
+
+        <div v-else-if="(!preReleaseBuildAvailable || !notifyPreReleases) && !stableBuildAvailable && !buildVersionIsDirty">
+          <div class="alert alert-success my-3">
+            <check-circle :size="18" class="icon"></check-circle>
+            {{ $t('index.version_latest') }}
+          </div>
+        </div>
+
+        <div v-if="notifyPreReleases && preReleaseBuildAvailable">
+          <div class="alert alert-warning my-3">
+            <!-- header row -->
+            <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
+              <div class="d-flex align-items-center gap-3 flex-wrap">
+                <alert-circle :size="18" class="icon"></alert-circle>
+                <span>{{ $t('index.new_pre_release') }}</span>
+                <h5 class="mb-0">{{ preReleaseVersion.release.name }}</h5>
+              </div>
+              <a class="btn btn-success flex-shrink-0" :href="preReleaseVersion.release.html_url" target="_blank">
+                <download :size="18" class="icon"></download>
+                {{ $t('index.download') }}
+              </a>
+            </div>
+
+            <!-- body row (full width) -->
+            <div class="markdown-body release-notes" v-html="convertMarkdownToHtml(preReleaseVersion.release.body)"></div>
+          </div>
+        </div>
+
+        <div v-if="stableBuildAvailable">
+          <div class="alert alert-danger solarflare-update-banner my-3">
+            <!-- header row -->
+            <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
+              <div class="d-flex align-items-center gap-3 flex-wrap">
+                <alert-octagon :size="32" class="icon-lg solarflare-update-icon"></alert-octagon>
+                <div>
+                  <div class="solarflare-update-eyebrow">{{ $t('index.outdated_eyebrow') }}</div>
+                  <h4 class="mb-0 solarflare-update-title">
+                    {{ $t('index.outdated_title', { installed: version.version, latest: githubVersion.version }) }}
+                  </h4>
+                </div>
+              </div>
+              <div class="d-flex gap-2 flex-wrap">
+                <a class="btn btn-danger flex-shrink-0" :href="githubVersion.release.html_url" target="_blank">
+                  <download :size="18" class="icon"></download>
+                  {{ $t('index.download') }}
+                </a>
+              </div>
+            </div>
+
+            <!-- upgrade command: the user runs the build script -->
+            <div class="solarflare-update-cmd">
+              <code>git -C ~/Solar-Flare pull && ./scripts/cachyos-build.sh --no-pacman</code>
+              <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="copyUpgradeCmd">
+                <copy :size="14" class="icon"></copy>
+                {{ upgradeCmdCopied ? $t('index.copied') : $t('index.copy') }}
+              </button>
+            </div>
+
+            <!-- collapsible release notes -->
+            <details class="mt-3">
+              <summary class="solarflare-update-summary">{{ $t('index.release_notes_for', { version: githubVersion.version }) }}</summary>
+              <div class="markdown-body release-notes mt-2" v-html="convertMarkdownToHtml(githubVersion.release.body)"></div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resources -->
+    <div class="my-4">
+      <Resource-Card :installed-version-not-stable="installedVersionNotStable"></Resource-Card>
+    </div>
+
+    <footer class="solarflare-footer">
+      <span>Powered by <a href="https://github.com/vindeckyy/Solar-Flare" target="_blank" rel="noopener">SolarFlare</a> &middot; a derivative of <a href="https://github.com/LizardByte/Sunshine" target="_blank" rel="noopener">LizardByte/Sunshine</a></span>
+    </footer>
+  </div>
+</body>
+
+<script type="module">
+  import { createApp } from 'vue'
+  import { marked } from 'marked'
+  import { initApp } from './init'
+  import Navbar from './Navbar.vue'
+  import ResourceCard from './ResourceCard.vue'
+  import SunshineVersion, { checkForUpdate } from './sunshine_version'
+  import {
+    AlertCircle,
+    AlertOctagon,
+    AlertTriangle,
+    Copy,
+    FileText,
+    Wrench,
+    Package,
+    Info,
+    CheckCircle,
+    Download
+  } from '@lucide/vue'
+
+  // Configure marked to allow HTML
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+    headerIds: true,
+    mangle: false,
+    sanitize: false
+  });
+
+  console.log("Hello, SolarFlare!")
+  let app = createApp({
+    components: {
+      Navbar,
+      ResourceCard,
+      AlertCircle,
+      AlertOctagon,
+      AlertTriangle,
+      Copy,
+      FileText,
+      Wrench,
+      Package,
+      Info,
+      CheckCircle,
+      Download
+    },
+    data() {
+      return {
+        version: null,
+        githubVersion: null,
+        notifyPreReleases: false,
+        preReleaseVersion: null,
+        loading: true,
+        logs: null,
+        platform: "",
+        controllerEnabled: false,
+        vigembus: null,
+        upgradeCmdCopied: false,
+      }
+    },
+    async created() {
+      try {
+        let config = await fetch("./api/config").then((r) => r.json());
+        this.notifyPreReleases = config.notify_pre_releases;
+        this.platform = config.platform;
+        this.controllerEnabled = config.controller !== "disabled";
+        this.version = new SunshineVersion(null, config.version);
+        console.log("Version: ", this.version.version)
+
+        // Use the cached update-checker (24h localStorage cache) instead of
+        // a raw GitHub API call. The cache means navigating between tabs
+        // doesn't re-hit GitHub's rate limit, and a stale entry still
+        // returns immediately while a background refresh fetches fresh data.
+        const updateInfo = await checkForUpdate(this.version.version);
+        if (updateInfo) {
+          // Rebuild a minimal SunshineVersion-like object for the existing
+          // template, so we don't have to refactor every v-if/field.
+          this.githubVersion = new SunshineVersion({
+            tag_name: updateInfo.latestVersion,
+            name: updateInfo.latestVersion,
+            html_url: updateInfo.htmlUrl,
+            body: updateInfo.releaseNotes,
+          }, null);
+          console.log("GitHub Version: ", this.githubVersion.version);
+        }
+
+        // Pre-release check is separate (the existing flow already worked
+        // for it, and it doesn't go through the cache). Keep it simple.
+        try {
+          this.preReleaseVersion = new SunshineVersion(
+            (await fetch("https://api.github.com/repos/vindeckyy/Solar-Flare/releases").then((r) => r.json()))
+              .find(release => release.prerelease), null);
+          console.log("Pre-Release Version: ", this.preReleaseVersion?.version);
+        } catch (e) {
+          console.error("Pre-release fetch failed:", e);
+        }
+
+        // Fetch ViGEmBus status only on Windows when controller is enabled
+        if (this.platform === 'windows' && this.controllerEnabled) {
+          try {
+            this.vigembus = await fetch("./api/vigembus/status").then((r) => r.json());
+          } catch (e) {
+            console.error("Failed to fetch ViGEmBus status:", e);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      try {
+        this.logs = (await fetch("./api/logs").then(r => r.text()))
+      } catch (e) {
+        console.error(e);
+      }
+      this.loading = false;
+    },
+    computed: {
+      installedVersionNotStable() {
+        if (!this.githubVersion || !this.version) {
+          return false;
+        }
+        return this.version.isGreater(this.githubVersion);
+      },
+      stableBuildAvailable() {
+        if (!this.githubVersion || !this.version) {
+          return false;
+        }
+        return this.githubVersion.isGreater(this.version);
+      },
+      preReleaseBuildAvailable() {
+        if (!this.preReleaseVersion || !this.githubVersion || !this.version) {
+          return false;
+        }
+        return this.preReleaseVersion.isGreater(this.version) && this.preReleaseVersion.isGreater(this.githubVersion);
+      },
+      buildVersionIsDirty() {
+        return this.version.version?.split(".").length === 5 &&
+          this.version.version.indexOf("dirty") !== -1
+      },
+      solarflareStatusClass() {
+        if (this.fancyLogs.find(x => x.level === 'Fatal')) return 'solarflare-status-error';
+        if (this.stableBuildAvailable || this.preReleaseBuildAvailable) return 'solarflare-status-warn';
+        if (this.version) return 'solarflare-status-ok';
+        return 'solarflare-status-unknown';
+      },
+      solarflareStatusText() {
+        if (this.fancyLogs.find(x => x.level === 'Fatal')) return 'Fatal error in startup logs';
+        if (this.preReleaseBuildAvailable) return 'Pre-release available';
+        if (this.stableBuildAvailable) return 'Update available';
+        if (this.version) return 'Running latest';
+        return 'Loading…';
+      },
+      /** Parse the text errors, calculating the text, the timestamp and the level */
+      fancyLogs() {
+        if (!this.logs) return [];
+        let regex = /(\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}]):\s/g;
+        let rawLogLines = (this.logs.split(regex)).splice(1);
+        let logLines = []
+        for (let i = 0; i < rawLogLines.length; i += 2) {
+          logLines.push({ timestamp: rawLogLines[i], level: rawLogLines[i + 1].split(":")[0], value: rawLogLines[i + 1] });
+        }
+        return logLines;
+      }
+    },
+    methods: {
+      convertMarkdownToHtml(markdown) {
+        if (!markdown) return '';
+        return marked.parse(markdown);
+      },
+      /**
+       * Copy the cached upgrade command to the clipboard and flash the
+       * button label so the user sees the feedback. The command is the
+       * same one the README's "Quick install" section uses: pull the
+       * latest commit, then run the build script with --no-pacman since
+       * the deps are already installed.
+       */
+      copyUpgradeCmd() {
+        const cmd = 'git -C ~/Solar-Flare pull && ./scripts/cachyos-build.sh --no-pacman';
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(cmd).then(() => {
+            this.upgradeCmdCopied = true;
+            setTimeout(() => { this.upgradeCmdCopied = false; }, 2000);
+          }).catch(() => {
+            // Fall back to the legacy execCommand path for older browsers
+            // / restrictive CSPs that block clipboard.writeText.
+            this._legacyCopy(cmd);
+          });
+        } else {
+          this._legacyCopy(cmd);
+        }
+      },
+      _legacyCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          this.upgradeCmdCopied = true;
+          setTimeout(() => { this.upgradeCmdCopied = false; }, 2000);
+        } catch (e) {
+          console.error('Copy failed:', e);
+        }
+        document.body.removeChild(ta);
+      }
+    }
+  });
+
+  initApp(app);
+</script>
+</html>

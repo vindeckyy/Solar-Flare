@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Sunshine"
+version = "2026.999.2"
+description = "Python tooling for Sunshine"
+requires-python = ">=3.14"
+license = {text = "GPL-3.0-only"}
+authors = [
+    {name = "vindeckyy", email = "vindeckyy@users.noreply.github.com"}
+]
+
+dependencies = [
+    "lizardbyte-common[c]",
+]
+
+[dependency-groups]
+# glad2 declares Jinja2>=2.7,<4.0 as a dependency, so installing it pulls in jinja2 transitively.
+# The platform marker limits this to Linux where the glad generator is actually used.
+glad = [
+    "glad2",
+    # setuptools provides pkg_resources which glad's plugin.py imports.
+    # setuptools 82 removes pkg_resources; pin to the last series that includes it.
+    "setuptools<82",
+]
+
+flatpak = [
+    "flatpak_node_generator",
+    "flatpak_pip_generator",
+]
+
+[project.urls]
+Homepage = "https://github.com/vindeckyy/Solar-Flare"
+Repository = "https://github.com/vindeckyy/Solar-Flare"
+Issues = "https://github.com/vindeckyy/Solar-Flare/issues"
+
+[tool.setuptools]
+py-modules = []
+
+[tool.uv.sources]
+flatpak_node_generator = { path = "packaging/linux/flatpak/deps/flatpak-builder-tools/node" }
+flatpak_pip_generator = { path = "packaging/linux/flatpak/deps/flatpak-builder-tools/pip" }
+glad2 = { path = "third-party/glad" }
+lizardbyte-common = { path = "third-party/lizardbyte-common" }
