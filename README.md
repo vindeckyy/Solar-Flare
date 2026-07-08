@@ -9,7 +9,7 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0"></a>
   <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf.svg" alt="Fork of Sunshine"></a>
-  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-85--ab0efcc-orange.svg" alt="Version: 85-ab0efcc-solarflare"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-2026.708.0--2--ge67d79e-orange.svg" alt="Version: 2026.708.0-2-ge67d79e-solarflare"></a>
   <a href="#testing"><img src="https://img.shields.io/badge/tests-474%20passed%20%2F%2012%20skipped-brightgreen.svg" alt="Tests"></a>
   <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-86-blueviolet.svg" alt="Commits since fork"></a>
   <a href="#building-from-source"><img src="https://img.shields.io/badge/target-CachyOS%20x86__64-1793d1.svg" alt="Target: CachyOS"></a>
@@ -19,34 +19,18 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
 
 ## Table of Contents
 
-1. [What is game streaming?](#what-is-game-streaming)
-2. [Quick install](#quick-install)
-3. [Why SolarFlare is faster](#why-solarflare-is-faster)
-4. [Every feature explained](#every-feature-explained)
-   - [Original five tunables](#1-original-five-linux-tunables)
-   - [NVENC video presets](#2-nvenc-video-quality-presets)
-   - [Audio processing](#3-audio-processing-pipeline)
-   - [Per-game profiles](#4-per-game-encoder-profiles)
-   - [DSCP network priority](#5-dscp-network-priority)
-    - [GPU frequency governor](#6-gpu-frequency-governor)
-    - [Headless virtual display](#7-headless-virtual-display)
-    - [Build flags](#8-zen-cpu-auto-detection)
-    - [Other improvements](#9-other-improvements)
-    - [Command palette (Ctrl+K)](#10-command-palette-ctrlk)
-    - [Trusted subnet auto-pairing](#11-trusted-subnet-auto-pairing)
-    - [Adaptive bitrate controller](#12-adaptive-bitrate-controller)
-    - [Headless stream with smart backend selection](#13-headless-stream-with-smart-backend-selection)
-    - [Game library import scanner](#14-game-library-import-scanner)
-    - [KWin screencast privilege-drop retry](#15-kwin-screencast-privilege-drop-retry)
-    - [Scoped API tokens](#16-scoped-api-tokens)
-    - [Adaptive bitrate HTTP endpoint](#17-adaptive-bitrate-http-endpoint)
-    - [Packaged redesign services](#18-packaged-redesign-services)
-    - [Hermes-KMS virtual display backend](#19-hermes-kms-virtual-display-backend)
-5. [All config settings](#all-config-settings)
-6. [Building from source](#building-from-source)
-7. [Testing](#testing)
-8. [FAQ](#faq)
-9. [Credits and license](#credits-and-license)
+1. [What is SolarFlare?](#what-is-solarflare)
+2. [Why this fork exists](#why-this-fork-exists)
+3. [Key features](#key-features)
+4. [What this fork does not do](#what-this-fork-does-not-do)
+5. [Quick install](#quick-install)
+6. [Why SolarFlare is faster](#why-solarflare-is-faster)
+7. [Every feature explained](#every-feature-explained)
+8. [All config settings](#all-config-settings)
+9. [Building from source](#building-from-source)
+10. [Testing](#testing)
+11. [FAQ](#faq)
+12. [Credits and license](#credits-and-license)
 
 ---
 
@@ -56,7 +40,7 @@ SolarFlare is a Linux-only Sunshine fork. It runs on your gaming PC, captures th
 
 ## Why this fork exists
 
-Upstream Sunshine targets every platform: Windows, macOS, Linux, FreeBSD, Intel, AMD, ARM. The cost of that portability is that any optimization that only works on one platform gets rejected. The fork exists because Linux on AMD Ryzen is the platform that I want to be fast on, and the rest is a distraction. The narrower focus unlocks optimizations that upstream will not take: real-time thread pinning, busy-poll sockets, PipeWire latency hints, DSCP network priority tags, and a headless compositors that can run on a server box with no display attached.
+Upstream Sunshine targets every platform: Windows, macOS, Linux, FreeBSD, Intel, AMD, ARM. The cost of that portability is that any optimization that only works on one platform gets rejected. The fork exists because Linux on AMD Ryzen is the platform that I want to be fast on, and the rest is a distraction. The narrower focus unlocks optimizations that upstream will not take: real-time thread pinning, busy-poll sockets, PipeWire latency hints, DSCP network priority tags, and a headless compositor that can run on a server box with no display attached.
 
 Measured latency on the developer's box (Ryzen 5 4600H, RTX 3060, Wi-Fi 6, 1080p): end-to-end 5.5 to 12 ms, network polling 15 microseconds, audio sync 4 to 8 ms. On the same hardware, regular Sunshine is 18 to 65 ms end-to-end with bursts up to 47 ms. That difference is the difference between playing a game and feeling like you are streaming one.
 
@@ -82,7 +66,7 @@ It does not support Windows, macOS, FreeBSD, or non-AMD CPUs. Many of the optimi
 
 It also does not try to be a general-purpose Sunshine replacement. SolarFlare cherry-picks upstream commits as needed but does not track master. If you want a general Sunshine, use Sunshine. If you want Linux-on-Ryzen-tuned, this is the one.
 
-##
+---
 
 ## Quick install
 
