@@ -273,6 +273,8 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/thread_safe.h"
         "${CMAKE_SOURCE_DIR}/src/sync.h"
         "${CMAKE_SOURCE_DIR}/src/round_robin.h"
+        "${CMAKE_SOURCE_DIR}/src/error.h"
+        "${CMAKE_SOURCE_DIR}/src/error.cpp"
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.h"
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.cpp"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.h"

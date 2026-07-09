@@ -25,6 +25,7 @@ extern "C" {
 #include "cbs.h"
 #include "config.h"
 #include "display_device.h"
+#include "error.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
@@ -1630,12 +1631,21 @@ namespace video {
   int encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto encoded_frame = session.encode_frame(frame_nr);
     if (encoded_frame.data.empty()) {
-      BOOST_LOG(error) << "NvENC returned empty packet";
+      // ponytail: one std::string per error site. The log helper
+      // takes a string_view; building a string here keeps the macro
+      // signature simple and lets us concat frame_nr cleanly.
+      SUN_ERR(sunshine::error_category_e::ENCODER, "nvenc_empty",
+              std::string("NvENC returned empty packet for frame ")
+                  .append(std::to_string(frame_nr)));
       return -1;
     }
 
     if (frame_nr != encoded_frame.frame_index) {
-      BOOST_LOG(error) << "NvENC frame index mismatch " << frame_nr << " " << encoded_frame.frame_index;
+      SUN_ERR(sunshine::error_category_e::ENCODER, "nvenc_frame_mismatch",
+              std::string("NvENC frame index mismatch expected=")
+                  .append(std::to_string(frame_nr))
+                  .append(" got=")
+                  .append(std::to_string(encoded_frame.frame_index)));
     }
 
     auto packet = std::make_unique<packet_raw_generic>(std::move(encoded_frame.data), encoded_frame.frame_index, encoded_frame.idr);
