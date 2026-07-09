@@ -1628,7 +1628,7 @@ namespace video {
     return 0;
   }
 
-  int encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+  std::optional<sunshine::encode_error_e> encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto encoded_frame = session.encode_frame(frame_nr);
     if (encoded_frame.data.empty()) {
       // ponytail: one std::string per error site. The log helper
@@ -1637,7 +1637,7 @@ namespace video {
       SUN_ERR(sunshine::error_category_e::ENCODER, "nvenc_empty",
               std::string("NvENC returned empty packet for frame ")
                   .append(std::to_string(frame_nr)));
-      return -1;
+      return sunshine::encode_error_e::EMPTY_PACKET;
     }
 
     if (frame_nr != encoded_frame.frame_index) {
@@ -1646,6 +1646,7 @@ namespace video {
                   .append(std::to_string(frame_nr))
                   .append(" got=")
                   .append(std::to_string(encoded_frame.frame_index)));
+      return sunshine::encode_error_e::FRAME_INDEX_MISMATCH;
     }
 
     auto packet = std::make_unique<packet_raw_generic>(std::move(encoded_frame.data), encoded_frame.frame_index, encoded_frame.idr);
@@ -1654,17 +1655,24 @@ namespace video {
     packet->frame_timestamp = frame_timestamp;
     packets->raise(std::move(packet));
 
-    return 0;
+    return std::nullopt;
   }
 
-  int encode(int64_t frame_nr, encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+  std::optional<sunshine::encode_error_e> encode(int64_t frame_nr, encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     if (auto avcodec_session = dynamic_cast<avcodec_encode_session_t *>(&session)) {
-      return encode_avcodec(frame_nr, *avcodec_session, packets, channel_data, frame_timestamp);
+      // ponytail: avcodec returns the ffmpeg AVERROR code; collapse all
+      // negative returns to EMPTY_PACKET for the dispatcher. The original
+      // ret is logged at the call site of encode_avcodec (see avcodec_send_frame
+      // error log) so the ffmpeg-specific code is preserved.
+      if (encode_avcodec(frame_nr, *avcodec_session, packets, channel_data, frame_timestamp) < 0) {
+        return sunshine::encode_error_e::EMPTY_PACKET;
+      }
+      return std::nullopt;
     } else if (auto nvenc_session = dynamic_cast<nvenc_encode_session_t *>(&session)) {
       return encode_nvenc(frame_nr, *nvenc_session, packets, channel_data, frame_timestamp);
     }
 
-    return -1;
+    return sunshine::encode_error_e::UNSUPPORTED_SESSION;
   }
 
   std::unique_ptr<avcodec_encode_session_t> make_avcodec_encode_session(
@@ -2194,8 +2202,15 @@ namespace video {
       }
 
       auto encode_start = std::chrono::steady_clock::now();
-      if (encode(frame_nr++, *session, packets, channel_data, frame_timestamp)) {
-        BOOST_LOG(error) << "Could not encode video packet"sv;
+      if (auto enc_err = encode(frame_nr++, *session, packets, channel_data, frame_timestamp)) {
+        // ponytail: branch on the enum so the user can grep for the
+        // specific failure instead of a generic 'Could not encode'
+        // that lost the cause deeper in the call stack.
+        SUN_ERR(sunshine::error_category_e::ENCODER, "encode_failed",
+                std::string("Could not encode video packet frame_nr=")
+                    .append(std::to_string(frame_nr - 1))
+                    .append(" cause=")
+                    .append(sunshine::to_string(*enc_err)));
         return;
       }
       auto encode_end = std::chrono::steady_clock::now();
@@ -2478,8 +2493,15 @@ namespace video {
             frame_timestamp = img->frame_timestamp;
           }
 
-          if (encode(ctx->frame_nr++, *pos->session, ctx->packets, ctx->channel_data, frame_timestamp)) {
-            BOOST_LOG(error) << "Could not encode video packet"sv;
+          if (auto enc_err = encode(ctx->frame_nr++, *pos->session, ctx->packets, ctx->channel_data, frame_timestamp)) {
+            // ponytail: same site-1 pattern; here we raise the shutdown
+            // event so the stream tears down instead of returning. The
+            // cause string is the only thing the Web UI can show.
+            SUN_ERR(sunshine::error_category_e::ENCODER, "encode_failed",
+                    std::string("Could not encode video packet frame_nr=")
+                        .append(std::to_string(ctx->frame_nr - 1))
+                        .append(" cause=")
+                        .append(sunshine::to_string(*enc_err)));
             ctx->shutdown_event->raise(true);
 
             continue;
@@ -2689,6 +2711,8 @@ namespace video {
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
     while (!packets->peek()) {
       if (encode(1, *session, packets, nullptr, {})) {
+        // ponytail: probe path runs once at startup; surface the cause
+        // in the parent log instead of swallowing it behind -1.
         return -1;
       }
     }

@@ -33,6 +33,7 @@
 #include "confighttp.h"
 #include "crypto.h"
 #include "display_device.h"
+#include "error.h"
 #include "file_handler.h"
 #include "game_scanner.h"
 #include "globals.h"
@@ -1551,6 +1552,41 @@ namespace confighttp {
   }
 
   /**
+   * @brief Return process-wide error counters grouped by category.
+   * @details Used by the SolarFlare fork Web UI to surface a 'recent errors'
+   *          widget. Read-only; the counters are updated by every SUN_ERR()
+   *          call in the codebase. Counters are monotonically increasing
+   *          since process start -- the Web UI can diff against a snapshot
+   *          to compute deltas if it wants recent-error rate.
+   *
+   * @api_examples{/api/errors| GET| null}
+   */
+  void getErrors(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) return;
+    if (!has_scope(auth, config::api_scope_t::LOGS_GET)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    auto &c = sunshine::counters();
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    tree["encoder"] = c.encoder.load();
+    tree["capture"] = c.capture.load();
+    tree["network"] = c.network.load();
+    tree["session"] = c.session.load();
+    tree["process"] = c.process.load();
+    tree["config"]  = c.config.load();
+    tree["crypto"]  = c.crypto.load();
+    tree["unknown"] = c.unknown.load();
+    tree["total"]   = c.total.load();
+    send_response(response, tree);
+  }
+
+  /**
    * @brief List existing API tokens (admin only).
    * @details Returns the name and granted scopes of each token. Never returns
    *          the hash or salt — those are write-only secrets.
@@ -2298,6 +2334,7 @@ namespace confighttp {
     server.resource["^/api/tokens/([\\w-]+)$"]["DELETE"] = deleteToken;
     server.resource["^/api/stream/network-stats$"]["POST"] = postNetworkStats;
     server.resource["^/api/stream/bitrate$"]["GET"] = getBitrate;
+    server.resource["^/api/errors$"]["GET"] = getErrors;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;

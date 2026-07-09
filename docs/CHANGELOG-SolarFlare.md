@@ -11,6 +11,27 @@
   wrapped JSON reply (HashMap of name -> Output). Also dropped a dead-code
   first compare() in the Virtual- prefix check.
 
+- feat(error): SUN_ERR() tagged error log + process-wide counters (5d113c3, 5d113c3 continued).
+  New src/error.h + src/error.cpp expose:
+  - error_category_e (ENCODER / CAPTURE / NETWORK / SESSION / PROCESS /
+    CONFIG / CRYPTO / UNKNOWN) for /api/errors grouping
+  - encode_error_e (EMPTY_PACKET / FRAME_INDEX_MISMATCH / UNSUPPORTED_SESSION)
+    returned by platf::video::encode() and encode_nvenc() via
+    std::optional<encode_error_e>
+  - SUN_ERR(cat, tag, msg) macro that captures __FILE__:__LINE__:__func__
+    via std::source_location and bumps a per-category atomic counter
+  - error_counters_t singleton: one atomic per category plus a total
+  - GET /api/errors (LOGS_GET scope) returns the counter snapshot
+  Two encoder call sites in src/video.cpp (encode_nvenc + the two
+  call sites of encode()) now log the specific cause instead of
+  'Could not encode video packet' -- the previous fork had no way
+  to thread NVENC vs frame-index-mismatch vs unsupported-session
+  into the call-site log, so a user pasting one line into GitHub
+  lost the root cause. SUN_ERR + the encode_error_e enum fix that.
+  5 new unit tests in tests/unit/test_error.cpp lock the public
+  contract (counter routing + stable string mappings).
+
+
 ## July 5, 2026
 
 - feat(platform/linux): Hermes-KMS kernel module is now packaged with SolarFlare. Vendored from github.com/MrOz59/Hermes-KMS at third-party/hermes-kms (git submodule, GPL-2.0+). scripts/cachyos-build.sh runs packaging/linux/redesign/install-hermes-kms.sh after cmake --install; the script DKMS-installs hermes_kms.ko and loads it with initial_enabled=1 so 'HERMES-1' appears in the source selector. Requires kernel-headers + dkms. Removed the duplicate src/platform/linux/hermes_kms_drm.h; the C++ capture backend now includes the upstream UAPI header directly.
