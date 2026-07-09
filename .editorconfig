@@ -1,0 +1,40 @@
+# EditorConfig helps maintain consistent coding styles across editors.
+# See https://editorconfig.org for details.
+#
+# SolarFlare fork: matches the upstream .clang-format style as closely as
+# possible so editor and CI agree. Anything more aggressive (e.g. indent
+# size overrides) will fight with clang-format and is intentionally absent.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.{cpp,h,hpp,cc,cxx,c,h++}]
+# .clang-format is the source of truth for C/C++ formatting. Don't
+# duplicate its rules here -- a future C++ formatter won't read
+# .editorconfig for indent size anyway (clang-format reads its own
+# config). We only set the basics so editors without clang-format
+# integration (e.g. plain nano, vim without ALE) still indent correctly.
+indent_size = 2
+
+[*.{py,rb,sh,bash,yml,yaml,json,toml}]
+indent_size = 2
+
+[*.md]
+# Markdown has no fixed indent; let the editor decide.
+indent_style = space
+indent_size = unset
+trim_trailing_whitespace = false  # markdown uses two trailing spaces for line breaks
+
+[CMakeLists.txt]
+# cmake-format friendly defaults.
+indent_size = 2
+
+[Makefile]
+indent_style = tab

@@ -1,0 +1,15 @@
+---
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/vindeckyy/Solar-Flare/discussions
+    about: Community discussions
+  - name: Questions
+    url: https://github.com/vindeckyy/Solar-Flare/discussions
+    about: Ask questions
+  - name: Feature Requests
+    url: https://github.com/vindeckyy/Solar-Flare/discussions
+    about: Request new features
+  - name: Issues
+    url: https://github.com/vindeckyy/Solar-Flare/issues
+    about: Report bugs and track issues

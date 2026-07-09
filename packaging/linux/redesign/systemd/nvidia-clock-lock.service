@@ -1,0 +1,12 @@
+[Unit]
+Description=Lock NVIDIA GPU clocks to boost (Solar-Flare fork: steady encode latency)
+After=nvidia-persistenced.service
+# Don't pull this in on systems without an NVIDIA GPU — the helper probes.
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/nvidia-clock-lock.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
