@@ -55,11 +55,57 @@ namespace http {
     // HTTPS handshake aborted at server hello and Moonlight could not pair.
     auto creds_dir = platf::appdata() / "credentials"sv;
     if (clean_slate || config::nvhttp.cert.empty() || config::nvhttp.pkey.empty()) {
-      // Generate a unique suffix so multiple Sunshine instances on the
-      // same machine (different ports) don't trample each other.
-      unique_id = uuid_util::uuid_t::generate().string();
-      config::nvhttp.cert = (creds_dir / ("cert-"s + unique_id)).string();
-      config::nvhttp.pkey = (creds_dir / ("pkey-"s + unique_id)).string();
+      // ponytail: adopt any existing pkey/cert pair on disk before generating
+      // a new UUID. Without this, every restart produced a new cert because
+      // the user has no pkey=/cert= in sunshine.conf (defaults to empty),
+      // so the unique_id was random per start. Each new cert invalidates
+      // every paired client -- they re-pair. Pick the most recently written
+      // pair if multiple exist (multi-instance legacy), or generate a fresh
+      // UUID on a true cold install.
+      std::error_code ec;
+      std::vector<fs::path> existing_pkies;
+      for (auto &e : fs::directory_iterator(creds_dir, ec)) {
+        if (e.is_regular_file() && e.path().filename().string().starts_with("pkey-"sv)) {
+          existing_pkies.push_back(e.path());
+        }
+      }
+      if (!existing_pkies.empty()) {
+        // ponytail: pick the pair whose pkey has the highest mtime. mtime
+        // is the cheapest sort key that's robust to the multi-instance
+        // case (one of the older pairs is whichever instance wrote last).
+        auto newest = std::max_element(existing_pkies.begin(), existing_pkies.end(),
+          [](const fs::path &a, const fs::path &b) {
+            return fs::last_write_time(a) < fs::last_write_time(b);
+          });
+        auto pkey_path = *newest;
+        auto cert_path = pkey_path;
+        cert_path.replace_filename(std::string("cert-") + pkey_path.filename().string().substr(5));
+        // ponytail: on a hot-restart loop, we may have written pkey but the
+        // cert write got interrupted. Skip the pair if the cert is missing
+        // -- fall through to fresh generation rather than failing to start.
+        if (fs::exists(cert_path)) {
+          if (existing_pkies.size() > 1) {
+            BOOST_LOG(warning) << "Multiple cert/pkey pairs found in "sv << creds_dir
+                               << "; using newest pair "sv << pkey_path.filename().string()
+                               << ". Pass --fresh-state or remove the other pairs to clean up."sv;
+          }
+          config::nvhttp.pkey = pkey_path.string();
+          config::nvhttp.cert = cert_path.string();
+          unique_id = pkey_path.filename().string().substr(5);
+        } else {
+          BOOST_LOG(warning) << "Found orphan pkey "sv << pkey_path.filename().string()
+                             << " without matching cert; generating fresh credentials."sv;
+          unique_id = uuid_util::uuid_t::generate().string();
+          config::nvhttp.cert = (creds_dir / ("cert-"s + unique_id)).string();
+          config::nvhttp.pkey = (creds_dir / ("pkey-"s + unique_id)).string();
+        }
+      } else {
+        // Generate a unique suffix so multiple Sunshine instances on the
+        // same machine (different ports) don't trample each other.
+        unique_id = uuid_util::uuid_t::generate().string();
+        config::nvhttp.cert = (creds_dir / ("cert-"s + unique_id)).string();
+        config::nvhttp.pkey = (creds_dir / ("pkey-"s + unique_id)).string();
+      }
     }
 
     // Generate cert/key if either file is missing. Missing-after-reboot is
