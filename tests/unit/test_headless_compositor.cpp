@@ -38,20 +38,18 @@ TEST(HeadlessCompositorTest, SetBackendRoundTrips) {
 // PATH, no gamescope session, and no KWin session, resolve_backend()
 // should pick labwc (the documented default fallback).
 TEST(HeadlessCompositorTest, AutoDetectFallsBackToLabwc) {
-  // Unset any desktop-detection env vars so is_kwin_running()/is_gamescope_running()
-  // both return false on a headless test host.
+  // ponytail: with no env-var signal, resolve_backend must pick labwc
+  // deterministically. The old "labwc-or-gamescope" assertion came from the
+  // gamescope-on-PATH false-positive branch that we removed in this sweep.
   unsetenv("XDG_CURRENT_DESKTOP");
+  unsetenv("XDG_SESSION_DESKTOP");
   unsetenv("WAYLAND_DISPLAY");
 
   platf::headless::compositor_t c;
   c.set_backend(platf::headless::backend_e::auto_detect);
-  // We don't know for certain whether gamescope / kwin binaries are on
-  // PATH in CI; only assert labwc-or-gamescope (the documented fallback
-  // order) and never krfb (which requires KWin).
   auto resolved = c.resolve_backend();
-  EXPECT_TRUE(resolved == platf::headless::backend_e::labwc ||
-              resolved == platf::headless::backend_e::gamescope)
-    << "auto-detect should fall back to labwc or gamescope, got "
+  EXPECT_EQ(resolved, platf::headless::backend_e::labwc)
+    << "auto-detect with no env-var signal must fall back to labwc, got "
     << static_cast<int>(resolved);
 }
 
@@ -100,24 +98,13 @@ TEST(HeadlessCompositorTest, IsNiriRunningDetectsXdgCurrentDesktop) {
   unsetenv("XDG_CURRENT_DESKTOP");
 }
 
-// niri detection: a niri binary on PATH with no env var is enough to
-// recognize the compositor. Mirrors the gamescope fallback.
-TEST(HeadlessCompositorTest, IsNiriRunningDetectsBinaryOnPath) {
+// niri detection: env-var-only contract. The old binary-on-PATH branch was
+// removed because a CachyOS box with niri INSTALLED but not running would
+// false-positive, leading auto-detect to bind to a non-existent session.
+TEST(HeadlessCompositorTest, IsNiriRunningIgnoresBinaryOnPath) {
   unsetenv("XDG_CURRENT_DESKTOP");
   unsetenv("XDG_SESSION_DESKTOP");
-  // bp::search_path probes PATH. If niri is installed, the test passes.
-  // If niri is not installed, the test is skipped -- this documents the
-  // path-based detection without requiring niri to be present.
-  const char *path = std::getenv("PATH");
-  if (!path) GTEST_SKIP() << "PATH unset, cannot probe for niri binary";
-  // The detection function uses bp::search_path internally; we test it
-  // by setting PATH to a known directory and dropping a fake niri script.
-  // (This is the same trick the gamescope test uses for "kwin_wayland"
-  // but gamescope already has a test for the env var path. We just
-  // assert the env var path here, which is deterministic.)
-  setenv("XDG_CURRENT_DESKTOP", "niri", 1);
-  EXPECT_TRUE(platf::headless::is_niri_running());
-  unsetenv("XDG_CURRENT_DESKTOP");
+  EXPECT_FALSE(platf::headless::is_niri_running());
 }
 
 // niri detection: XDG_SESSION_DESKTOP fallback (covers gdm/wayland-session
@@ -129,14 +116,10 @@ TEST(HeadlessCompositorTest, IsNiriRunningDetectsSessionDesktop) {
   unsetenv("XDG_SESSION_DESKTOP");
 }
 
-// niri detection: when nothing is set and no niri binary, returns false.
+// niri detection: env-var contract holds regardless of PATH state.
 TEST(HeadlessCompositorTest, IsNiriRunningReturnsFalseWhenAbsent) {
   unsetenv("XDG_CURRENT_DESKTOP");
   unsetenv("XDG_SESSION_DESKTOP");
-  // Don't unset PATH -- if the user happens to have niri on PATH
-  // (likely on most CachyOS boxes), the binary path branch will fire
-  // and the test will be flaky. We rely on the env var branches being
-  // unset for the test's logical contract.
   EXPECT_FALSE(platf::headless::is_niri_running());
 }
 

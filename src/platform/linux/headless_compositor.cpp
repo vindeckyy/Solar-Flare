@@ -74,35 +74,39 @@ namespace platf::headless {
     return result;
   }
 
+  // ponytail: detection helpers MUST only read env vars / WAYLAND_DISPLAY
+  // socket name. Falling back to bp::search_path() was a false-positive trap:
+  // a CachyOS box with the niri/gamescope/kwin_wayland binary INSTALLED but
+  // not running the matching compositor would auto-detect that backend and
+  // bind to a non-existent session, producing the misleading "no
+  // Virtual-* output" log on every start. The env vars are the only
+  // authoritative signal that the user's session is actually running
+  // that compositor.
   bool is_kwin_running() {
     auto *xdg = std::getenv("XDG_CURRENT_DESKTOP");
-    if (xdg) {
-      std::string_view desktop {xdg};
-      return desktop.find("KDE"sv) != std::string_view::npos;
-    }
-    auto *wayland = std::getenv("WAYLAND_DISPLAY");
-    if (!wayland) return false;
-    return bp::search_path("kwin_wayland").empty() ? false : true;
+    if (!xdg) return false;
+    std::string_view desktop {xdg};
+    return desktop.find("KDE"sv) != std::string_view::npos;
   }
 
   bool is_gamescope_running() {
-    auto *xdg = std::getenv("XDG_CURRENT_DESKTOP");
-    if (xdg && std::string_view {xdg} == "gamescope"sv) return true;
-    auto *display = std::getenv("WAYLAND_DISPLAY");
-    if (display && std::string_view {display}.find("gamescope"sv) != std::string_view::npos) return true;
-    return !bp::search_path("gamescope").empty();
+    if (auto *xdg = std::getenv("XDG_CURRENT_DESKTOP"); xdg && std::string_view {xdg} == "gamescope"sv) {
+      return true;
+    }
+    if (auto *display = std::getenv("WAYLAND_DISPLAY");
+        display && std::string_view {display}.find("gamescope"sv) != std::string_view::npos) {
+      return true;
+    }
+    return false;
   }
 
-  // niri exposes itself via XDG_CURRENT_DESKTOP=niri AND its own WAYLAND_DISPLAY
-  // name (wayland-1 typically, but the compositor binary on the path is the
-  // strongest signal). Detection: env var + binary, or the socket pointed
-  // at by WAYLAND_DISPLAY belongs to a process named niri.
   bool is_niri_running() {
-    auto *xdg = std::getenv("XDG_CURRENT_DESKTOP");
-    if (xdg && std::string_view {xdg} == "niri"sv) return true;
-    if (!bp::search_path("niri").empty()) return true;
-    auto *session = std::getenv("XDG_SESSION_DESKTOP");
-    if (session && std::string_view {session} == "niri"sv) return true;
+    if (auto *xdg = std::getenv("XDG_CURRENT_DESKTOP"); xdg && std::string_view {xdg} == "niri"sv) {
+      return true;
+    }
+    if (auto *session = std::getenv("XDG_SESSION_DESKTOP"); session && std::string_view {session} == "niri"sv) {
+      return true;
+    }
     return false;
   }
 
