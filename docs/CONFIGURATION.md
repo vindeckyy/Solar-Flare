@@ -1,7 +1,7 @@
 # SolarFlare fork configuration
 
-The SolarFlare fork adds five Linux-only tunables that let you dial
-the CachyOS local-LAN fast path in or out without rebuilding. All five
+The SolarFlare fork adds Linux-only tunables that let you dial
+the CachyOS local-LAN fast path in or out without rebuilding. All
 live under the `solarflare_t` struct in `src/config.h` and are read
 from the same `~/.config/sunshine/sunshine.conf` file as the upstream
 options. They appear in `sunshine --version` (with
@@ -12,7 +12,7 @@ upstream config documentation lives at
 [docs/configuration.md](configuration.md); every option there is
 still supported.
 
-## The five tunables at a glance
+## The tunables at a glance
 
 | Key | Type | Default | Range | What it does |
 |---|---|---|---|---|
@@ -24,6 +24,7 @@ still supported.
 | `dscp_qos`            | bool   | true | -       | Tag ENet packets with DSCP CS3 so routers prioritize streaming over bulk traffic (Linux only). |
 | `gpu_governor`        | bool   | true | -       | Set AMD GPU to `performance` power profile during stream, restore `auto` on disconnect (Linux only). |
 | `headless_virtual_display` | bool | false | -    | If no displays detected, try creating a virtual xrandr output (Linux only, opt-in). |
+| `skip_wayland_correlation` | bool | false | -    | Skip Wayland monitor correlation during KMS display enumeration. Avoids KWin roundtrip hang at the cost of absolute mouse coordinates. |
 
 Each one is opt-out — setting it back to its "fall back to upstream"
 choice (`busy_poll_us = 0`, `rate_cap_pct = 80` is already upstream's
@@ -133,6 +134,10 @@ If `false`, only the upstream `nice -15` is applied. Use this if:
 | `enet_4mib_buffer`   | `src/network.cpp` |
 | `pipewire_latency_ms`| `src/platform/linux/pipewire.cpp` |
 | `cpu_pinning`        | `src/platform/linux/misc.cpp` |
+| `dscp_qos`           | `src/platform/linux/misc.cpp`, `src/network.cpp` |
+| `gpu_governor`       | `src/platform/linux/misc.cpp` |
+| `headless_virtual_display` | `src/platform/linux/misc.cpp` |
+| `skip_wayland_correlation` | `src/platform/linux/kmsgrab.cpp` |
 
 ## A quick A/B test
 
@@ -146,6 +151,10 @@ rate_cap_pct = 95
 enet_4mib_buffer = false
 pipewire_latency_ms = 1
 cpu_pinning = false
+dscp_qos = false
+gpu_governor = false
+headless_virtual_display = true
+skip_wayland_correlation = true
 EOF
 
 sunshine /tmp/sf-test.conf
@@ -155,8 +164,12 @@ sunshine /tmp/sf-test.conf
 #   config: 'enet_4mib_buffer' = false
 #   config: 'pipewire_latency_ms' = 1
 #   config: 'cpu_pinning' = false
+#   config: 'dscp_qos' = false
+#   config: 'gpu_governor' = false
+#   config: 'headless_virtual_display' = true
+#   config: 'skip_wayland_correlation' = true
 #
-# If all five appear with no "Unrecognized" warnings, the fork
+# If all nine appear with no "Unrecognized" warnings, the fork
 # config plumbing is wired correctly.
 ```
 
@@ -168,12 +181,12 @@ After pulling a new SolarFlare build:
    `Sunshine version: ... commit: ...` plus the publisher metadata.
    No `FATAL` lines.
 2. `grep -c solarflare_t src/config.h` — should print `1` (the struct
-   definition) plus `5` field declarations. `grep -c
+   definition) plus at least `9` field declarations. `grep -c
    config::solarflare src/network.cpp src/stream.cpp
    src/platform/linux/misc.cpp src/platform/linux/pipewire.cpp` should
    total at least `5`.
-3. The web UI at `https://localhost:47990` should NOT show the five
-   fork tunables (they're intentionally not exposed; edit
+3. The web UI at `https://localhost:47990` should NOT show the fork
+   tunables (they're intentionally not exposed; edit
    `~/.config/sunshine/sunshine.conf` directly if you want to change
    them). Everything else in the Configuration tab should look
    identical to upstream.
@@ -183,4 +196,3 @@ After pulling a new SolarFlare build:
 - [docs/configuration.md](configuration.md) — the full upstream
   configuration reference.
 - [docs/PORTING.md](PORTING.md) — multi-distro build instructions.
-- `README.md` (root) — quick-start and the build script entry point.

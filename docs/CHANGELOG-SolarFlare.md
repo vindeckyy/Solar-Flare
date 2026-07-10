@@ -6,6 +6,20 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+## 2026-07-10
+
+### Morning sweep (Jul 10)
+
+Daily sweep pass: no source-code bugs found in recent changes (NVENC fix, cert
+persistence, error system). Static analysis and syntax checks pass clean on all
+recently modified sources. Fixed documentation drift in `docs/CONFIGURATION.md`:
+added missing `skip_wayland_correlation` key, corrected table header from "five"
+to "nine" tunables, and expanded the A/B test section to cover all fork keys.
+
+- `<sha>` docs: fix CONFIGURATION.md drift — add skip_wayland_correlation, fix tunable count, expand A/B test
+
+---
+
 ## 2026-07-03
 
 ### Initial SolarFlare fork setup
@@ -306,7 +320,7 @@ The CachyOS-only COPR integration workflow had no secrets on the fork, failed on
 
 ## See also
 
-- [docs/CONFIGURATION.md](CONFIGURATION.md) — the 8 fork-specific latency/display toggles (`busy_poll_us`, `rate_cap_pct`, `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`, `dscp_qos`, `gpu_governor`, `headless_virtual_display`).
+- [docs/CONFIGURATION.md](CONFIGURATION.md) — the 9 fork-specific latency/display toggles (`busy_poll_us`, `rate_cap_pct`, `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`, `dscp_qos`, `gpu_governor`, `headless_virtual_display`, `skip_wayland_correlation`).
 - [docs/PORTING.md](PORTING.md) — per-distro package translation table for the build script.
 - [README.md](../README.md) — fork entry point.
 - [cachyos-fastpath.patch](../cachyos-fastpath.patch) — the original 7-file latency-tuning patch (kept as a historical artifact).
