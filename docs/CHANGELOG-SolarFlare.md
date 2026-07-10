@@ -2,7 +2,7 @@
 
 All fork-specific changes to [vindeckyy/Solar-Flare](https://github.com/vindeckyy/Solar-Flare) that are **not** present in upstream [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine). Upstream changelog lives at [docs/changelog.md](changelog.md) (which inlines the upstream `changelog/CHANGELOG.md`).
 
-Curated sections below group commits by feature and date, oldest commit first within each topic. The **Full commit index** at the bottom lists any commits that fell between the cracks — the curated sections above should cover nearly everything. Use `git show <sha>` for the full diff.
+Curated sections below group commits by feature and date, oldest commit first within each topic. The **Full commit index** at the bottom lists any commits that fell between the cracks — the curated sections above should cover nearly everything. Use `git show dbf8232` for the full diff.
 
 ---
 
@@ -16,7 +16,7 @@ recently modified sources. Fixed documentation drift in `docs/CONFIGURATION.md`:
 added missing `skip_wayland_correlation` key, corrected table header from "five"
 to "nine" tunables, and expanded the A/B test section to cover all fork keys.
 
-- `<sha>` docs: fix CONFIGURATION.md drift — add skip_wayland_correlation, fix tunable count, expand A/B test
+- `dbf8232` docs: fix CONFIGURATION.md drift — add skip_wayland_correlation, fix tunable count, expand A/B test
 
 ---
 
@@ -279,7 +279,7 @@ is missing instead of letting `wayland-scanner` emit an opaque error.
 
 ### Version alignment + README rewrite
 
-Aligned the internal build version with the GitHub release tag scheme (`YYYY.DDD.N-<n>-g<sha>` instead of `<commit-count>-<sha>`). Rewrote the README preamble in conversational style; README no longer reads like a spec sheet.
+Aligned the internal build version with the GitHub release tag scheme (`YYYY.DDD.N-<n>-gdbf8232` instead of `<commit-count>-<sha>`). Rewrote the README preamble in conversational style; README no longer reads like a spec sheet.
 
 - `e67d79e` fix(version): align internal build version with GitHub release tag
 - `ce0697e` docs(readme): rewrite preamble in conversational style
