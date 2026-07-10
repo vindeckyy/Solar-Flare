@@ -1867,6 +1867,11 @@ namespace video {
           }
 
           ctx->hw_frames_ctx = av_buffer_ref(frame_ref.get());
+
+          // SolarFlare: explicitly set hw_device_ctx so FFmpeg nvenc
+          // encoder can query GPU capabilities via the correct
+          // CUDA device context.
+          ctx->hw_device_ctx = av_buffer_ref(encoding_stream_context.get());
         }
 
         ctx->slices = config.slicesPerFrame;
@@ -1974,6 +1979,14 @@ namespace video {
 
       // Allow the encoding device a final opportunity to set/unset or override any options
       encode_device->init_codec_options(ctx.get(), &options);
+
+      // SolarFlare: GTX 1650 Mobile NVENC encoder does not support
+      // multiple reference frames. FFmpeg nvenc checks this cap
+      // when ctx->refs > 0 and rejects the device. With refs=0,
+      // the capability check is skipped (zerolatency already set).
+      if (encoder.name == "nvenc"sv) {
+        ctx->refs = 0;
+      }
 
       if (auto status = avcodec_open2(ctx.get(), codec, &options)) {
         char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
