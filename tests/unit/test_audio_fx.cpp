@@ -72,7 +72,7 @@ namespace {
   }
 
   /// Find the frame index where the ducker reaches within 1 dB of its target.
-  std::size_t frames_to_within_1db(const std::vector<float> &gains_db, float target_db) {
+  [[maybe_unused]] std::size_t frames_to_within_1db(const std::vector<float> &gains_db, float target_db) {
     for (std::size_t i = 0; i < gains_db.size(); ++i) {
       if (std::abs(gains_db[i] - target_db) <= 1.0f) {
         return i;
@@ -82,7 +82,7 @@ namespace {
   }
 
   /// True if @p gains_db is monotonically non-increasing (gain coming up).
-  bool is_monotonic_nonincreasing(const std::vector<float> &v) {
+  [[maybe_unused]] bool is_monotonic_nonincreasing(const std::vector<float> &v) {
     for (std::size_t i = 1; i < v.size(); ++i) {
       if (v[i] > v[i - 1] + 1e-4f) return false;
     }
@@ -90,7 +90,7 @@ namespace {
   }
 
   /// True if @p gains_db is monotonically non-decreasing (gain coming down).
-  bool is_monotonic_nondecreasing(const std::vector<float> &v) {
+  [[maybe_unused]] bool is_monotonic_nondecreasing(const std::vector<float> &v) {
     for (std::size_t i = 1; i < v.size(); ++i) {
       if (v[i] < v[i - 1] - 1e-4f) return false;
     }
@@ -462,7 +462,7 @@ TEST(PreProcessor, AGCAndVADAndDuckingWorkTogether) {
   buf.insert(buf.end(), quiet.begin(), quiet.end());
   buf.insert(buf.end(), loud.begin(), loud.end());
 
-  const std::size_t chunk = static_cast<std::size_t>(kSampleRate * 0.005f);
+  [[maybe_unused]] const std::size_t chunk = static_cast<std::size_t>(kSampleRate * 0.005f);
   std::vector<float> gain_history_db;
   // We don't have direct access to internal state during process; instead,
   // verify that the overall RMS of the loud sections ends up reasonable.

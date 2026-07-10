@@ -556,7 +556,10 @@ namespace wl {
     interface_t interface;
     interface.listen(display.registry());
 
-    display.roundtrip();
+    // ponytail: timeout-guarded dispatch in place of blocking roundtrip.
+    for (auto _ = 0; _ < 20; ++_) {
+      if (!display.dispatch(std::chrono::milliseconds(100))) break;
+    }
 
     if (!interface[interface_t::XDG_OUTPUT]) {
       BOOST_LOG(error) << "[wayland] Missing Wayland wire XDG_OUTPUT"sv;
@@ -567,7 +570,10 @@ namespace wl {
       monitor->listen(interface.output_manager);
     }
 
-    display.roundtrip();
+    // ponytail: timeout-guarded dispatch for output details.
+    for (auto _ = 0; _ < 20; ++_) {
+      if (!display.dispatch(std::chrono::milliseconds(100))) break;
+    }
 
     return std::move(interface.monitors);
   }

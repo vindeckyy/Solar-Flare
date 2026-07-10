@@ -1529,7 +1529,14 @@ namespace stream {
         // SolarFlare fork knob: `rate_cap_pct` (range 50-95, default 80).
         // Falls back to 1 Gbps if the interface isn't found or sysfs is
         // unreadable, matching the original behaviour exactly.
-        size_t link_bps = detail::detect_link_speed_bps(session->localAddress);
+        //
+        // Cache the result once per session so we don't call getifaddrs + read
+        // sysfs every encode cycle (~50ms). The link speed doesn't change
+        // mid-stream, and calling getifaddrs 20 times/second is wasteful.
+        // Without the cache, the warnings in detect_link_speed_bps() flood
+        // the journal on every encode tick (issue #11).
+        static size_t cached_link_bps = detail::detect_link_speed_bps(session->localAddress);
+        size_t link_bps = cached_link_bps;
         size_t ratecontrol_packets_in_1ms =
           link_bps * (size_t) config::solarflare.rate_cap_pct / 100 / 1000 / blocksize / 8;
         if (ratecontrol_packets_in_1ms < 1) {

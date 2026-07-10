@@ -1223,7 +1223,7 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
-    if (sources[source::KWIN]) {
+    if (sources[source::KWIN] && !config::solarflare.skip_wayland_correlation) {
       return kwin_display_names();
     }
 #endif
@@ -1265,7 +1265,7 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (sources[source::WAYLAND]) {
+    if (sources[source::WAYLAND] && !config::solarflare.skip_wayland_correlation) {
       BOOST_LOG(info) << "Screencasting with Wayland's protocol"sv;
       return wl_display(hwdevice_type, display_name, config);
     }
@@ -1283,7 +1283,7 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
-    if (sources[source::KWIN]) {
+    if (sources[source::KWIN] && !config::solarflare.skip_wayland_correlation) {
       BOOST_LOG(info) << "Screencasting with KWin ScreenCast"sv;
       return kwin_display(hwdevice_type, display_name, config);
     }
@@ -1316,7 +1316,14 @@ namespace platf {
     }
 #endif
 #if defined(SUNSHINE_BUILD_X11) || defined(SUNSHINE_BUILD_CUDA)
-    if (std::getenv("DISPLAY") && window_system != window_system_e::WAYLAND) {
+    // ponytail: when skip_wayland_correlation is set, force X11 window_system
+    // even on a Wayland session so x11grab can capture via XWayland. Without
+    // this override, window_system stays WAYLAND and verify_x11() returns
+    // false, making Sunshine fall through to "Unable to initialize capture
+    // method" when all Wayland-based backends are skipped or timeout.
+    if (std::getenv("DISPLAY") &&
+        (window_system != window_system_e::WAYLAND ||
+         config::solarflare.skip_wayland_correlation)) {
       if (std::getenv("WAYLAND_DISPLAY")) {
         BOOST_LOG(warning) << "Wayland detected, yet sunshine will use X11 for screencasting, screencasting will only work on XWayland applications"sv;
       }
@@ -1331,7 +1338,8 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "wlr") && verify_wl()) {
+    if (!config::solarflare.skip_wayland_correlation &&
+        ((config::video.capture.empty() && sources.none()) || config::video.capture == "wlr") && verify_wl()) {
       sources[source::WAYLAND] = true;
     }
 #endif
@@ -1348,12 +1356,14 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
-    if ((config::video.capture.empty() || config::video.capture == "portal") && verify_portal()) {
+    if (!config::solarflare.skip_wayland_correlation &&
+        (config::video.capture.empty() || config::video.capture == "portal") && verify_portal()) {
       sources[source::PORTAL] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "kwin") && verify_kwin()) {
+    if (!config::solarflare.skip_wayland_correlation &&
+        ((config::video.capture.empty() && sources.none()) || config::video.capture == "kwin") && verify_kwin()) {
       sources[source::KWIN] = true;
     }
 #endif

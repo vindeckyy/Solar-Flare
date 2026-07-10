@@ -178,7 +178,7 @@ namespace platf {
 
     mem_type_e hwdevice_type {mem_type_e::system};
     hermes_kms_display_t(int fd, mem_type_e ht, std::uint32_t w, std::uint32_t h)
-      : hwdevice_type(ht), card_fd(fd), width(w), height(h) {}
+      : card_fd(fd), width(w), height(h), hwdevice_type(ht) {}
     ~hermes_kms_display_t() override {
       if (card_fd >= 0) {
         close(card_fd);

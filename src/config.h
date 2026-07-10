@@ -506,6 +506,12 @@ namespace config {
     /// the headless server can stream. Linux-only; uses xrandr dummy output.
     /// ponytail: one xrandr --auto call, no kernel params needed.
     bool headless_virtual_display = false;
+
+    /// Skip Wayland monitor correlation during KMS display enumeration.
+    /// When enabled, absolute mouse coordinates won't work but KMS capture
+    /// won't hang if the compositor doesn't respond to output queries.
+    /// ponytail: skips wl::monitors() call, avoids KWin roundtrip hang.
+    bool skip_wayland_correlation = false;
   };
 
   /// Backwards-compatible alias so the audio encode helper (declared below)

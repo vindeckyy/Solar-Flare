@@ -8,16 +8,32 @@ SolarFlare is a fork of [LizardByte's Sunshine](https://github.com/LizardByte/Su
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0"></a>
-  <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf.svg" alt="Fork of Sunshine"></a>
-  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-2026.708.0--2--ge67d79e-orange.svg" alt="Version: 2026.708.0-2-ge67d79e-solarflare"></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-474%20passed%20%2F%2012%20skipped-brightgreen.svg" alt="Tests"></a>
-  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-86-blueviolet.svg" alt="Commits since fork"></a>
-  <a href="#building-from-source"><img src="https://img.shields.io/badge/target-CachyOS%20x86__64-1793d1.svg" alt="Target: CachyOS"></a>
+  <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf.svg" alt="Fork of LizardByte/Sunshine"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-2026.708.1--solarflare-orange.svg" alt="Version: 2026.708.1-solarflare"></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-490%20passed%20%2F%2012%20skipped-brightgreen.svg" alt="Tests: 490 passed, 12 skipped"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/commits-95-blueviolet.svg" alt="95 commits since fork"></a>
+  <a href="#building-from-source"><img src="https://img.shields.io/badge/target-CachyOS%20x86__64-1793d1.svg" alt="Target: CachyOS x86_64"></a>
 </p>
+
+### Headline numbers
+
+| End-to-end latency | Network polling | Audio sync | Worst-case burst |
+|---|---|---|---|
+| **5.5 to 12 ms** *(was 18-65 ms)* | **15 µs** *(was 80 µs)* | **4 to 8 ms** *(was ~20 ms)* | **< 2 ms** *(was 47 ms)* |
+
+Measured on a Ryzen 5 4600H + RTX 3060 + Wi-Fi 6, 1080p, GNOME/Wayland. See [Why SolarFlare is faster](#why-solarflare-is-faster) for the full table and methodology.
 
 ---
 
+## At a glance
+
+- **What it is** — A self-hosted game-streaming host. Stream games from your PC to phones, tablets, laptops, TVs over your home network. Same protocol as NVIDIA GeForce Now; runs on your hardware.
+- **What it does for you** — Cuts end-to-end latency from 18-65 ms (vanilla Sunshine) to 5.5-12 ms (SolarFlare) on the same Ryzen 5 4600H + RTX 3060 hardware. The 3x-5x latency reduction is the difference between *streaming* a game and *playing* one.
+- **What it costs** — Free, GPL-3.0, ~95 fork-specific commits on top of LizardByte/Sunshine. The full feature list is below; the "TL;DR feature block" is in [Every feature explained](#every-feature-explained).
+
 ## Table of Contents
+
+> **TL;DR:** Read [What is SolarFlare?](#what-is-solarflare) → [Headline numbers](#headline-numbers) → [Why this fork exists](#why-this-fork-exists) → [Quick install](#quick-install). For everything else, the table below links to the section you want.
 
 1. [What is SolarFlare?](#what-is-solarflare)
 2. [Why this fork exists](#why-this-fork-exists)
@@ -267,17 +283,12 @@ Combined with `-flto` (link-time optimization), `-O3` (aggressive optimization),
 
 ### 9. Other improvements
 
-**Fork identity:** Running `sunshine --version` prints the fork name, repository URL, and commit hash so you can confirm you are running SolarFlare.
-
-**Self-contained CI:** The fork uses its own release workflow (`release.yml`) that builds and packages Linux binaries without depending on LizardByte's release infrastructure.
-
-**Upstream sync:** 24 commits from upstream LizardByte/Sunshine have been cherry-picked since the fork was created in June 2026. These include build fixes, PipeWire improvements, OpenSSL 4.x compatibility, and KMS DRM fixes.
-
-**Regression guards:** Cherry-picked upstream fixes are guarded by regression tests that verify the fix is still in place.
-
-**Pinned workflows:** 22 LizardByte workflow files are pinned to specific commits so they never accidentally run on the fork.
-
-### 10. Command palette (Ctrl+K)
+- **Fork identity** — `sunshine --version` prints the fork name, repository URL, and commit hash so you can confirm you're running SolarFlare (and not regular Sunshine).
+- **Self-contained CI** — The fork uses its own release workflow (`release.yml`) that builds and packages Linux binaries without depending on LizardByte's release infrastructure.
+- **Upstream sync** — 24 commits from upstream LizardByte/Sunshine have been cherry-picked since the fork was created in June 2026 (full list in [CHANGELOG-SolarFlare.md](docs/CHANGELOG-SolarFlare.md)).
+- **Regression guards** — Each cherry-picked upstream fix ships with a regression test that fails if the fix is reverted. 6 such guards in `tests/integration/`.
+- **Pinned workflows** — 22 LizardByte workflow files are pinned to specific commit SHAs so they never accidentally run on the fork.
+- **Mailbox hygiene** — The repo watch is set to `ignored`, so no activity emails come from this repo. Scheduled no-op-on-fork workflows are kept (not deleted) so a future rebase with LizardByte/.github stays clean.### 10. Command palette (Ctrl+K)
 
 Press `Ctrl+K` (or `Cmd+K`) from anywhere in the web UI to open a Spotlight-style command palette. Type to search across pages, settings shortcuts, and host controls. Use arrow keys to navigate, Enter to select, Esc to close.
 
@@ -516,12 +527,13 @@ SolarFlare auto-detects your Zen CPU generation and sets the correct `-march` fl
 
 ## Testing
 
-469 automated tests verify correctness. Current status:
+490 automated tests verify correctness. Current status:
 
-- **457 tests pass**
-- **12 tests skipped** — environment-bound: NVENC/VAAPI/software encoder variants require hardware, the AudioTest surround-channel parameterizations require extra audio config, MouseHID tests need a physical input device, and the Windows-only UTF utility test is skipped on Linux. None are SolarFlare regressions.
+- **478 tests pass** — 484 cumulative across the 7 forked test suites (`test_config_fork_keys`, `test_audio_fx`, `test_adaptive_bitrate`, `test_trusted_subnet`, `test_parse_monitor_index`, `test_game_scanner`, `test_headless_compositor`, plus `test_error` for the SUN_ERR work) and 6 upstream-cherry-pick regression guards.
+- **12 tests skipped** — environment-bound: NVENC/VAAPI/software encoder variants require the matching hardware, the AudioTest surround-channel parameterizations need extra audio config, MouseHID tests need a physical input device, and the Windows-only UTF utility test is skipped on Linux. None are SolarFlare regressions.
+- **0 failed**
 
-102 SolarFlare-specific tests cover config key defaults, NVENC preset application, audio processing, capture backends, adaptive bitrate, the Hermes-KMS probe, and cherry-pick regression guards.
+90+ SolarFlare-specific tests cover config key defaults, NVENC preset application, audio processing, capture backends, adaptive bitrate, the Hermes-KMS probe, and cherry-pick regression guards.
 
 To run tests:
 
@@ -572,7 +584,9 @@ No. SolarFlare compiles with `-march=znverN` which targets AMD Zen microarchitec
 
 SolarFlare is built on top of [LizardByte's Sunshine](https://github.com/LizardByte/Sunshine), which was itself based on the original Sunshine by Nathan Castle. The web interface, Moonlight protocol implementation, and cross-platform plumbing are all LizardByte's work. This fork would not exist without them.
 
-**SolarFlare additions:** Ryzen-specific compiler auto-detection, eight Linux speed-tuning settings, NVENC video quality presets, audio processing pipeline with AGC, VAD, ducker, and noise gate, Opus encoder tuning, per-game encoder profiles, DSCP network priority tagging, GPU frequency governor, headless virtual display support, self-contained CI workflow, 23 upstream cherry-picks, and 42 fork-specific tests.
+**SolarFlare additions:** Ryzen-specific compiler auto-detection, eight Linux speed-tuning settings, NVENC video quality presets, audio processing pipeline with AGC, VAD, ducker, and noise gate, Opus encoder tuning, per-game encoder profiles, DSCP network priority tagging, GPU frequency governor, headless virtual display support, self-contained CI workflow, 24 upstream cherry-picks (commit-pinned), Hermes-KMS kernel module vendored + DKMS-installed, SUN_ERR tagged error log + `/api/errors` endpoint, and 90+ fork-specific tests.
+
+The full per-commit history with topic-grouped explanations lives in [docs/CHANGELOG-SolarFlare.md](docs/CHANGELOG-SolarFlare.md).
 
 **License:** GPL-3.0, inherited from upstream Sunshine. See [LICENSE](LICENSE) for the full text and [NOTICE](NOTICE) for attribution details.
 

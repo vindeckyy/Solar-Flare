@@ -317,10 +317,34 @@ namespace kwin {
 
       wl_registry = wl_display_get_registry(wl_display);
       wl_registry_add_listener(wl_registry, &registry_listener, this);
-      wl_display_roundtrip(wl_display);
 
-      // We need a second roundtrip after binding outputs to get wl_output events
-      wl_display_roundtrip(wl_display);
+      // ponytail: timeout-guarded roundtrip. wl_display_roundtrip blocks
+      // forever if the compositor doesn't respond. This wraps the same
+      // prepare_read/poll/read/dispatch sequence with a 2s timeout.
+      auto timed_roundtrip = [&]() -> bool {
+        wl_display_flush(wl_display);
+        while (wl_display_prepare_read(wl_display) != 0) {
+          wl_display_dispatch_pending(wl_display);
+        }
+        struct pollfd pfd = {};
+        pfd.fd = wl_display_get_fd(wl_display);
+        pfd.events = POLLIN;
+        if (poll(&pfd, 1, 2000) <= 0) {
+          wl_display_cancel_read(wl_display);
+          return false;
+        }
+        wl_display_read_events(wl_display);
+        wl_display_dispatch_pending(wl_display);
+        return true;
+      };
+      if (!timed_roundtrip()) {
+        BOOST_LOG(error) << "[kwingrab] Wayland roundtrip timed out"sv;
+        return -1;
+      }
+      if (!timed_roundtrip()) {
+        BOOST_LOG(error) << "[kwingrab] Second Wayland roundtrip timed out"sv;
+        return -1;
+      }
 
       return 0;
     }

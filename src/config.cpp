@@ -1878,6 +1878,7 @@ namespace config {
     bool_f(vars, "dscp_qos", solarflare.dscp_qos);
     bool_f(vars, "gpu_governor", solarflare.gpu_governor);
     bool_f(vars, "headless_virtual_display", solarflare.headless_virtual_display);
+    bool_f(vars, "skip_wayland_correlation", solarflare.skip_wayland_correlation);
 
     // audio_fx sub-tunables.
     auto &af = solarflare.audio_fx;

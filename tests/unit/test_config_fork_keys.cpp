@@ -13,6 +13,7 @@
  *   - dscp_qos            (bool,   default true)
  *   - gpu_governor        (bool,   default true)
  *   - headless_virtual_display (bool, default false)
+ *   - skip_wayland_correlation (bool, default false)
  *
  * These tests lock in the defaults and the range-clamp behaviour of
  * apply_config() for each one. Out-of-range values must be silently
@@ -46,6 +47,7 @@ namespace {
     bool dscp_qos;
     bool gpu_governor;
     bool headless_virtual_display;
+    bool skip_wayland_correlation;
 
     SolarflareSnapshot() {
       busy_poll_us = config::solarflare.busy_poll_us;
@@ -56,6 +58,7 @@ namespace {
       dscp_qos = config::solarflare.dscp_qos;
       gpu_governor = config::solarflare.gpu_governor;
       headless_virtual_display = config::solarflare.headless_virtual_display;
+      skip_wayland_correlation = config::solarflare.skip_wayland_correlation;
     }
 
     void restore() {
@@ -67,6 +70,7 @@ namespace {
       config::solarflare.dscp_qos = dscp_qos;
       config::solarflare.gpu_governor = gpu_governor;
       config::solarflare.headless_virtual_display = headless_virtual_display;
+      config::solarflare.skip_wayland_correlation = skip_wayland_correlation;
     }
   };
 
@@ -99,6 +103,7 @@ namespace {
     EXPECT_TRUE(config::solarflare.dscp_qos);
     EXPECT_TRUE(config::solarflare.gpu_governor);
     EXPECT_FALSE(config::solarflare.headless_virtual_display);
+    EXPECT_FALSE(config::solarflare.skip_wayland_correlation);
   }
 
   // ---------------------------------------------------------------------
@@ -205,6 +210,7 @@ protected:
   bool saved_dscp_qos;
   bool saved_gpu_governor;
   bool saved_headless_virtual_display;
+  bool saved_skip_wayland_correlation;
 
   void SetUp() override {
     saved_busy_poll_us = config::solarflare.busy_poll_us;
@@ -215,6 +221,7 @@ protected:
     saved_dscp_qos = config::solarflare.dscp_qos;
     saved_gpu_governor = config::solarflare.gpu_governor;
     saved_headless_virtual_display = config::solarflare.headless_virtual_display;
+    saved_skip_wayland_correlation = config::solarflare.skip_wayland_correlation;
   }
 
   void TearDown() override {
@@ -226,6 +233,7 @@ protected:
     config::solarflare.dscp_qos = saved_dscp_qos;
     config::solarflare.gpu_governor = saved_gpu_governor;
     config::solarflare.headless_virtual_display = saved_headless_virtual_display;
+    config::solarflare.skip_wayland_correlation = saved_skip_wayland_correlation;
   }
 };
 
@@ -305,6 +313,7 @@ TEST_F(SolarflareConfigRuntimeTest, DefaultsExactlyMatchPreForkHardcodedValues) 
   EXPECT_TRUE(config::solarflare.dscp_qos);
   EXPECT_TRUE(config::solarflare.gpu_governor);
   EXPECT_FALSE(config::solarflare.headless_virtual_display);
+  EXPECT_FALSE(config::solarflare.skip_wayland_correlation);
 }
 
 // Verify the three new bool toggles can be flipped at runtime without
@@ -325,6 +334,24 @@ TEST_F(SolarflareConfigRuntimeTest, NewBoolsCanBeToggled) {
   EXPECT_TRUE(config::solarflare.headless_virtual_display);
   config::solarflare.headless_virtual_display = false;
   EXPECT_FALSE(config::solarflare.headless_virtual_display);
+
+  config::solarflare.skip_wayland_correlation = true;
+  EXPECT_TRUE(config::solarflare.skip_wayland_correlation);
+  config::solarflare.skip_wayland_correlation = false;
+  EXPECT_FALSE(config::solarflare.skip_wayland_correlation);
+}
+
+// skip_wayland_correlation is opt-in (default false). When set, the KMS
+// enumeration path must skip the wl::monitors() correlation roundtrip and
+// fall back to sysfs connector modes instead of hanging on an unresponsive
+// compositor. We verify the value is read/written correctly and that the
+// default keeps the vanilla (correlate) behaviour.
+TEST_F(SolarflareConfigRuntimeTest, SkipWaylandCorrelationDefaultsToFalse) {
+  EXPECT_FALSE(config::solarflare.skip_wayland_correlation);
+  config::solarflare.skip_wayland_correlation = true;
+  EXPECT_TRUE(config::solarflare.skip_wayland_correlation);
+  config::solarflare.skip_wayland_correlation = false;
+  EXPECT_FALSE(config::solarflare.skip_wayland_correlation);
 }
 
 // All five fields must fit in a small struct so it's cheap to copy

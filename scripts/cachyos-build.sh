@@ -113,6 +113,7 @@ REQUIRED_SUBS=(
   third-party/nv-codec-headers
   third-party/nanors
   third-party/wlr-protocols
+  third-party/wayland-protocols
   third-party/doxyconfig
   third-party/build-deps
   third-party/lizardbyte-common
@@ -120,7 +121,15 @@ REQUIRED_SUBS=(
 
 missing=()
 for sub in "${REQUIRED_SUBS[@]}"; do
-  if [[ ! -d "${REPO_ROOT}/${sub}" ]] || [[ -z "$(ls -A "${REPO_ROOT}/${sub}" 2>/dev/null)" ]]; then
+  # Four conditions that mean "not actually populated":
+  #   1. Directory doesn't exist at all.
+  #   2. Directory is empty.
+  #   3. Directory has only a .git FILE (a stub created by `git submodule init`;
+  #      for a *populated* submodule .git is a directory containing the real repo).
+  #   4. There's a broken .git stub from a failed clone — same fix.
+  if [[ ! -d "${REPO_ROOT}/${sub}" ]] \
+     || [[ -z "$(ls -A "${REPO_ROOT}/${sub}" 2>/dev/null)" ]] \
+     || [[ -f "${REPO_ROOT}/${sub}/.git" ]]; then
     missing+=("$sub")
   fi
 done
@@ -292,7 +301,11 @@ cmake -B "$BUILD_DIR" -G Ninja -S "$REPO_ROOT" \
     -DSUNSHINE_ENABLE_TRAY=OFF \
     -DSUNSHINE_ENABLE_CUDA=OFF \
     -DCUDA_FAIL_ON_MISSING=OFF \
-    -DFFMPEG_PREBUILT=ON
+    -DFFMPEG_PREBUILT=ON \
+    -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+    -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+    -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=mold" \
+    -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=mold"
 cmake_rc=$?
 set -u
 
@@ -315,11 +328,10 @@ fi
 # ---------------------------------------------------------------------------
 step "6/7  Build (ninja)"
 say "Building with ninja (this takes 2-5 minutes on a Ryzen 5 4600H)..."
-# Cap parallelism at nproc/2 so LTO+coverage (or just LTO at -j12) doesn't OOM
-# a 15 GiB box.  -j2 on a 4C machine, -j6 on a 12-thread machine, etc.
-_jobs=$(( $(nproc) / 2 ))
+_jobs=$(nproc)
+if [[ $_jobs -gt 8 ]]; then _jobs=6; fi
 [[ $_jobs -lt 2 ]] && _jobs=2
-say "Using -j$_jobs (nproc/2, capped at 2 minimum)"
+say "Using -j$_jobs (capped at 6 to avoid OOM on 16GB with LTO)."
 set +e
 cmake --build "$BUILD_DIR" -j"$_jobs"
 build_rc=$?

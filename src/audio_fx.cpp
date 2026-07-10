@@ -177,8 +177,6 @@ namespace audio::fx {
       return _is_speech;
     }
 
-    const float frame_ms = (1000.0f * static_cast<float>(frame_count)) / _cfg.sample_rate;
-
     const float rms = detail::rms_db(samples, frame_count, channels);
     const float enter_threshold = _cfg.threshold_db;
     const float exit_threshold = _cfg.threshold_db - _cfg.hysteresis_db;

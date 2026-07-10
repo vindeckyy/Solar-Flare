@@ -7,6 +7,8 @@
 #include <cctype>
 #include <errno.h>
 #include <fcntl.h>
+#include <fstream>
+#include <cstdio>
 #include <filesystem>
 #include <thread>
 #include <unistd.h>
@@ -22,6 +24,7 @@
 // local includes
 #include "cuda.h"
 #include "graphics.h"
+#include "kmsgrab.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -1644,6 +1647,60 @@ namespace platf {
     BOOST_LOG(info) << "--------- End of KMS monitor list ---------"sv;
   }
 
+  /**
+   * @brief Resolve the desktop size from sysfs connector mode files.
+   *
+   * When KMS plane enumeration yields no viewport data (e.g. the Wayland
+   * correlation step was skipped and no CRTC planes were active), the
+   * physical connector modes exposed under @p drm_class_path (typically
+   * `/sys/class/drm`) are scanned for the single largest mode by area.
+   *
+   * @param drm_class_path Path to the sysfs drm class directory.
+   * @param out_w Output: width of the largest connector mode found.
+   * @param out_h Output: height of the largest connector mode found.
+   * @return `true` if at least one valid connector mode was parsed.
+   */
+  bool resolve_sysfs_desktop_size(const fs::path &drm_class_path, int &out_w, int &out_h) {
+    int best_w = 0, best_h = 0;
+
+    if (!fs::exists(drm_class_path)) {
+      return false;
+    }
+
+    for (auto &entry : fs::directory_iterator {drm_class_path}) {
+      auto path = entry.path();
+      auto filename = path.filename().generic_string();
+      // Only look at cardN-CONNECTOR entries (not cardN, renderD*, etc.)
+      if (filename.find("card") != 0 || filename.find('-') == std::string::npos) {
+        continue;
+      }
+      auto mode_file = path / "modes";
+      if (!fs::exists(mode_file)) continue;
+
+      std::ifstream f(mode_file);
+      std::string first_line;
+      if (std::getline(f, first_line)) {
+        int w = 0, h = 0;
+        if (sscanf(first_line.c_str(), "%dx%d", &w, &h) == 2 && w > 0 && h > 0) {
+          // Pick the single largest connector mode (by area) rather than
+          // mixing width and height from different connectors.
+          if (w * h > best_w * best_h) {
+            best_w = w;
+            best_h = h;
+          }
+          BOOST_LOG(info) << "  "sv << filename << " mode: "sv << w << 'x' << h;
+        }
+      }
+    }
+
+    if (best_w > 0 && best_h > 0) {
+      out_w = best_w;
+      out_h = best_h;
+      return true;
+    }
+    return false;
+  }
+
   // A list of names of displays accepted as display_name
   std::vector<std::string> kms_display_names(mem_type_e hwdevice_type) {
     int count = 0;
@@ -1757,7 +1814,12 @@ namespace platf {
     }
 
     if (!wl::init()) {
-      correlate_to_wayland(cds);
+      auto &sf = config::solarflare;
+      if (!sf.skip_wayland_correlation) {
+        correlate_to_wayland(cds);
+      } else {
+        BOOST_LOG(info) << "Skipping Wayland monitor correlation (skip_wayland_correlation = true)"sv;
+      }
     }
 
     // Deduce the full virtual desktop size
@@ -1778,6 +1840,20 @@ namespace platf {
 
         kms::env_logical_height = std::max(kms::env_logical_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.logical_height));
         kms::env_logical_width = std::max(kms::env_logical_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.logical_width));
+      }
+    }
+
+    // Fallback: when all monitor viewports are zero (Wayland correlation skipped
+    // and no active KMS planes), read connector modes from sysfs.
+    if (kms::env_width == 0) {
+      BOOST_LOG(info) << "No monitor viewport data, reading connector modes from sysfs"sv;
+      int sysfs_w = 0, sysfs_h = 0;
+      if (resolve_sysfs_desktop_size("/sys/class/drm"sv, sysfs_w, sysfs_h)) {
+        kms::env_width = sysfs_w;
+        kms::env_height = sysfs_h;
+        kms::env_logical_width = sysfs_w;
+        kms::env_logical_height = sysfs_h;
+        BOOST_LOG(info) << "Desktop resolution from sysfs: "sv << kms::env_width << 'x' << kms::env_height;
       }
     }
 
