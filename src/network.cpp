@@ -1,0 +1,361 @@
+/**
+ * @file src/network.cpp
+ * @brief Definitions for networking related functions.
+ */
+// standard includes
+#include <algorithm>
+#include <sstream>
+
+#ifdef __linux__
+  #include <sys/socket.h>  // SO_BUSY_POLL, SO_RCVBUFFORCE, setsockopt
+#endif
+
+// local includes
+#include "config.h"
+#include "logging.h"
+#include "network.h"
+#include "utility.h"
+
+using namespace std::literals;
+
+namespace ip = boost::asio::ip;
+
+namespace net {
+  std::vector<ip::network_v4> pc_ips_v4 {
+    ip::make_network_v4("127.0.0.0/8"sv),
+  };
+  std::vector<ip::network_v4> lan_ips_v4 {
+    ip::make_network_v4("192.168.0.0/16"sv),
+    ip::make_network_v4("172.16.0.0/12"sv),
+    ip::make_network_v4("10.0.0.0/8"sv),
+    ip::make_network_v4("100.64.0.0/10"sv),
+    ip::make_network_v4("169.254.0.0/16"sv),
+  };
+
+  std::vector<ip::network_v6> pc_ips_v6 {
+    ip::make_network_v6("::1/128"sv),
+  };
+  std::vector<ip::network_v6> lan_ips_v6 {
+    ip::make_network_v6("fc00::/7"sv),
+    ip::make_network_v6("fe80::/64"sv),
+  };
+
+  net_e from_enum_string(const std::string_view &view) {
+    if (view == "wan") {
+      return WAN;
+    }
+    if (view == "lan") {
+      return LAN;
+    }
+
+    return PC;
+  }
+
+  net_e from_address(const std::string_view &view) {
+    auto addr = normalize_address(ip::make_address(view));
+
+    if (addr.is_v6()) {
+      for (auto &range : pc_ips_v6) {
+        if (range.hosts().find(addr.to_v6()) != range.hosts().end()) {
+          return PC;
+        }
+      }
+
+      for (auto &range : lan_ips_v6) {
+        if (range.hosts().find(addr.to_v6()) != range.hosts().end()) {
+          return LAN;
+        }
+      }
+    } else {
+      for (auto &range : pc_ips_v4) {
+        if (range.hosts().find(addr.to_v4()) != range.hosts().end()) {
+          return PC;
+        }
+      }
+
+      for (auto &range : lan_ips_v4) {
+        if (range.hosts().find(addr.to_v4()) != range.hosts().end()) {
+          return LAN;
+        }
+      }
+    }
+
+    return WAN;
+  }
+
+  std::string_view to_enum_string(net_e net) {
+    switch (net) {
+      case PC:
+        return "pc"sv;
+      case LAN:
+        return "lan"sv;
+      case WAN:
+        return "wan"sv;
+    }
+
+    // avoid warning
+    return "wan"sv;
+  }
+
+  af_e af_from_enum_string(const std::string_view &view) {
+    if (view == "ipv4") {
+      return IPV4;
+    }
+    if (view == "both") {
+      return BOTH;
+    }
+
+    // avoid warning
+    return BOTH;
+  }
+
+  std::string_view af_to_any_address_string(const af_e af) {
+    switch (af) {
+      case IPV4:
+        return "0.0.0.0"sv;
+      case BOTH:
+        return "::"sv;
+    }
+
+    // avoid warning
+    return "::"sv;
+  }
+
+  std::string get_bind_address(const af_e af) {
+    // If bind_address is configured, use it
+    if (!config::sunshine.bind_address.empty()) {
+      return config::sunshine.bind_address;
+    }
+
+    // Otherwise use the wildcard address for the given address family
+    return std::string(af_to_any_address_string(af));
+  }
+
+  boost::asio::ip::address normalize_address(boost::asio::ip::address address) {
+    // Convert IPv6-mapped IPv4 addresses into regular IPv4 addresses
+    if (address.is_v6()) {
+      auto v6 = address.to_v6();
+      if (v6.is_v4_mapped()) {
+        return boost::asio::ip::make_address_v4(boost::asio::ip::v4_mapped, v6);
+      }
+    }
+
+    return address;
+  }
+
+  std::string addr_to_normalized_string(boost::asio::ip::address address) {
+    return normalize_address(address).to_string();
+  }
+
+  std::string addr_to_url_escaped_string(boost::asio::ip::address address) {
+    address = normalize_address(address);
+    if (address.is_v6()) {
+      std::stringstream ss;
+      ss << '[' << address.to_string() << ']';
+      return ss.str();
+    } else {
+      return address.to_string();
+    }
+  }
+
+  int encryption_mode_for_address(boost::asio::ip::address address) {
+    auto nettype = net::from_address(address.to_string());
+    if (nettype == net::net_e::PC || nettype == net::net_e::LAN) {
+      return config::stream.lan_encryption_mode;
+    } else {
+      return config::stream.wan_encryption_mode;
+    }
+  }
+
+  host_t host_create(af_e af, ENetAddress &addr, std::uint16_t port) {
+    static std::once_flag enet_init_flag;
+    std::call_once(enet_init_flag, []() {
+      enet_initialize();
+    });
+
+    const auto bind_addr = net::get_bind_address(af);
+    enet_address_set_host(&addr, bind_addr.c_str());
+    enet_address_set_port(&addr, port);
+
+    // Maximum of 128 clients, which should be enough for anyone
+    auto host = host_t {enet_host_create(af == IPV4 ? AF_INET : AF_INET6, &addr, 128, 0, 0, 0)};
+
+    if (!host) {
+      return host;
+    }
+
+    // Enable opportunistic QoS tagging (automatically disables if the network appears to drop tagged packets)
+    enet_socket_set_option(host->socket, ENET_SOCKOPT_QOS, 1);
+
+#ifdef __linux__
+    // CachyOS / Linux local-LAN fast path: grow the kernel UDP socket buffers
+    // so a 4K60 HEVC stream (~25 Mbps) never blocks on send. Without this the
+    // default rmem_max/wmem_max on a fresh install is ~200KB, which is one
+    // frame of 4K60 -> the next sendmsg() blocks until the kernel drains.
+    //
+    // 4 MiB is a safe upper bound for ~25 Mbps @ 8ms = ~25KB in-flight; we
+    // pick well above that so a single retransmit storm can't make us stall.
+    // SO_RCVBUFFORCE / SO_SNDBUFFORCE let us exceed rmem_max/wmem_max without
+    // requiring sysctl changes (they require CAP_NET_ADMIN, which Sunshine
+    // doesn't run with -- so the call silently no-ops if it fails).
+    // SolarFlare fork knob: `enet_4mib_buffer = false` falls back to the
+    // kernel default UDP buffer size.
+    if (config::solarflare.enet_4mib_buffer) {
+      int bufsize = 4 * 1024 * 1024;
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_RCVBUFFORCE, &bufsize, sizeof(bufsize));
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_SNDBUFFORCE, &bufsize, sizeof(bufsize));
+      // Fallback to the rmem_max-limited path if FORCE isn't permitted.
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+    }
+
+    // SO_BUSY_POLL: have the kernel poll the NIC for incoming packets instead
+    // of sleeping until the next interrupt. 50us is a good middle ground:
+    // it cuts the receive-side wakeup latency from ~100us-1ms down to ~50us
+    // on Wi-Fi without burning a full core. Higher values (e.g. 100us) cost
+    // noticeably more CPU for diminishing returns on a wireless link.
+    // SolarFlare fork knob: `busy_poll_us` (0-10000, default 50). 0 disables.
+    {
+      int busy_poll_us = config::solarflare.busy_poll_us;
+      if (busy_poll_us > 0) {
+        (void) setsockopt(host->socket, SOL_SOCKET, SO_BUSY_POLL, &busy_poll_us, sizeof(busy_poll_us));
+      }
+    }
+
+    // DSCP QoS: tag streaming packets so routers prioritize them over bulk
+    // traffic. IPTOS_LOWDELAY (0x10) | IPTOS_THROUGHPUT (0x08) = 0x18 = CS3.
+    // ponytail: one setsockopt, measurable on any congested LAN link.
+    if (config::solarflare.dscp_qos) {
+      // ponytail: define constants inline -- <netinet/ip.h> isn't universally
+      // available on all Linux toolchains (missing on some musl/glibc versions).
+      constexpr int kIPTOS_LOWDELAY = 0x10;
+      constexpr int kIPTOS_THROUGHPUT = 0x08;
+      const int tos = kIPTOS_LOWDELAY | kIPTOS_THROUGHPUT;  // 0x18 = CS3
+
+      // IP_TOS only takes effect on AF_INET sockets; for AF_INET6 sockets we
+      // need IPV6_TCLASS. host_create() can build either depending on @p af,
+      // so we set both: the wrong family is silently ignored by the kernel.
+      // Without IPV6_TCLASS, an "address_family = both" install streams IPv6
+      // packets with TOS=0 -- the upstream default -- so the fork's QoS
+      // promise silently breaks for dual-stack clients.
+      (void) setsockopt(host->socket, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+      (void) setsockopt(host->socket, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(tos));
+    }
+#endif
+
+    return host;
+  }
+
+  void free_host(ENetHost *host) {
+    std::for_each(host->peers, host->peers + host->peerCount, [](ENetPeer &peer_ref) {
+      ENetPeer *peer = &peer_ref;
+
+      if (peer) {
+        enet_peer_disconnect_now(peer, 0);
+      }
+    });
+
+    enet_host_destroy(host);
+  }
+
+  std::uint16_t map_port(int port) {
+    // calculate the port from the config port
+    auto mapped_port = (std::uint16_t) ((int) config::sunshine.port + port);
+
+    // Ensure port is in the range of 1024-65535
+    if (mapped_port < 1024 || mapped_port > 65535) {
+      BOOST_LOG(warning) << "Port out of range: "sv << mapped_port;
+    }
+
+    return mapped_port;
+  }
+
+  /**
+   * @brief Returns a string for use as the instance name for mDNS.
+   * @param hostname The hostname to use for instance name generation.
+   * @return Hostname-based instance name or "Sunshine" if hostname is invalid.
+   */
+  std::string mdns_instance_name(const std::string_view &hostname) {
+    // Start with the unmodified hostname
+    std::string instancename {hostname.data(), hostname.size()};
+
+    // Truncate to 63 characters per RFC 6763 section 7.2.
+    if (instancename.size() > 63) {
+      instancename.resize(63);
+    }
+
+    for (auto i = 0; i < instancename.size(); i++) {
+      // Replace any spaces with dashes
+      if (instancename[i] == ' ') {
+        instancename[i] = '-';
+      } else if (!std::isalnum(instancename[i]) && instancename[i] != '-') {
+        // Stop at the first invalid character
+        instancename.resize(i);
+        break;
+      }
+    }
+
+    return !instancename.empty() ? instancename : "Sunshine";
+  }
+
+  /**
+   * @brief Check whether a client IP falls within any of the given trusted subnets.
+   * @details Parses @p trusted_subnets_str as a comma-separated list of CIDR
+   *          ranges (both IPv4 and IPv6 are supported).  IPv4-mapped IPv6
+   *          addresses in @p client_ip are normalised to IPv4 before checking.
+   *          Malformed CIDR entries are silently skipped.
+   * @param client_ip The client's IP address as a string.
+   * @param trusted_subnets_str Comma-separated CIDR ranges, e.g. "10.0.0.0/24,fc00::/7".
+   * @return true if @p client_ip matches any CIDR range.
+   */
+  bool is_trusted_subnet(const std::string &client_ip, const std::string &trusted_subnets_str) {
+    if (trusted_subnets_str.empty() || client_ip.empty()) {
+      return false;
+    }
+
+    boost::system::error_code ec;
+    auto addr = ip::make_address(client_ip, ec);
+    if (ec) {
+      BOOST_LOG(warning) << "is_trusted_subnet: invalid client IP: "sv << client_ip;
+      return false;
+    }
+    addr = normalize_address(addr);
+
+    std::stringstream ss(trusted_subnets_str);
+    std::string cidr;
+    while (std::getline(ss, cidr, ',')) {
+      // Trim whitespace
+      auto start = cidr.find_first_not_of(" \t\r\n");
+      if (start == std::string::npos) continue;
+      cidr = cidr.substr(start);
+      auto end = cidr.find_last_not_of(" \t\r\n");
+      if (end != std::string::npos) {
+        cidr = cidr.substr(0, end + 1);
+      }
+
+      if (cidr.empty()) continue;
+
+      if (addr.is_v4()) {
+        auto net = ip::make_network_v4(cidr, ec);
+        if (!ec) {
+          if (net.hosts().find(addr.to_v4()) != net.hosts().end()) {
+            return true;
+          }
+        } else {
+          BOOST_LOG(warning) << "is_trusted_subnet: invalid IPv4 CIDR: "sv << cidr;
+        }
+      } else {
+        auto net = ip::make_network_v6(cidr, ec);
+        if (!ec) {
+          if (net.hosts().find(addr.to_v6()) != net.hosts().end()) {
+            return true;
+          }
+        } else {
+          BOOST_LOG(warning) << "is_trusted_subnet: invalid IPv6 CIDR: "sv << cidr;
+        }
+      }
+    }
+
+    return false;
+  }
+}  // namespace net

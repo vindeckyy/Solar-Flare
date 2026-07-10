@@ -1,0 +1,37 @@
+---
+# SolarFlare fork override for the centrally-managed _update-winget-repo.yml.
+#
+# The upstream file calls LizardByte/.github/.github/workflows/... and is
+# gated by 'if: github.repository_owner == LizardByte' (or '!= LizardByte/.github').
+# On this fork the owner is 'vindeckyy', so every scheduled run hits the
+# gate and is reported by GitHub as 'skipped'. That's noisy in the
+# Actions tab and confusing for anyone reviewing the fork's CI.
+#
+# We replace the file with a no-op workflow so the Actions tab stays
+# clean. If LizardByte ever publishes a fork-friendly version, this
+# override should be deleted and the upstream file restored via
+# `git checkout lizardbyte-upstream/master -- .github/workflows/_update-winget-repo.yml`.
+
+name: "Update winget repo (no-op on fork)"
+permissions: {}
+
+on:
+  schedule:
+    - cron: '0 6/12 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: '_update-winget-repo'
+  cancel-in-progress: true
+
+jobs:
+  noop:
+    name: "Update winget repo (no-op on fork)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: No-op (fork)
+        run: |
+          echo "SolarFlare fork does not run this upstream workflow."
+          echo "Reason: Bumps the winget manifest on lizardbyte/winget-repo. The fork does not publish a winget package; Windows builds are via stock GitHub runners."
+          echo "Owner: ${{ github.repository_owner }} (expected 'LizardByte')."
+          echo "This workflow is intentionally disabled. See the file's header comment."
