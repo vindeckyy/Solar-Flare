@@ -842,6 +842,13 @@ namespace cuda {
         env_width = status_params->screenSize.w;
         env_height = status_params->screenSize.h;
 
+        // NvFBC captures the framebuffer at native resolution, so
+        // the logical dimensions equal the physical dimensions.
+        logical_width = width;
+        logical_height = height;
+        env_logical_width = env_width;
+        env_logical_height = env_height;
+
         this->handle = std::move(*handle);
         return 0;
       }
