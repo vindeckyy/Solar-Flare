@@ -4089,6 +4089,113 @@ identical to a build without this configuration section. }
         <td>Example</td>
         <td colspan="2">@code{}
             cpu_pinning = disabled
+            @endcode
+    </tr>
+</table>
+
+### dscp_qos
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Tag ENet streaming packets with IP DSCP CS3 (Differentiated Services Code
+            Point, class selector 3) via `setsockopt(IP_TOS)`. Routers that honour QoS can
+            prioritise the game-stream over bulk downloads when the link is congested.
+            @note{Linux only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dscp_qos = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### gpu_governor
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When a streaming session is active, switch the GPU power profile to
+            `performance` so clock speeds stay high and frame-pacing jitter is minimised.
+            On disconnect, the profile is restored to `auto`. Supports AMD (sysfs
+            `power_dpm_force_performance_level`) and NVIDIA (`nvidia-smi -acp MAX`).
+            @note{Linux only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            gpu_governor = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### headless_virtual_display
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            If the system has no physical display outputs detected during startup, try
+            creating a virtual display via `xrandr --setprovideroutputsource` and
+            `xrandr --auto` so the capture backend has something to grab. Designed for
+            headless servers. Requires an X11 display server (Xorg or XWayland).
+            @note{Linux only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            headless_virtual_display = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### skip_wayland_correlation
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Skip the Wayland output-ID to KMS connector-ID correlation step during
+            display enumeration. This avoids a `wl_output` roundtrip to the compositor
+            that can hang indefinitely on KWin (KDE Plasma). Enabled at the cost of
+            losing absolute mouse-to-monitor coordinate mapping on multi-monitor setups.
+            @note{Linux only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            skip_wayland_correlation = enabled
             @endcode</td>
     </tr>
 </table>
