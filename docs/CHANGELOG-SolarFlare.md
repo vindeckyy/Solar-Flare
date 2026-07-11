@@ -6,6 +6,32 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+## 2026-07-11
+
+### Morning sweep (Jul 11)
+
+Test suite: 494 tests, 482 passed / 12 skipped / 0 failed
+(all clean, ConfigConsistencyTest now passes after test binary rebuild).
+
+Bug found: `third-party/inputtino` submodule pointed to a fork-local commit
+(`64436f0`) that only exists on Hayden's local clone and was never pushed
+to any remote. Both the new pointer and the old upstream pointer (`7e2bb5d`)
+were unreachable from origin — a fresh Solar-Flare clone would fail during
+submodule checkout. Fixed by repointing to `b887f6a` (upstream stable HEAD,
+fetchable from games-on-whales/inputtino). Hayden's pure MT Type B fix needs
+a published inputtino fork to live in (see commit message for recipe).
+
+Other audit checks (doxygen, IPPROTO_IPV6/DSCP, hardcoded sample rates,
+mutex-unlock mismatches, null-pointer derefs, test_config_fork_keys coverage):
+clean — no new issues.
+
+- `05f8c76` fix(submodule): point third-party/inputtino to upstream stable HEAD
+
+> **Note:** Commit is local-only. Push requires a `.netrc`-hosting host — not
+> on today's cron slot. Next cron on a populated host will push it.
+
+---
+
 ## 2026-07-10
 
 ### Morning sweep (Jul 10)
