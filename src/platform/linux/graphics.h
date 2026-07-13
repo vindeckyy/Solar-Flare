@@ -603,6 +603,7 @@ namespace egl {
   class img_descriptor_t: public cursor_t {
   public:
     ~img_descriptor_t() {
+      delete[] data;
       reset();
     }
 

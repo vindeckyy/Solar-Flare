@@ -161,7 +161,7 @@ namespace portal {
         if (conn && !session_handle.empty()) {
           g_autoptr(GError) err = nullptr;
           // This is a blocking C call; it won't throw, but we wrap for safety
-          g_dbus_connection_call_sync(
+          g_autoptr(GVariant) close_response = g_dbus_connection_call_sync(
             conn,
             "org.freedesktop.portal.Desktop",
             session_handle.c_str(),
@@ -318,7 +318,7 @@ namespace portal {
       if (conn && !session_handle.empty()) {
         // Try to retrieve property org.freedesktop.portal.Session::version
         g_autoptr(GError) err = nullptr;
-        g_dbus_connection_call_sync(
+        g_autoptr(GVariant) property_response = g_dbus_connection_call_sync(
           conn,
           "org.freedesktop.portal.Desktop",
           session_handle.c_str(),
@@ -375,7 +375,7 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
+      g_autofree gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -443,7 +443,7 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
+      g_autofree gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -496,7 +496,7 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
+      g_autofree gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -544,7 +544,7 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
+      g_autofree gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -573,7 +573,8 @@ namespace portal {
         return -1;
       }
 
-      if (const gchar *new_token = nullptr; g_variant_lookup(dict, "restore_token", "s", &new_token) && new_token && new_token[0] != '\0' && restore_token_t::get() != new_token) {
+      g_autofree gchar *new_token = nullptr;
+      if (g_variant_lookup(dict, "restore_token", "s", &new_token) && new_token && new_token[0] != '\0' && restore_token_t::get() != new_token) {
         restore_token_t::set(new_token);
         restore_token_t::save();
       }

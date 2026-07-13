@@ -717,12 +717,12 @@ namespace pipewire {
    */
   class pipewire_display_t: public platf::display_t {
   public:
-    /**
-     * @brief Initialize pipewire and check hwdevice type.
-     *
-     * @param hwdevice_type Hardware device type requested for capture or encode.
-     * @return True when PipeWire is initialized and the hardware device type is supported.
-     */
+    ~pipewire_display_t() override {
+      for (int i = 0; i < n_dmabuf_infos; ++i) {
+        g_free(dmabuf_infos[i].modifiers);
+      }
+    }
+
     static bool init_pipewire_and_check_hwdevice_type(platf::mem_type_e hwdevice_type) {
       // Initialize pipewire to load necessary modules
       pw_init(nullptr, nullptr);
