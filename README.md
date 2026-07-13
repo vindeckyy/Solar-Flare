@@ -68,7 +68,7 @@ systemctl --user enable --now sunshine
 ```bash
 # Option B: prebuilt binary from a release
 sudo apt install -y libopus0 libva2 libdrm2 libevdev2 libgbm1 libvulkan1 libwayland-client0 libpulse0 libcurl4 libnotify4 libcap2-bin   # runtime deps on Debian/Ubuntu
-sudo curl -L -o /usr/local/bin/sunshine https://github.com/vindeckyy/Solar-Flare/releases/latest/download/sunshine-2026.708.3-solarflare-x86_64
+sudo curl -L -o /usr/local/bin/sunshine https://github.com/vindeckyy/Solar-Flare/releases/latest/download/sunshine-x86_64
 sudo chmod +x /usr/local/bin/sunshine
 sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 systemctl --user enable --now sunshine
