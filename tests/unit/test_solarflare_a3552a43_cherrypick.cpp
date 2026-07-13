@@ -28,7 +28,6 @@
  * (e.g. headless servers, X11-only setups) will fail to build.
  */
 #include "../tests_common.h"
-
 #include "src/file_handler.h"
 
 #include <string>
@@ -36,7 +35,7 @@
 namespace {
 
   std::string read_file(const std::string &path) {
-    return file_handler::read_file(path.c_str());
+    return test_utils::read_repo_file(path);
   }
 
   bool contains(const std::string &haystack, const std::string &needle) {
@@ -47,11 +46,19 @@ namespace {
   // an empty string if not found.
   std::string find_line(const std::string &content, const std::string &marker) {
     size_t pos = content.find(marker);
-    if (pos == std::string::npos) return "";
+    if (pos == std::string::npos) {
+      return "";
+    }
     size_t line_start = content.rfind('\n', pos);
-    if (line_start == std::string::npos) line_start = 0; else line_start += 1;
+    if (line_start == std::string::npos) {
+      line_start = 0;
+    } else {
+      line_start += 1;
+    }
     size_t line_end = content.find('\n', pos);
-    if (line_end == std::string::npos) line_end = content.size();
+    if (line_end == std::string::npos) {
+      line_end = content.size();
+    }
     return content.substr(line_start, line_end - line_start);
   }
 
@@ -81,33 +88,29 @@ TEST(SolarflareBuildDrmCherryPick, DrmBlocksNestedInEnableDrm) {
   // an 'if(SUNSHINE_ENABLE_DRM)' gate. The 'if' may be on a previous
   // line (in the case of multi-line 'if/endif' blocks), so we look
   // at the 200 bytes before each marker.
-  auto check_nested_in_drm = [&content](const std::string &marker,
-                                      const char *marker_desc) {
+  auto check_nested_in_drm = [&content](const std::string &marker, const char *marker_desc) {
     const size_t pos = content.find(marker);
     if (pos == std::string::npos) {
       return ::testing::AssertionFailure()
-        << "Could not find '" << marker << "' in linux.cmake.";
+             << "Could not find '" << marker << "' in linux.cmake.";
     }
     const size_t window_start = (pos >= 400) ? pos - 400 : 0;
     const std::string window = content.substr(window_start, pos - window_start);
     if (window.find("if(${SUNSHINE_ENABLE_DRM})") == std::string::npos) {
       return ::testing::AssertionFailure()
-        << marker_desc << " ('" << marker
-        << "') is not nested inside an 'if(SUNSHINE_ENABLE_DRM)' "
-           "block. The a3552a43 cherry-pick nested all DRM-specific "
-           "code so it can be turned off via -DSUNSHINE_ENABLE_DRM=OFF. "
-           "Re-apply the cherry-pick.\nContext (400 bytes before):\n"
-        << window;
+             << marker_desc << " ('" << marker
+             << "') is not nested inside an 'if(SUNSHINE_ENABLE_DRM)' "
+                "block. The a3552a43 cherry-pick nested all DRM-specific "
+                "code so it can be turned off via -DSUNSHINE_ENABLE_DRM=OFF. "
+                "Re-apply the cherry-pick.\nContext (400 bytes before):\n"
+             << window;
     }
     return ::testing::AssertionSuccess();
   };
 
-  EXPECT_TRUE(check_nested_in_drm("add_compile_definitions(SUNSHINE_BUILD_DRM)",
-                                    "The SUNSHINE_BUILD_DRM compile def"));
-  EXPECT_TRUE(check_nested_in_drm("kmsgrab.cpp",
-                                    "The kmsgrab.cpp target_files entry"));
-  EXPECT_TRUE(check_nested_in_drm("EGL_NO_X11=1",
-                                    "The EGL_NO_X11=1 compile def"));
+  EXPECT_TRUE(check_nested_in_drm("add_compile_definitions(SUNSHINE_BUILD_DRM)", "The SUNSHINE_BUILD_DRM compile def"));
+  EXPECT_TRUE(check_nested_in_drm("kmsgrab.cpp", "The kmsgrab.cpp target_files entry"));
+  EXPECT_TRUE(check_nested_in_drm("EGL_NO_X11=1", "The EGL_NO_X11=1 compile def"));
 }
 
 // =============================================================================
@@ -133,9 +136,9 @@ TEST(SolarflareBuildDrmCherryPick, LibCapForAnyLinuxBuild) {
   const std::string window = content.substr(window_start, libcap_pos - window_start);
   EXPECT_TRUE(window.find("if(LINUX)") != std::string::npos)
     << "The 400 bytes before 'find_package(LIBCAP REQUIRED)' is:\n"
-       << window << "\nThe a3552a43 cherry-pick should gate it on "
-       "'if(LINUX)' so libcap is found for any Linux build, not "
-       "just DRM. Re-apply the cherry-pick.";
+    << window << "\nThe a3552a43 cherry-pick should gate it on "
+                 "'if(LINUX)' so libcap is found for any Linux build, not "
+                 "just DRM. Re-apply the cherry-pick.";
 
   // The old "if(${SUNSHINE_ENABLE_DRM})" gating of libcap must be
   // gone. The old format was either "if(SUNSHINE_ENABLE_DRM)\n

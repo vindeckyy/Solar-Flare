@@ -129,6 +129,11 @@ set(INTEGRATION_TEST_FILES
     "src_assets/common/assets/web/public/assets/locale/en.json"
     "src_assets/common/assets/web/configs/tabs/General.vue"
     "src_assets/linux/misc/60-sunshine.rules"
+    # Web UI cherry-pick regression guards (SolarflareWebUITheme, SolarflareWebUIFixCherryPick).
+    # Copy ThemeToggle.vue + sunshine.css so the test binary finds them when
+    # invoked from cmake-build-test/tests/.
+    "src_assets/common/assets/web/ThemeToggle.vue"
+    "src_assets/common/assets/web/sunshine.css"
 )
 
 foreach(file ${INTEGRATION_TEST_FILES})
@@ -171,7 +176,9 @@ if(GCOV_LINK_LIBRARY)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${TEST_LINK_LIBRARIES})
-target_compile_definitions(${PROJECT_NAME} PUBLIC ${SUNSHINE_DEFINITIONS} ${TEST_DEFINITIONS})
+target_compile_definitions(${PROJECT_NAME} PUBLIC ${SUNSHINE_DEFINITIONS} ${TEST_DEFINITIONS}
+    SOLARFLARE_TEST_SOURCE_ROOT="${CMAKE_SOURCE_DIR}"
+)
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
 target_link_options(${PROJECT_NAME} PRIVATE)
 

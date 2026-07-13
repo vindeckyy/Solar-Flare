@@ -13,6 +13,7 @@
 #endif
 
 #include <gtest/gtest.h>
+#include <src/file_handler.h>
 #include <src/globals.h>
 #include <src/logging.h>
 #include <src/platform/common.h>
@@ -21,6 +22,33 @@
 #if defined(__GNUC__) && !defined(__clang__)
   #pragma GCC diagnostic pop
 #endif
+
+#include <string>
+
+// SOLARFLARE_TEST_SOURCE_ROOT is injected by tests/CMakeLists.txt via
+// target_compile_definitions so relative paths in tests resolve regardless
+// of the test binary's CWD. Falls back to "." if the macro is undefined
+// (e.g. when running tests outside the CMake harness).
+#ifndef SOLARFLARE_TEST_SOURCE_ROOT
+  #define SOLARFLARE_TEST_SOURCE_ROOT "."
+#endif
+
+namespace test_utils {
+  /**
+   * @brief Read a file under the repo source root by relative path.
+   *
+   * Resolves @p rel_path against SOLARFLARE_TEST_SOURCE_ROOT so callers
+   * don't have to know the test binary's CWD. Returns an empty string
+   * on read failure (matching file_handler::read_file semantics).
+   *
+   * @param rel_path Path relative to repo root, e.g. "src/video.cpp".
+   * @return File contents, or empty string on failure.
+   */
+  inline std::string read_repo_file(const std::string &rel_path) {
+    std::string full = std::string(SOLARFLARE_TEST_SOURCE_ROOT) + "/" + rel_path;
+    return file_handler::read_file(full.c_str());
+  }
+}  // namespace test_utils
 
 // XFail/XPass pattern implementation (similar to pytest)
 namespace test_utils {
