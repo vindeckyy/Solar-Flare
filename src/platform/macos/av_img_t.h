@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/macos/av_img_t.h
  * @brief Declarations for AV image types on macOS.

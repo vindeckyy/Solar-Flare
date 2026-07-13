@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_stat_trackers.cpp
  * @brief Tests for src/stat_trackers.h — fork-modified, previously uncovered.

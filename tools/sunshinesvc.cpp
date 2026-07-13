@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tools/sunshinesvc.cpp
  * @brief Handles launching Sunshine.exe into user sessions as SYSTEM

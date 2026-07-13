@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file file_handler.cpp
  * @brief Definitions for file handling functions.

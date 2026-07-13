@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/audio.cpp
  * @brief Definitions for audio capture and encoding.

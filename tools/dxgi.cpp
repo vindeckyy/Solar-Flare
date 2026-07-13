@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tools/dxgi.cpp
  * @brief Displays information about connected displays and GPUs

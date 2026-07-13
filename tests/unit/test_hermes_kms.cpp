@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_hermes_kms.cpp
  * @brief Tests for the Hermes-KMS probe that don't require the kernel module.

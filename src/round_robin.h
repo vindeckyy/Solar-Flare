@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/round_robin.h
  * @brief Declarations for a round-robin iterator.

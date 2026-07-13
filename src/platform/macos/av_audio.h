@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/macos/av_audio.h
  * @brief Declarations for macOS audio capture with dual input paths.

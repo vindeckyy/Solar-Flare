@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/thread_safe.h
  * @brief Declarations for thread-safe data structures.

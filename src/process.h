@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/process.h
  * @brief Declarations for the startup and shutdown of the apps started by a streaming Session.

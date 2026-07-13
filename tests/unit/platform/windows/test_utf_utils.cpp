@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/platform/windows/test_utf_utils.cpp
  * @brief Test src/platform/windows/utf_utils.cpp UTF conversion functions.

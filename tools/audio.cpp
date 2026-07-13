@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tools/audio.cpp
  * @brief Handles collecting audio device information from Windows.

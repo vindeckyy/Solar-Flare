@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/nvprefs/nvprefs_interface.h
  * @brief Declarations for nvidia preferences interface.

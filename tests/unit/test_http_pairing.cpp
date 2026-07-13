@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_http_pairing.cpp
  * @brief Test src/nvhttp.cpp HTTP pairing process

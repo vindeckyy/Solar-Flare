@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/display_base.cpp
  * @brief Definitions for the Windows display base code.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/portalgrab.cpp
  * @brief Definitions for XDG portal grab.

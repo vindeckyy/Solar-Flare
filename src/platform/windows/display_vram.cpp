@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/display_vram.cpp
  * @brief Definitions for handling video ram.

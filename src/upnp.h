@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/upnp.h
  * @brief Declarations for UPnP port mapping.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/hermes_kms.h
  * @brief Hermes-KMS virtual display consumer for Sunshine.

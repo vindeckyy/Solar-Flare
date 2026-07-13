@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/macos/misc.h
  * @brief Miscellaneous declarations for macOS platform.

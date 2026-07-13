@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/rswrapper.h
  * @brief Wrappers for nanors vectorization

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/integration/test_config_consistency.cpp
  * @brief Test configuration consistency across all configuration files

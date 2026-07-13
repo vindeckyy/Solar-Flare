@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/vaapi.cpp
  * @brief Definitions for VA-API hardware accelerated capture.

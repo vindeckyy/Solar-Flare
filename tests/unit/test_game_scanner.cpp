@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_game_scanner.cpp
  * @brief Tests for game_scanner::{scan_steam,scan_lutris,scan_heroic,scan_all}.

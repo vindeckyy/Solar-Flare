@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_file_handler.cpp
  * @brief Test src/file_handler.*.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/stream.cpp
  * @brief Definitions for the streaming protocols.

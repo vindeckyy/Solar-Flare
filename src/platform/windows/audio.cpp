@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/audio.cpp
  * @brief Definitions for Windows audio capture.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/nvenc/nvenc_d3d11_on_cuda.cpp
  * @brief Definitions for CUDA NVENC encoder with Direct3D11 input surfaces.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/tests_environment.h
  * @brief Declarations for SunshineEnvironment.

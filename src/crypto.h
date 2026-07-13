@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/crypto.h
  * @brief Declarations for cryptography functions.

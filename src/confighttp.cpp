@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/confighttp.cpp
  * @brief Definitions for the Web UI Config HTTP server.

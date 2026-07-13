@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/nvprefs/undo_data.h
  * @brief Declarations for undoing changes to nvidia preferences.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_confighttp.cpp
  * @brief Test src/confighttp.cpp

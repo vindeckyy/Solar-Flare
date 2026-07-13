@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_parse_monitor_index.cpp
  * @brief Tests for util::parse_monitor_index.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/cbs.h
  * @brief Declarations for FFmpeg Coded Bitstream API.

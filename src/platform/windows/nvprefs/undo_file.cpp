@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/nvprefs/undo_file.cpp
  * @brief Definitions for the nvidia undo file.

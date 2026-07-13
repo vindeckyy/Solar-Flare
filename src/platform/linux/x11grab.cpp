@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/x11grab.cpp
  * @brief Definitions for x11 capture.

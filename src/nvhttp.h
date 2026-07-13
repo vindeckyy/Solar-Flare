@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/nvhttp.h
  * @brief Declarations for the nvhttp (GameStream) server.

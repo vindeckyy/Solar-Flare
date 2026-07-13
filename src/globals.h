@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file globals.h
  * @brief Declarations for globally accessible variables and functions.

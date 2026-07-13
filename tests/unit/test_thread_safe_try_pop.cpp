@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 #include "src/file_handler.h"
 /**
  * @file tests/unit/test_thread_safe_try_pop.cpp

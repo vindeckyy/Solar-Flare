@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/pipewire.cpp
  * @brief Shared classes for pipewire-based capture methods.

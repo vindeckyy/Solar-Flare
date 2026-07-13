@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_solarflare_2c59b2e6_cherrypick.cpp
  * @brief Regression guard for the round-3 cherry-pick of

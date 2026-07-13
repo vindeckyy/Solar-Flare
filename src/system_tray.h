@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/system_tray.h
  * @brief Declarations for the system tray icon and notification system.

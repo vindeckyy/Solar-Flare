@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/stream.h
  * @brief Declarations for the streaming protocols.

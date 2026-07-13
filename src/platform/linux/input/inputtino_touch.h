@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/input/inputtino_touch.h
  * @brief Declarations for inputtino touch input handling.

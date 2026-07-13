@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/kmsgrab.h
  * @brief Declarations for the KMS/DRM capture backend helpers.

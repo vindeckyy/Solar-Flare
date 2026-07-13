@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/uuid.h
  * @brief Declarations for UUID generation.

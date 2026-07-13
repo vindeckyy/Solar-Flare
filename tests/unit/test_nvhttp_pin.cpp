@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_nvhttp_pin.cpp
  * @brief Tests for nvhttp::pin() — the held async-response path used when

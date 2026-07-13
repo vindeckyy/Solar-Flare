@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/nvprefs/driver_settings.h
  * @brief Declarations for nvidia driver settings.

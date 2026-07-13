@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/display_wgc.cpp
  * @brief Definitions for WinRT Windows.Graphics.Capture API

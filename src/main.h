@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/main.h
  * @brief Declarations for the main entry point for Sunshine.

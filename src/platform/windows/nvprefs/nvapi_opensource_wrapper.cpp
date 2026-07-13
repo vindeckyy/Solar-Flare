@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/nvprefs/nvapi_opensource_wrapper.cpp
  * @brief Definitions for the NVAPI wrapper.

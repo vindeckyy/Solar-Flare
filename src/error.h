@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/error.h
  * @brief SolarFlare enhanced error handling: tagged error codes, source

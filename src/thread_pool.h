@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/thread_pool.h
  * @brief Declarations for the thread pool system.
