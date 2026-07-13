@@ -3,6 +3,13 @@
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/"
         DESTINATION "${SUNSHINE_ASSETS_DIR}")
 
+# ponytail: local-build install path has no package manager to grant caps,
+# so apply them via setcap here. RPM/DEB still use the %caps spec above.
+# cap_sys_admin (uinput/input subsystem), cap_sys_nice (RT-priority threads).
+if(NOT SUNSHINE_BUILD_APPIMAGE AND NOT SUNSHINE_BUILD_FLATPAK)
+    install(CODE "execute_process(COMMAND sh -c \"command -v setcap >/dev/null && setcap cap_sys_admin,cap_sys_nice+p '${CMAKE_INSTALL_FULL_BINDIR}/sunshine' || echo 'sunshine: setcap skipped (no libcap2-bin or non-root install)' 1>&2\")")
+endif()
+
 # copy assets (excluding shaders) to build directory, for running without install
 file(COPY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/"
         DESTINATION "${CMAKE_BINARY_DIR}/assets"
