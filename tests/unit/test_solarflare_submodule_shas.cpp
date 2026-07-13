@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_solarflare_submodule_shas.cpp
  * @brief Simple regression guard for the round-6 submodule-pointer

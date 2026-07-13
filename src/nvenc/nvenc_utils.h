@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/nvenc/nvenc_utils.h
  * @brief Declarations for NVENC utilities.

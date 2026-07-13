@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/headless_compositor.h
  * @brief Declarations for the headless compositor used for private game

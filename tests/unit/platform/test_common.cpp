@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/platform/test_common.cpp
  * @brief Test src/platform/common.*.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/task_pool.h
  * @brief Declarations for the task pool system.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/input/inputtino_mouse.cpp
  * @brief Definitions for inputtino mouse input handling.

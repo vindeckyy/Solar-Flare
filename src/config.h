@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/config.h
  * @brief Declarations for the configuration of Sunshine.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/rswrapper.c
  * @brief Wrappers for nanors vectorization with different ISA options

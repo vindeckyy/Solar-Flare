@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/sync.h
  * @brief Declarations for synchronization utilities.

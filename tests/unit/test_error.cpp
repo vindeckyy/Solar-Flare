@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_error.cpp
  * @brief Regression tests for src/error.h.

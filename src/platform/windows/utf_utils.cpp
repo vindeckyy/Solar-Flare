@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/utf_utils.cpp
  * @brief Minimal UTF conversion utilities for Windows tools

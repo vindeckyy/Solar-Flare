@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/cuda.h
  * @brief Definitions for CUDA implementation.

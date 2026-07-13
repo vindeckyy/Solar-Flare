@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/misc.cpp
  * @brief Miscellaneous definitions for Windows.

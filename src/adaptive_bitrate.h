@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/adaptive_bitrate.h
  * @brief EWMA-based adaptive bitrate controller.

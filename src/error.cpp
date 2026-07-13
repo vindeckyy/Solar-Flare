@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/error.cpp
  * @brief Implementation of the singleton error_counters_t.

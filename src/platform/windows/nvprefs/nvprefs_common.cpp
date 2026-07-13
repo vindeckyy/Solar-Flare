@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/nvprefs/nvprefs_common.cpp
  * @brief Definitions for common nvidia preferences.

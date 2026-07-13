@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/move_by_copy.h
  * @brief Declarations for the MoveByCopy utility class.

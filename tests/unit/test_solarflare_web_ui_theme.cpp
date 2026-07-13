@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_solarflare_web_ui_theme.cpp
  * @brief Regression tests for the SolarFlare fork's web UI theme

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file entry_handler.h
  * @brief Declarations for entry handling functions.

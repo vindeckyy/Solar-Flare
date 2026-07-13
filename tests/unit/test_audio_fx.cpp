@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_audio_fx.cpp
  * @brief Unit tests for src/audio_fx.* (AGC, VAD, Ducker, PreProcessor).

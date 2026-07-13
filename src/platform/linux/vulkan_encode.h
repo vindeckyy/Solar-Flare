@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/vulkan_encode.h
  * @brief Declarations for FFmpeg Vulkan Video encoder.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/windows/display_ram.cpp
  * @brief Definitions for handling ram.

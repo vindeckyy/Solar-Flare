@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/nvenc/nvenc_encoded_frame.h
  * @brief Declarations for NVENC encoded frame.

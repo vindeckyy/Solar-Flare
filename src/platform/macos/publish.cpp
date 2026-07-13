@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/macos/publish.cpp
  * @brief Definitions for publishing services on macOS.

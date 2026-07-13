@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/audio.cpp
  * @brief Definitions for audio control on Linux.

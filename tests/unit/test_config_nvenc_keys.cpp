@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_config_nvenc_keys.cpp
  * @brief Tests for the SolarFlare fork's NVENC tuning keys.

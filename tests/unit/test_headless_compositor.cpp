@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/unit/test_headless_compositor.cpp
  * @brief Tests for platf::headless::compositor_t.

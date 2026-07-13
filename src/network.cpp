@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/network.cpp
  * @brief Definitions for networking related functions.

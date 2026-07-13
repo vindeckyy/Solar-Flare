@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/macos/nv12_zero_device.cpp
  * @brief Definitions for NV12 zero copy device on macOS.

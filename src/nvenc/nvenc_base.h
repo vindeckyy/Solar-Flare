@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/nvenc/nvenc_base.h
  * @brief Declarations for abstract platform-agnostic base of standalone NVENC encoder.

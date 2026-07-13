@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/integration/test_external_commands.cpp
  * @brief Integration tests for running external commands with platform-specific validation

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/nvenc/nvenc_d3d11.h
  * @brief Declarations for abstract Direct3D11 NVENC encoder.

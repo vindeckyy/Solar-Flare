@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file game_scanner.h
  * @brief Declarations for scanning installed games from Steam, Lutris, and Heroic.

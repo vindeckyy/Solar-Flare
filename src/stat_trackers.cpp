@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/stat_trackers.cpp
  * @brief Definitions for streaming statistic tracking.

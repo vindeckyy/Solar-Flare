@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/nvenc/nvenc_colorspace.h
  * @brief Declarations for NVENC YUV colorspace.

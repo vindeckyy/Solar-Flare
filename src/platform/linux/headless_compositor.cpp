@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/headless_compositor.cpp
  * @brief Headless Wayland compositor implementation for private game

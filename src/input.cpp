@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/input.cpp
  * @brief Definitions for gamepad, keyboard, and mouse input handling.

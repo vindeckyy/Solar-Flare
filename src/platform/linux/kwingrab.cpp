@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/kwingrab.cpp
  * @brief KWin direct ScreenCast capture via zkde_screencast_unstable_v1 Wayland protocol.

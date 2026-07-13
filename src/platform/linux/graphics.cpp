@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file src/platform/linux/graphics.cpp
  * @brief Definitions for graphics related functions.

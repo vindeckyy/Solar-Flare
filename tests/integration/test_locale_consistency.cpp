@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 /**
  * @file tests/integration/test_locale_consistency.cpp
  * @brief Test locale consistency across configuration files and locale JSON files
