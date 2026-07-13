@@ -78,7 +78,7 @@ Sunshine requires CUDA Toolkit for NVFBC capture. There are two caveats to CUDA:
 
 1. The version installed depends on the version of GCC.
 2. The version of CUDA you use will determine compatibility with various GPU generations.
-   At the time of writing, the recommended version to use is CUDA ~13.1.
+   At the time of writing, the recommended version to use is CUDA 12.6 or newer (12.6 supports GCC 13, which is required for `<format>` and other C++23 features).
    See [CUDA compatibility](https://docs.nvidia.com/deploy/cuda-compatibility/index.html) for more info.
 
 > [!NOTE]

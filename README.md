@@ -1,3 +1,24 @@
+<p align="center">
+  <img src="https://img.shields.io/badge/SolarFlare-F7B731?style=for-the-badge&logo=sun&logoColor=black" alt="SolarFlare">
+</p>
+
+<h1 align="center">SolarFlare</h1>
+
+<p align="center">
+  <em>Your games. Your hardware. Your network. No lag.</em>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License"></a>
+  <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf?style=flat-square" alt="Fork"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-v2026.708.3--solarflare-orange?style=flat-square" alt="Version"></a>
+  <a href="#testing"><img src="https://img.shields.io/badge/tests-490%20passed%2C%2012%20skipped-brightgreen?style=flat-square" alt="Tests"></a>
+  <a href="https://github.com/vindeckyy/Solar-Flare/releases"><img src="https://img.shields.io/github/v/release/vindeckyy/Solar-Flare?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/vindeckyy/Solar-Flare/stargazers"><img src="https://img.shields.io/github/stars/vindeckyy/Solar-Flare?style=flat-square" alt="Stars"></a>
+</p>
+
+<br>
+
 <div align="center">
   <img
     src="sunshine.svg"
@@ -32,7 +53,7 @@ git clone https://github.com/vindeckyy/Solar-Flare.git
 cd Solar-Flare
 ./scripts/cachyos-build.sh
 sudo cmake --install build
-sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
+sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 systemctl --user enable --now sunshine
 ```
 
@@ -41,7 +62,7 @@ systemctl --user enable --now sunshine
 sudo apt install -y libopus0 libva2 libdrm2 libevdev2 libgbm1 libvulkan1 libwayland-client0 libpulse0 libcurl4 libnotify4 libcap2-bin   # runtime deps on Debian/Ubuntu
 sudo curl -L -o /usr/local/bin/sunshine https://github.com/vindeckyy/Solar-Flare/releases/latest/download/sunshine-x86_64
 sudo chmod +x /usr/local/bin/sunshine
-sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
+sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 systemctl --user enable --now sunshine
 ```
 
@@ -56,7 +77,7 @@ git pull
 git submodule update --init --recursive
 ./scripts/cachyos-build.sh --clean
 sudo cmake --install build
-sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
+sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 systemctl --user restart sunshine
 ```
 </details>
@@ -774,3 +795,87 @@ Thank you to all the contributors who have helped make Sunshine better!
   <summary></summary>
   [TOC]
 </details>
+
+<details>
+<summary><b>Ubuntu / Debian</b></summary>
+
+```bash
+sudo apt install build-essential cmake libboost-all-dev libcurl4-openssl-dev libopus-dev libx11-dev libxrandr-dev libxfixes-dev libxcb1-dev libavahi-client-dev libdrm-dev libevdev-dev libwayland-dev libpulse-dev libpipewire-0.3-dev
+```
+</details>
+
+<details>
+<summary><b>Fedora</b></summary>
+
+```bash
+sudo dnf install gcc-c++ cmake boost-devel libcurl-devel opus-devel libX11-devel libXrandr-devel libXfixes-devel libxcb-devel avahi-devel libdrm-devel libevdev-devel wayland-devel pulseaudio-libs-devel pipewire-devel
+```
+</details>
+
+### Build
+
+```bash
+git submodule update --init --recursive
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF
+cmake --build build -j$(nproc)
+sudo cmake --install build
+sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
+```
+
+---
+
+## Testing
+
+490 automated tests check everything: config defaults, video presets, audio processing, capture backends, bitrate control, and regression guards.
+
+- **478 pass**, 12 skipped (hardware-dependent: some tests need NVIDIA GPUs, physical audio devices, or input hardware — none are actual problems)
+- **0 failures**
+
+To run tests:
+
+```bash
+cmake -B build-tests -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
+cmake --build build-tests -j$(nproc)
+./build-tests/tests/test_sunshine --gtest_brief=1
+```
+
+---
+
+## FAQ
+
+**Will this break my existing Moonlight setup?**  
+No. Same ports, same config files, same pairing. You can switch between SolarFlare and regular Sunshine freely — all your settings and paired devices carry over.
+
+**How do I go back to regular Sunshine?**  
+On Arch: `sudo pacman -S sunshine`. If you built from source, the install manifest is at `build/install_manifest.txt`. Your config folder stays intact — both versions use the same files.
+
+**Does this work on Windows, Intel, or ARM?**  
+No. SolarFlare is Linux-only. Use regular Sunshine on those platforms.
+
+**My game freezes during loading screens.**  
+Fixed. The capture thread no longer uses real-time priority — game threads can interrupt it when needed.
+
+**I don't have an NVIDIA GPU. Does SolarFlare help me?**  
+Yes — the network, audio, CPU, and headless features work on any GPU. The NVENC presets are NVIDIA-only, but everything else benefits AMD and Intel GPUs too.
+
+**How much CPU does SolarFlare use?**  
+About the same as regular Sunshine. The busy-poll feature uses a tiny amount of extra CPU (one core checking for data 20,000 times per second), but it's offset by the CPU pinning feature keeping streaming threads off your game's cores.
+
+---
+
+## Credits
+
+SolarFlare is built on [LizardByte's Sunshine](https://github.com/LizardByte/Sunshine), based on the original Sunshine by Nathan Castle. The web interface, Moonlight protocol, and cross-platform foundation are all their work.
+
+Full changelog: [docs/CHANGELOG-SolarFlare.md](docs/CHANGELOG-SolarFlare.md)
+
+---
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License"></a>
+  <a href="https://github.com/vindeckyy/Solar-Flare/issues"><img src="https://img.shields.io/github/issues/vindeckyy/Solar-Flare?style=flat-square" alt="Issues"></a>
+  <a href="https://github.com/vindeckyy/Solar-Flare/releases"><img src="https://img.shields.io/github/v/release/vindeckyy/Solar-Flare?style=flat-square" alt="Release"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/changelog-SolarFlare-orange?style=flat-square" alt="Changelog"></a>
+  <br><br>
+  <strong>SolarFlare — Less lag, more game.</strong>
+</p>
