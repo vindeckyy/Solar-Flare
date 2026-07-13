@@ -16,7 +16,7 @@
 /**
  * @brief Test fixture for utf_utils namespace functions
  */
-class UtfUtilsTest: public BaseTest {};
+class UtfUtilsTest: public testing::Test {};
 
 TEST_F(UtfUtilsTest, FromUtf8WithEmptyString) {
   const std::string empty_string = "";

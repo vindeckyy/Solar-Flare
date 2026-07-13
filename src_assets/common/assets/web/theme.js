@@ -21,6 +21,7 @@ const darkThemes = new Set([
     'nord',
     'rose-pine',
     'slate',
+    'solarflare',
 ])
 
 const setTheme = theme => {

@@ -4,12 +4,15 @@
  */
 // standard includes
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <thread>
+#include <sstream>
 #include <unordered_map>
 #include <utility>
 
@@ -20,6 +23,7 @@
 #include <boost/property_tree/ptree.hpp>
 
 // local includes
+#include "audio.h"
 #include "config.h"
 #include "entry_handler.h"
 #include "file_handler.h"
@@ -38,29 +42,61 @@
   #include <ffnvcodec/nvEncodeAPI.h>
 #endif
 
-#if (defined(linux) || defined(__FreeBSD__)) && !defined(DOXYGEN)
-  // For VAAPI rate control types
-  #include <va/va.h>
-#endif
-
 namespace fs = std::filesystem;
 using namespace std::literals;
 
-constexpr auto CA_DIR = "credentials";  ///< Subdirectory under app data that stores Sunshine credentials.
-const std::string PRIVATE_KEY_FILE = std::string(CA_DIR) + "/cakey.pem";  ///< Relative path to the persisted private key PEM file.
-const std::string CERTIFICATE_FILE = std::string(CA_DIR) + "/cacert.pem";  ///< Relative path to the persisted certificate PEM file.
-const std::string APPS_JSON_PATH = platf::appdata().string() + "/apps.json";  ///< Default path to the applications JSON file.
+constexpr auto CA_DIR = "credentials";
+const std::string PRIVATE_KEY_FILE = std::string(CA_DIR) + "/cakey.pem";
+const std::string CERTIFICATE_FILE = std::string(CA_DIR) + "/cacert.pem";
+const std::string APPS_JSON_PATH = platf::appdata().string() + "/apps.json";
 
 namespace config {
 
+  // ===========================================================================
+  // API scope string mapping
+  // ===========================================================================
+
+  const std::string &to_string(api_scope_t scope) {
+    static const std::string STRINGS[] = {
+      "config:get",
+      "config:set",
+      "apps:get",
+      "apps:launch",
+      "apps:close",
+      "clients:list",
+      "clients:pair",
+      "clients:unpair",
+      "logs:get",
+      "display:reset",
+      "tokens:manage",
+      "*",
+    };
+    auto idx = static_cast<size_t>(scope);
+    if (idx >= std::size(STRINGS)) {
+      static const std::string UNKNOWN = "unknown";
+      return UNKNOWN;
+    }
+    return STRINGS[idx];
+  }
+
+  std::optional<api_scope_t> api_scope_from_string(const std::string &s) {
+    if (s == "config:get")     return api_scope_t::CONFIG_GET;
+    if (s == "config:set")     return api_scope_t::CONFIG_SET;
+    if (s == "apps:get")       return api_scope_t::APPS_GET;
+    if (s == "apps:launch")    return api_scope_t::APPS_LAUNCH;
+    if (s == "apps:close")     return api_scope_t::APPS_CLOSE;
+    if (s == "clients:list")   return api_scope_t::CLIENTS_LIST;
+    if (s == "clients:pair")   return api_scope_t::CLIENTS_PAIR;
+    if (s == "clients:unpair") return api_scope_t::CLIENTS_UNPAIR;
+    if (s == "logs:get")       return api_scope_t::LOGS_GET;
+    if (s == "display:reset")  return api_scope_t::DISPLAY_RESET;
+    if (s == "tokens:manage")  return api_scope_t::TOKENS_MANAGE;
+    if (s == "*")              return api_scope_t::STAR;
+    return std::nullopt;
+  }
+
   namespace nv {
 
-    /**
-     * @brief Parse the `nvenc_twopass` configuration value.
-     *
-     * @param preset Encoder preset value supplied by the configuration.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     nvenc::nvenc_two_pass twopass_from_view(const std::string_view &preset) {
       if (preset == "disabled") {
         return nvenc::nvenc_two_pass::disabled;
@@ -75,12 +111,6 @@ namespace config {
       return nvenc::nvenc_two_pass::quarter_resolution;
     }
 
-    /**
-     * @brief Parse the `nvenc_split_encode` configuration value.
-     *
-     * @param preset Encoder preset value supplied by the configuration.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     nvenc::nvenc_split_frame_encoding split_encode_from_view(const std::string_view &preset) {
       using enum nvenc::nvenc_split_frame_encoding;
       if (preset == "disabled") {
@@ -101,45 +131,45 @@ namespace config {
   namespace amd {
 #if !defined(_WIN32) || defined(DOXYGEN)
     // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
-    constexpr int AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED = 100;  ///< Fallback AMF enum value for av1 quality preset speed.
-    constexpr int AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY = 30;  ///< Fallback AMF enum value for av1 quality preset quality.
-    constexpr int AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED = 70;  ///< Fallback AMF enum value for av1 quality preset balanced.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED = 10;  ///< Fallback AMF enum value for hevc quality preset speed.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY = 0;  ///< Fallback AMF enum value for hevc quality preset quality.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_BALANCED = 5;  ///< Fallback AMF enum value for hevc quality preset balanced.
-    constexpr int AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED = 1;  ///< Fallback AMF enum value for quality preset speed.
-    constexpr int AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY = 2;  ///< Fallback AMF enum value for quality preset quality.
-    constexpr int AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED = 0;  ///< Fallback AMF enum value for quality preset balanced.
-    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP = 0;  ///< Fallback AMF enum value for av1 rate control method constant qp.
-    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR = 3;  ///< Fallback AMF enum value for av1 rate control method cbr.
-    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR = 2;  ///< Fallback AMF enum value for av1 rate control method peak constrained vbr.
-    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR = 1;  ///< Fallback AMF enum value for av1 rate control method latency constrained vbr.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP = 0;  ///< Fallback AMF enum value for hevc rate control method constant qp.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR = 3;  ///< Fallback AMF enum value for hevc rate control method cbr.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR = 2;  ///< Fallback AMF enum value for hevc rate control method peak constrained vbr.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR = 1;  ///< Fallback AMF enum value for hevc rate control method latency constrained vbr.
-    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP = 0;  ///< Fallback AMF enum value for rate control method constant qp.
-    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR = 1;  ///< Fallback AMF enum value for rate control method cbr.
-    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR = 2;  ///< Fallback AMF enum value for rate control method peak constrained vbr.
-    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR = 3;  ///< Fallback AMF enum value for rate control method latency constrained vbr.
-    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING = 0;  ///< Fallback AMF enum value for av1 usage transcoding.
-    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY = 1;  ///< Fallback AMF enum value for av1 usage low latency.
-    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY = 2;  ///< Fallback AMF enum value for av1 usage ultra low latency.
-    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM = 3;  ///< Fallback AMF enum value for av1 usage webcam.
-    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY_HIGH_QUALITY = 5;  ///< Fallback AMF enum value for av1 usage low latency high quality.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING = 0;  ///< Fallback AMF enum value for hevc usage transcoding.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY = 1;  ///< Fallback AMF enum value for hevc usage ultra low latency.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY = 2;  ///< Fallback AMF enum value for hevc usage low latency.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM = 3;  ///< Fallback AMF enum value for hevc usage webcam.
-    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY_HIGH_QUALITY = 5;  ///< Fallback AMF enum value for hevc usage low latency high quality.
-    constexpr int AMF_VIDEO_ENCODER_USAGE_TRANSCODING = 0;  ///< Fallback AMF enum value for usage transcoding.
-    constexpr int AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY = 1;  ///< Fallback AMF enum value for usage ultra low latency.
-    constexpr int AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY = 2;  ///< Fallback AMF enum value for usage low latency.
-    constexpr int AMF_VIDEO_ENCODER_USAGE_WEBCAM = 3;  ///< Fallback AMF enum value for usage webcam.
-    constexpr int AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY_HIGH_QUALITY = 5;  ///< Fallback AMF enum value for usage low latency high quality.
-    constexpr int AMF_VIDEO_ENCODER_UNDEFINED = 0;  ///< Fallback AMF enum value for undefined.
-    constexpr int AMF_VIDEO_ENCODER_CABAC = 1;  ///< Fallback AMF enum value for cabac.
-    constexpr int AMF_VIDEO_ENCODER_CALV = 2;  ///< Fallback AMF enum value for calv.
+    constexpr int AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED = 100;
+    constexpr int AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY = 30;
+    constexpr int AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED = 70;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED = 10;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY = 0;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_BALANCED = 5;
+    constexpr int AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED = 1;
+    constexpr int AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY = 2;
+    constexpr int AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED = 0;
+    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP = 0;
+    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR = 3;
+    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR = 2;
+    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR = 1;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP = 0;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR = 3;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR = 2;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR = 1;
+    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP = 0;
+    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR = 1;
+    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR = 2;
+    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR = 3;
+    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING = 0;
+    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY = 1;
+    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY = 2;
+    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM = 3;
+    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY_HIGH_QUALITY = 5;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING = 0;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY = 1;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY = 2;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM = 3;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY_HIGH_QUALITY = 5;
+    constexpr int AMF_VIDEO_ENCODER_USAGE_TRANSCODING = 0;
+    constexpr int AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY = 1;
+    constexpr int AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY = 2;
+    constexpr int AMF_VIDEO_ENCODER_USAGE_WEBCAM = 3;
+    constexpr int AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY_HIGH_QUALITY = 5;
+    constexpr int AMF_VIDEO_ENCODER_UNDEFINED = 0;
+    constexpr int AMF_VIDEO_ENCODER_CABAC = 1;
+    constexpr int AMF_VIDEO_ENCODER_CALV = 2;
 #else
   #ifdef _GLIBCXX_USE_C99_INTTYPES
     #undef _GLIBCXX_USE_C99_INTTYPES
@@ -149,36 +179,24 @@ namespace config {
   #include <AMF/components/VideoEncoderVCE.h>
 #endif
 
-    /**
-     * @brief Enumerates supported quality AV1 options.
-     */
     enum class quality_av1_e : int {
       speed = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED,  ///< Speed preset
       quality = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY,  ///< Quality preset
       balanced = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED  ///< Balanced preset
     };
 
-    /**
-     * @brief Enumerates supported quality HEVC options.
-     */
     enum class quality_hevc_e : int {
       speed = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED,  ///< Speed preset
       quality = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY,  ///< Quality preset
       balanced = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_BALANCED  ///< Balanced preset
     };
 
-    /**
-     * @brief Enumerates supported quality h264 options.
-     */
     enum class quality_h264_e : int {
       speed = AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED,  ///< Speed preset
       quality = AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY,  ///< Quality preset
       balanced = AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED  ///< Balanced preset
     };
 
-    /**
-     * @brief Enumerates supported rc AV1 options.
-     */
     enum class rc_av1_e : int {
       cbr = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR,  ///< CBR
       cqp = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP,  ///< CQP
@@ -186,9 +204,6 @@ namespace config {
       vbr_peak = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR  ///< VBR with peak constraints
     };
 
-    /**
-     * @brief Enumerates supported rc HEVC options.
-     */
     enum class rc_hevc_e : int {
       cbr = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR,  ///< CBR
       cqp = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP,  ///< CQP
@@ -196,9 +211,6 @@ namespace config {
       vbr_peak = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR  ///< VBR with peak constraints
     };
 
-    /**
-     * @brief Enumerates supported rc h264 options.
-     */
     enum class rc_h264_e : int {
       cbr = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR,  ///< CBR
       cqp = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP,  ///< CQP
@@ -206,9 +218,6 @@ namespace config {
       vbr_peak = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR  ///< VBR with peak constraints
     };
 
-    /**
-     * @brief Enumerates supported usage AV1 options.
-     */
     enum class usage_av1_e : int {
       transcoding = AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING,  ///< Transcoding preset
       webcam = AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM,  ///< Webcam preset
@@ -217,9 +226,6 @@ namespace config {
       ultralowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY  ///< Ultra low latency preset
     };
 
-    /**
-     * @brief Enumerates supported usage HEVC options.
-     */
     enum class usage_hevc_e : int {
       transcoding = AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING,  ///< Transcoding preset
       webcam = AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM,  ///< Webcam preset
@@ -228,9 +234,6 @@ namespace config {
       ultralowlatency = AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY  ///< Ultra low latency preset
     };
 
-    /**
-     * @brief Enumerates supported usage h264 options.
-     */
     enum class usage_h264_e : int {
       transcoding = AMF_VIDEO_ENCODER_USAGE_TRANSCODING,  ///< Transcoding preset
       webcam = AMF_VIDEO_ENCODER_USAGE_WEBCAM,  ///< Webcam preset
@@ -239,29 +242,17 @@ namespace config {
       ultralowlatency = AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY  ///< Ultra low latency preset
     };
 
-    /**
-     * @brief Enumerates supported coder options.
-     */
     enum coder_e : int {
       _auto = AMF_VIDEO_ENCODER_UNDEFINED,  ///< Auto
       cabac = AMF_VIDEO_ENCODER_CABAC,  ///< CABAC
       cavlc = AMF_VIDEO_ENCODER_CALV  ///< CAVLC
     };
 
-    /**
-     * @brief Parse an AMD quality preset while preserving the current value on invalid input.
-     *
-     * @param quality_type Configuration text naming the AMD quality preset.
-     * @param original Original text value used when reporting a parsing failure.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     template<class T>
     ::std::optional<int> quality_from_view(const ::std::string_view &quality_type, const ::std::optional<int>(&original)) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (quality_type == #x##sv) \
-    return (int) T::x
-#endif
+#define _CONVERT_(x) \
+  if (quality_type == #x##sv) \
+  return (int) T::x
       _CONVERT_(balanced);
       _CONVERT_(quality);
       _CONVERT_(speed);
@@ -269,20 +260,11 @@ namespace config {
       return original;
     }
 
-    /**
-     * @brief Parse an AMD rate-control mode while preserving the current value on invalid input.
-     *
-     * @param rc Rate-control mode selected in the configuration.
-     * @param original Original text value used when reporting a parsing failure.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     template<class T>
     ::std::optional<int> rc_from_view(const ::std::string_view &rc, const ::std::optional<int>(&original)) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (rc == #x##sv) \
-    return (int) T::x
-#endif
+#define _CONVERT_(x) \
+  if (rc == #x##sv) \
+  return (int) T::x
       _CONVERT_(cbr);
       _CONVERT_(cqp);
       _CONVERT_(vbr_latency);
@@ -291,20 +273,11 @@ namespace config {
       return original;
     }
 
-    /**
-     * @brief Parse an AMD encoder usage mode while preserving the current value on invalid input.
-     *
-     * @param usage Encoder usage mode selected in the configuration.
-     * @param original Original text value used when reporting a parsing failure.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     template<class T>
     ::std::optional<int> usage_from_view(const ::std::string_view &usage, const ::std::optional<int>(&original)) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (usage == #x##sv) \
-    return (int) T::x
-#endif
+#define _CONVERT_(x) \
+  if (usage == #x##sv) \
+  return (int) T::x
       _CONVERT_(lowlatency);
       _CONVERT_(lowlatency_high_quality);
       _CONVERT_(transcoding);
@@ -314,12 +287,6 @@ namespace config {
       return original;
     }
 
-    /**
-     * @brief Parse an entropy-coder mode from configuration text.
-     *
-     * @param coder Entropy-coder mode selected in the configuration.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     int coder_from_view(const ::std::string_view &coder) {
       if (coder == "auto"sv) {
         return _auto;
@@ -336,9 +303,6 @@ namespace config {
   }  // namespace amd
 
   namespace qsv {
-    /**
-     * @brief Enumerates supported preset options.
-     */
     enum preset_e : int {
       veryslow = 1,  ///< veryslow preset
       slower = 2,  ///< slower preset
@@ -349,27 +313,16 @@ namespace config {
       veryfast = 7  ///< veryfast preset
     };
 
-    /**
-     * @brief Enumerates supported cavlc options.
-     */
     enum cavlc_e : int {
       _auto = false,  ///< Auto
       enabled = true,  ///< Enabled
       disabled = false  ///< Disabled
     };
 
-    /**
-     * @brief Parse a QSV encoder preset from configuration text.
-     *
-     * @param preset Encoder preset value supplied by the configuration.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     std::optional<int> preset_from_view(const std::string_view &preset) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (preset == #x##sv) \
-    return x
-#endif
+#define _CONVERT_(x) \
+  if (preset == #x##sv) \
+  return x
       _CONVERT_(veryslow);
       _CONVERT_(slower);
       _CONVERT_(slow);
@@ -381,12 +334,6 @@ namespace config {
       return std::nullopt;
     }
 
-    /**
-     * @brief Parse an entropy-coder mode from configuration text.
-     *
-     * @param coder Entropy-coder mode selected in the configuration.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     std::optional<int> coder_from_view(const std::string_view &coder) {
       if (coder == "auto"sv) {
         return _auto;
@@ -402,106 +349,14 @@ namespace config {
 
   }  // namespace qsv
 
-  namespace vaapi {
-#if !(defined(linux) || defined(__FreeBSD__)) || defined(DOXYGEN)
-    constexpr int VA_RC_CBR = 0x00000002;  ///< CBR rate control
-    constexpr int VA_RC_VBR = 0x00000004;  ///< VBR rate control
-    constexpr int VA_RC_CQP = 0x00000010;  ///< CQP rate control
-    constexpr int VA_RC_ICQ = 0x00000040;  ///< ICQ rate control
-    constexpr int VA_RC_QVBR = 0x00000400;  ///< QVBR rate control
-    constexpr int VA_RC_AVBR = 0x00000800;  ///< AVBR rate control
-#endif
-    /**
-     * @brief Enumerates supported VA-API quality options.
-     */
-    enum class quality_e : int {
-      _auto = 0,  ///< Auto quality level
-      speed = 1,  ///< Speed level
-      balanced = 2,  ///< Balanced level
-      quality = 3  ///< Quality level
-    };
-
-    /**
-     * @brief Enumerates supported VA-API rc options.
-     */
-    enum class rc_e : int {
-      _auto = 0,  ///< Auto rate control
-      avbr = VA_RC_AVBR,  ///< AVBR - average variable bitrate
-      cbr = VA_RC_CBR,  ///< CBR - constant bitrate
-      cqp = VA_RC_CQP,  ///< CQP - constant QP
-      icq = VA_RC_ICQ,  ///< ICQ - intelligent QP
-      qvbr = VA_RC_QVBR,  ///< QVBR - quality-defined variable bitrate
-      vbr = VA_RC_VBR  ///< VBR - variable bitrate
-    };
-
-    /**
-     * @brief Parse a VA-API quality preset while preserving the current value on invalid input.
-     *
-     * @param quality_type Configuration text naming the VA-API quality preset.
-     * @param original Original text value used when reporting a parsing failure.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
-    template<class T>
-    ::std::optional<int> quality_from_view(const ::std::string_view &quality_type, const ::std::optional<int>(&original)) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (quality_type == #x##sv) \
-    return (int) T::x
-#endif
-      _CONVERT_(balanced);
-      _CONVERT_(quality);
-      _CONVERT_(speed);
-#ifdef _CONVERT_
-  #undef _CONVERT_
-#endif
-      return original;
-    }
-
-    /**
-     * @brief Parse a VA-API rate-control mode while preserving the current value on invalid input.
-     *
-     * @param rc Rate-control mode selected in the configuration.
-     * @param original Original text value used when reporting a parsing failure.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
-    template<class T>
-    ::std::optional<int> rc_from_view(const ::std::string_view &rc, const ::std::optional<int>(&original)) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (rc == #x##sv) \
-    return (int) T::x
-#endif
-      _CONVERT_(avbr);
-      _CONVERT_(cbr);
-      _CONVERT_(cqp);
-      _CONVERT_(icq);
-      _CONVERT_(qvbr);
-      _CONVERT_(vbr);
-#ifdef _CONVERT_
-  #undef _CONVERT_
-#endif
-      return original;
-    }
-
-  }  // namespace vaapi
-
   namespace vt {
 
-    /**
-     * @brief Enumerates supported coder options.
-     */
     enum coder_e : int {
       _auto = 0,  ///< Auto
       cabac,  ///< CABAC
       cavlc  ///< CAVLC
     };
 
-    /**
-     * @brief Parse an entropy-coder mode from configuration text.
-     *
-     * @param coder Entropy-coder mode selected in the configuration.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     int coder_from_view(const std::string_view &coder) {
       if (coder == "auto"sv) {
         return _auto;
@@ -516,12 +371,6 @@ namespace config {
       return -1;
     }
 
-    /**
-     * @brief Parse whether VideoToolbox software encoding is allowed.
-     *
-     * @param software Whether the software encoder path is being configured.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     int allow_software_from_view(const std::string_view &software) {
       if (software == "allowed"sv || software == "forced") {
         return 1;
@@ -530,12 +379,6 @@ namespace config {
       return 0;
     }
 
-    /**
-     * @brief Parse whether VideoToolbox software encoding is forced.
-     *
-     * @param software Whether the software encoder path is being configured.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     int force_software_from_view(const std::string_view &software) {
       if (software == "forced") {
         return 1;
@@ -544,12 +387,6 @@ namespace config {
       return 0;
     }
 
-    /**
-     * @brief Parse the VideoToolbox realtime encoder flag.
-     *
-     * @param rt Real-time encoder usage selector.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     int rt_from_view(const std::string_view &rt) {
       if (rt == "disabled" || rt == "off" || rt == "0") {
         return 0;
@@ -561,18 +398,10 @@ namespace config {
   }  // namespace vt
 
   namespace sw {
-    /**
-     * @brief Parse an SVT-AV1 speed preset from configuration text.
-     *
-     * @param preset Encoder preset value supplied by the configuration.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     int svtav1_preset_from_view(const std::string_view &preset) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x, y) \
-    if (preset == #x##sv) \
-    return y
-#endif
+#define _CONVERT_(x, y) \
+  if (preset == #x##sv) \
+  return y
       _CONVERT_(veryslow, 1);
       _CONVERT_(slower, 2);
       _CONVERT_(slow, 4);
@@ -588,18 +417,10 @@ namespace config {
   }  // namespace sw
 
   namespace dd {
-    /**
-     * @brief Parse display-device preparation mode from configuration text.
-     *
-     * @param value Configuration text from the display-device preparation setting.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     video_t::dd_t::config_option_e config_option_from_view(const std::string_view value) {
-#ifndef DOXYGEN
-  #define _CONVERT_(x) \
-    if (value == #x##sv) \
-    return video_t::dd_t::config_option_e::x
-#endif
+#define _CONVERT_(x) \
+  if (value == #x##sv) \
+  return video_t::dd_t::config_option_e::x
       _CONVERT_(disabled);
       _CONVERT_(verify_only);
       _CONVERT_(ensure_active);
@@ -609,19 +430,11 @@ namespace config {
       return video_t::dd_t::config_option_e::disabled;  // Default to this if value is invalid
     }
 
-    /**
-     * @brief Parse display-device resolution mode from configuration text.
-     *
-     * @param value Configuration text from the display-device resolution setting.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     video_t::dd_t::resolution_option_e resolution_option_from_view(const std::string_view value) {
-#ifndef DOXYGEN
-  #define _CONVERT_2_ARG_(str, val) \
-    if (value == #str##sv) \
-    return video_t::dd_t::resolution_option_e::val
-  #define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
-#endif
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) \
+  return video_t::dd_t::resolution_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
       _CONVERT_(disabled);
       _CONVERT_2_ARG_(auto, automatic);
       _CONVERT_(manual);
@@ -630,19 +443,11 @@ namespace config {
       return video_t::dd_t::resolution_option_e::disabled;  // Default to this if value is invalid
     }
 
-    /**
-     * @brief Parse display-device refresh-rate mode from configuration text.
-     *
-     * @param value Configuration text from the display-device refresh-rate setting.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     video_t::dd_t::refresh_rate_option_e refresh_rate_option_from_view(const std::string_view value) {
-#ifndef DOXYGEN
-  #define _CONVERT_2_ARG_(str, val) \
-    if (value == #str##sv) \
-    return video_t::dd_t::refresh_rate_option_e::val
-  #define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
-#endif
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) \
+  return video_t::dd_t::refresh_rate_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
       _CONVERT_(disabled);
       _CONVERT_2_ARG_(auto, automatic);
       _CONVERT_(manual);
@@ -651,19 +456,11 @@ namespace config {
       return video_t::dd_t::refresh_rate_option_e::disabled;  // Default to this if value is invalid
     }
 
-    /**
-     * @brief Parse display-device HDR mode from configuration text.
-     *
-     * @param value Configuration text from the display-device HDR setting.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     video_t::dd_t::hdr_option_e hdr_option_from_view(const std::string_view value) {
-#ifndef DOXYGEN
-  #define _CONVERT_2_ARG_(str, val) \
-    if (value == #str##sv) \
-    return video_t::dd_t::hdr_option_e::val
-  #define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
-#endif
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) \
+  return video_t::dd_t::hdr_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
       _CONVERT_(disabled);
       _CONVERT_2_ARG_(auto, automatic);
 #undef _CONVERT_
@@ -671,12 +468,6 @@ namespace config {
       return video_t::dd_t::hdr_option_e::disabled;  // Default to this if value is invalid
     }
 
-    /**
-     * @brief Parse display-mode remapping rules from JSON configuration text.
-     *
-     * @param value JSON array text from the display-device mode-remapping setting.
-     * @return Parsed enum value, or the setting-specific default when the text is unknown.
-     */
     video_t::dd_t::mode_remapping_t mode_remapping_from_view(const std::string_view value) {
       const auto parse_entry_list {[](const auto &entry_list, auto &output_field) {
         for (auto &[_, entry] : entry_list) {
@@ -705,9 +496,6 @@ namespace config {
     }
   }  // namespace dd
 
-  /**
-   * @brief Default video configuration values used before file and CLI overrides.
-   */
   video_t video {
     28,  // qp
 
@@ -725,6 +513,7 @@ namespace config {
     true,  // nv_realtime_hags
     true,  // nv_opengl_vulkan_on_dxgi
     true,  // nv_sunshine_high_power_mode
+    -1,  // nv_preset (-1 = manual, 0 = latency, 1 = balanced, 2 = quality)
     {},  // nv_legacy
 
     {
@@ -757,16 +546,14 @@ namespace config {
     },  // vt
 
     {
-      0,  // blbrc
-      std::to_underlying(vaapi::quality_e::_auto),  // quality
-      std::to_underlying(vaapi::rc_e::_auto),  // rate control
-      {},  // rate control string
       false,  // strict_rc_buffer
     },  // vaapi
 
     {
       2,  // vk.tune (default: ll - low latency)
       2,  // vk.rc_mode (default: cbr)
+      0,  // vk.min_qp (0 = unset)
+      0,  // vk.max_qp (0 = unset)
     },
 
     {},  // capture
@@ -788,12 +575,12 @@ namespace config {
     },  // display_device
 
     0,  // max_bitrate
-    0  // minimum_fps_target (0 = framerate)
+    0,  // minimum_fps_target (0 = framerate)
+    false,  // adaptive_bitrate_enabled
+    2000,  // adaptive_bitrate_min
+    100000  // adaptive_bitrate_max
   };
 
-  /**
-   * @brief Default audio configuration values used before file and CLI overrides.
-   */
   audio_t audio {
     {},  // audio_sink
     {},  // virtual_sink
@@ -801,9 +588,6 @@ namespace config {
     true,  // install_steam_drivers
   };
 
-  /**
-   * @brief Default stream configuration values used before file and CLI overrides.
-   */
   stream_t stream {
     10s,  // ping_timeout
 
@@ -816,23 +600,19 @@ namespace config {
     0,  // packetsize
   };
 
-  /**
-   * @brief Default NVHTTP server configuration values used before file and CLI overrides.
-   */
   nvhttp_t nvhttp {
     "lan",  // origin web manager
 
-    PRIVATE_KEY_FILE,
-    CERTIFICATE_FILE,
+    {},  // pkey -- generated by httpcommon::init() under appdata/credentials/pkey-<uuid>
+    {},  // cert -- generated by httpcommon::init() under appdata/credentials/cert-<uuid>
 
     platf::get_host_name(),  // sunshine_name,
     "sunshine_state.json"s,  // file_state
     {},  // external_ip
+    {},  // trusted_subnets
+    false,  // trusted_subnet_auto_pairing
   };
 
-  /**
-   * @brief Default input configuration values used before file and CLI overrides.
-   */
   input_t input {
     {
       {0x10, 0xA0},
@@ -860,9 +640,6 @@ namespace config {
     true,  // native pen/touch support
   };
 
-  /**
-   * @brief Default top-level Sunshine configuration values used before file and CLI overrides.
-   */
   sunshine_t sunshine {
     "en",  // locale
     2,  // min_log_level
@@ -882,43 +659,32 @@ namespace config {
     {},  // prep commands
   };
 
-  /**
-   * @brief Return whether a character terminates a configuration line.
-   *
-   * @param ch Character currently being classified by the parser.
-   * @return True when the tested parser condition is met.
-   */
+  // SolarFlare fork tunables. Defaults match the previously-hardcoded
+  // values in src/network.cpp, src/stream.cpp, src/platform/linux/pipewire.cpp
+  // and src/platform/linux/misc.cpp so a vanilla install behaves identically
+  // to a pre-config-fork build. See README.md > 'Configure' and
+  // docs/CONFIGURATION.md for the documented ranges.
+  solarflare_t solarflare {
+    50,  // busy_poll_us       (SO_BUSY_POLL on the ENet socket)
+    80,  // rate_cap_pct       (rate-control pacer, % of link speed)
+    true,  // enet_4mib_buffer   (grow ENet UDP buffers to 4 MiB)
+    8,  // pipewire_latency_ms (PW_KEY_NODE_LATENCY hint)
+    true,  // cpu_pinning        (SCHED_RR + physical-core affinity)
+    solarflare_t::audio_fx_t {},  // audio_fx — all off / defaults
+  };
+
   bool endline(char ch) {
     return ch == '\r' || ch == '\n';
   }
 
-  /**
-   * @brief Return whether a character is horizontal parser whitespace.
-   *
-   * @param ch Character currently being classified by the parser.
-   * @return True when the tested parser condition is met.
-   */
   bool space_tab(char ch) {
     return ch == ' ' || ch == '\t';
   }
 
-  /**
-   * @brief Return whether a character should be treated as parser whitespace.
-   *
-   * @param ch Character currently being classified by the parser.
-   * @return True when the tested parser condition is met.
-   */
   bool whitespace(char ch) {
     return space_tab(ch) || endline(ch);
   }
 
-  /**
-   * @brief Copy a configuration text range while stripping inline comments.
-   *
-   * @param begin Iterator or pointer marking the start of the input range.
-   * @param end Iterator or pointer marking the end of the input range.
-   * @return Value converted to string.
-   */
   std::string to_string(const char *begin, const char *end) {
     std::string result;
 
@@ -934,13 +700,6 @@ namespace config {
     return result;
   }
 
-  /**
-   * @brief Advance over a bracketed list while honoring nested brackets.
-   *
-   * @param skipper Function used to skip characters while parsing.
-   * @param end Iterator or pointer marking the end of the input range.
-   * @return Iterator positioned after the matching closing bracket or at the end.
-   */
   template<class It>
   It skip_list(It skipper, It end) {
     int stack = 1;
@@ -961,13 +720,6 @@ namespace config {
   std::pair<
     std::string_view::const_iterator,
     std::optional<std::pair<std::string, std::string>>>
-    /**
-     * @brief Parse one `name = value` configuration entry.
-     *
-     * @param begin Iterator or pointer marking the start of the input range.
-     * @param end Iterator or pointer marking the end of the input range.
-     * @return Iterator for the next line and the parsed key-value pair when one was found.
-     */
     parse_option(std::string_view::const_iterator begin, std::string_view::const_iterator end) {
     begin = std::find_if_not(begin, end, whitespace);
     auto endl = std::find_if(begin, end, endline);
@@ -1006,9 +758,6 @@ namespace config {
     );
   }
 
-  /**
-   * @brief Parse Sunshine configuration text into key-value entries.
-   */
   std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content) {
     std::unordered_map<std::string, std::string> vars;
 
@@ -1034,13 +783,6 @@ namespace config {
     return vars;
   }
 
-  /**
-   * @brief Consume a string setting from the parsed configuration map.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   */
   void string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
     auto it = vars.find(name);
     if (it == std::end(vars)) {
@@ -1052,14 +794,6 @@ namespace config {
     vars.erase(it);
   }
 
-  /**
-   * @brief Consume a setting and convert it with a caller-provided parser.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   * @param f Converter applied to the raw configuration string.
-   */
   template<typename T, typename F>
   void generic_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, T &input, F &&f) {
     std::string tmp;
@@ -1069,14 +803,6 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Consume a string setting only when it matches an allowed value.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   * @param allowed_vals Accepted string values for this setting.
-   */
   void string_restricted_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input, const std::vector<std::string_view> &allowed_vals) {
     std::string temp;
     string_f(vars, name, temp);
@@ -1089,14 +815,7 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Parse a comma-separated string setting into a list.
-   *
-   * @param vars Configuration key-value map.
-   * @param name Setting name.
-   * @param output Parsed string list.
-   */
-  void string_list_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &output) {  // NOSONAR(cpp:S6045): transparent hasher not available for unordered_map in this codebase
+  void string_list_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &output) {  // NOSONAR(cpp:S6045) - transparent hasher not available for unordered_map in this codebase
     std::string temp;
     string_f(vars, name, temp);
 
@@ -1117,13 +836,6 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Consume a path setting and normalize it under the app data directory when relative.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   */
   void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, fs::path &input) {
     // appdata needs to be retrieved once only
     static auto appdata = platf::appdata();
@@ -1133,6 +845,17 @@ namespace config {
 
     if (!temp.empty()) {
       input = temp;
+    }
+
+    // Treat empty input as "no default" rather than "relative to appdata".
+    // fs::path("").is_relative() returns true on libstdc++, which made
+    // `config::nvhttp.cert` resolve to the appdata directory itself --
+    // a directory passed to SSL_CTX_use_certificate_chain_file() silently
+    // fails to load a cert, and every HTTPS handshake aborts at server
+    // hello. Callers that want a default path should set it explicitly
+    // (see httpcommon::init() for the cert/pkey case).
+    if (input.empty()) {
+      return;
     }
 
     if (input.is_relative()) {
@@ -1148,13 +871,6 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Consume a path setting and normalize it under the app data directory when relative.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   */
   void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
     fs::path temp = input;
 
@@ -1163,13 +879,6 @@ namespace config {
     input = temp.string();
   }
 
-  /**
-   * @brief Consume an integer setting from decimal or hexadecimal configuration text.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   */
   void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
     auto it = vars.find(name);
 
@@ -1194,13 +903,6 @@ namespace config {
     vars.erase(it);
   }
 
-  /**
-   * @brief Consume an integer setting from decimal or hexadecimal configuration text.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   */
   void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input) {
     auto it = vars.find(name);
 
@@ -1225,14 +927,6 @@ namespace config {
     vars.erase(it);
   }
 
-  /**
-   * @brief Consume an integer setting from decimal or hexadecimal configuration text.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   * @param f Converter applied to the raw configuration string.
-   */
   template<class F>
   void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, F &&f) {
     std::string tmp;
@@ -1242,14 +936,6 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Consume an integer setting from decimal or hexadecimal configuration text.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   * @param f Converter applied to the raw configuration string.
-   */
   template<class F>
   void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input, F &&f) {
     std::string tmp;
@@ -1259,14 +945,6 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Consume an integer setting only when it falls inside an inclusive range.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   * @param range Inclusive range accepted for the parsed value.
-   */
   void int_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, const std::pair<int, int> &range) {
     int temp = input;
 
@@ -1278,14 +956,8 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Convert common textual boolean forms to a boolean value.
-   *
-   * @param boolean Configuration string to classify as enabled or disabled.
-   * @return True when the tested parser condition is met.
-   */
   bool to_bool(std::string &boolean) {
-    std::for_each(std::begin(boolean), std::end(boolean), [](char ch) {
+    std::transform(std::begin(boolean), std::end(boolean), std::begin(boolean), [](unsigned char ch) {
       return (char) std::tolower(ch);
     });
 
@@ -1297,13 +969,6 @@ namespace config {
            (std::find(std::begin(boolean), std::end(boolean), '1') != std::end(boolean));
   }
 
-  /**
-   * @brief Consume a boolean setting from the parsed configuration map.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   */
   void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, bool &input) {
     std::string tmp;
     string_f(vars, name, tmp);
@@ -1315,13 +980,6 @@ namespace config {
     input = to_bool(tmp);
   }
 
-  /**
-   * @brief Consume a floating-point setting from the parsed configuration map.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   */
   void double_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input) {
     std::string tmp;
     string_f(vars, name, tmp);
@@ -1340,14 +998,6 @@ namespace config {
     input = val;
   }
 
-  /**
-   * @brief Consume a floating-point setting only when it falls inside an inclusive range.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   * @param range Inclusive range accepted for the parsed value.
-   */
   void double_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input, const std::pair<double, double> &range) {
     double temp = input;
 
@@ -1360,12 +1010,47 @@ namespace config {
   }
 
   /**
-   * @brief Consume a comma-separated or bracketed string list setting.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
+   * @brief Parse a float value from the config map.
+   * @param vars Key/value map of config entries.
+   * @param name Key to look up.
+   * @param input Reference updated when @p name is present and parseable.
    */
+  void float_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, float &input) {
+    std::string tmp;
+    string_f(vars, name, tmp);
+
+    if (tmp.empty()) {
+      return;
+    }
+
+    char *c_str_p;
+    auto val = std::strtof(tmp.c_str(), &c_str_p);
+
+    if (c_str_p == tmp.c_str()) {
+      return;
+    }
+
+    input = val;
+  }
+
+  /**
+   * @brief Parse a float value, clamped to an inclusive range.
+   * @param vars Key/value map of config entries.
+   * @param name Key to look up.
+   * @param input Reference updated only when the parsed value is in range.
+   * @param range Inclusive (lower, upper) bounds for the parsed value.
+   */
+  void float_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, float &input, const std::pair<float, float> &range) {
+    float temp = input;
+
+    float_f(vars, name, temp);
+
+    TUPLE_2D_REF(lower, upper, range);
+    if (temp >= lower && temp <= upper) {
+      input = temp;
+    }
+  }
+
   void list_string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &input) {
     std::string string;
     string_f(vars, name, string);
@@ -1405,13 +1090,6 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Consume the JSON preparation-command list setting.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   */
   void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<prep_cmd_t> &input) {
     std::string string;
     string_f(vars, name, string);
@@ -1438,13 +1116,6 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Consume an integer list setting from decimal or hexadecimal configuration text.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   */
   void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
     std::vector<std::string> list;
     list_string_f(vars, name, list);
@@ -1478,13 +1149,6 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Consume an integer-pair list into a mapping table.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   * @param name Configuration key to consume.
-   * @param input Destination field updated when the setting exists and parses successfully.
-   */
   void map_int_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::unordered_map<int, int> &input) {
     std::vector<int> list;
     list_int_f(vars, name, list);
@@ -1504,12 +1168,6 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Apply single-character command-line flags to the global Sunshine flags bitset.
-   *
-   * @param line Configuration line being parsed.
-   * @return 0 when all flags are recognized; -1 when at least one flag is unknown.
-   */
   int apply_flags(const char *line) {
     int ret = 0;
     while (*line != '\0') {
@@ -1537,11 +1195,6 @@ namespace config {
     return ret;
   }
 
-  /**
-   * @brief Get supported gamepad options.
-   *
-   * @return Platform-supported gamepad backend names accepted by configuration.
-   */
   std::vector<std::string_view> &get_supported_gamepad_options() {
     const auto options = platf::supported_gamepads(nullptr);
     static std::vector<std::string_view> opts {};
@@ -1552,9 +1205,6 @@ namespace config {
     return opts;
   }
 
-  /**
-   * @brief Log parsed configuration entries and optionally record them as modified.
-   */
   void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save) {
     for (auto &[name, val] : vars) {
       bool is_redacted = std::ranges::find(config::redacted_config, name) != config::redacted_config.end();
@@ -1567,11 +1217,14 @@ namespace config {
     }
   }
 
-  /**
-   * @brief Apply parsed configuration entries to the global runtime configuration.
-   *
-   * @param vars Parsed configuration entries; consumed keys are erased.
-   */
+  // Forward decls for helpers used by apply_config() below but defined
+  // further down (kept near each other for readability). The forward
+  // declarations must come BEFORE apply_config() so the calls at the top
+  // of apply_config resolve correctly.
+  static void apply_solarflare_keys(std::unordered_map<std::string, std::string> &vars);
+  void apply_opus_tuning_runtime(const solarflare_audio_fx_t &af);
+  void apply_nvenc_tuning_preset();
+
   void apply_config(std::unordered_map<std::string, std::string> &&vars) {
     log_config_settings(vars, true);
 
@@ -1588,9 +1241,22 @@ namespace config {
     int_between_f(vars, "nvenc_preset", video.nv.quality_preset, {1, 7});
     int_between_f(vars, "nvenc_vbv_increase", video.nv.vbv_percentage_increase, {0, 400});
     bool_f(vars, "nvenc_spatial_aq", video.nv.adaptive_quantization);
+    bool_f(vars, "nvenc_weighted_prediction", video.nv.weighted_prediction);
+    bool_f(vars, "nvenc_enable_min_qp", video.nv.enable_min_qp);
+    int_between_f(vars, "nvenc_min_qp_h264", (int &) video.nv.min_qp_h264, {1, 51});
+    int_between_f(vars, "nvenc_min_qp_hevc", (int &) video.nv.min_qp_hevc, {1, 51});
+    int_between_f(vars, "nvenc_min_qp_av1", (int &) video.nv.min_qp_av1, {1, 255});
+    bool_f(vars, "nvenc_filler_data", video.nv.insert_filler_data);
     generic_f(vars, "nvenc_twopass", video.nv.two_pass, nv::twopass_from_view);
     bool_f(vars, "nvenc_h264_cavlc", video.nv.h264_cavlc);
     generic_f(vars, "nvenc_split_encode", video.nv.split_frame_encoding, nv::split_encode_from_view);
+    int_between_f(vars, "nvenc_rc_lookahead", video.nv.rc_lookahead, {0, 31});
+    int_f(vars, "nvenc_surfaces", video.nv.surfaces);  // -1 = driver default, 1-32 = explicit
+    int_between_f(vars, "nvenc_bframes", video.nv.bframes, {0, 4});
+    bool_f(vars, "nvenc_zerolatency", video.nv.zerolatency);
+    int_between_f(vars, "nvenc_aq_strength", video.nv.aq_strength, {1, 15});
+    bool_f(vars, "nvenc_temporal_aq", video.nv.temporal_aq);
+    int_between_f(vars, "nvenc_tuning_preset", video.nv_preset, {-1, 2});
     bool_f(vars, "nvenc_realtime_hags", video.nv_realtime_hags);
     bool_f(vars, "nvenc_opengl_vulkan_on_dxgi", video.nv_opengl_vulkan_on_dxgi);
     bool_f(vars, "nvenc_latency_over_power", video.nv_sunshine_high_power_mode);
@@ -1604,6 +1270,13 @@ namespace config {
     video.nv_legacy.aq = video.nv.adaptive_quantization;
     video.nv_legacy.vbv_percentage_increase = video.nv.vbv_percentage_increase;
 #endif
+
+    // NVENC tuning preset (SolarFlare fork). -1 = manual (don't touch the
+    // nvenc_* knobs); 0 = latency-optimised; 1 = balanced;
+    // 2 = quality-optimised. When set, it overrides the relevant nvenc_*
+    // keys below so the user gets one-click tuning without having to
+    // fiddle with each knob.
+    apply_nvenc_tuning_preset();
 
     int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
     int_f(vars, "qsv_coder", video.qsv.qsv_cavlc, qsv::coder_from_view);
@@ -1643,20 +1316,12 @@ namespace config {
     int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
-    std::string vaapi_quality;
-    string_f(vars, "vaapi_quality", vaapi_quality);
-    if (!vaapi_quality.empty()) {
-      video.vaapi.vaapi_quality = vaapi::quality_from_view<vaapi::quality_e>(vaapi_quality, video.vaapi.vaapi_quality);
-    }
-    string_f(vars, "vaapi_rc", video.vaapi.vaapi_rc_str);
-    if (!video.vaapi.vaapi_rc_str.empty()) {
-      video.vaapi.vaapi_rc = vaapi::rc_from_view<vaapi::rc_e>(video.vaapi.vaapi_rc_str, video.vaapi.vaapi_rc);
-    }
-    bool_f(vars, "vaapi_blbrc", (bool &) video.vaapi.blbrc);
     bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
 
     int_f(vars, "vk_tune", video.vk.tune);
     int_f(vars, "vk_rc_mode", video.vk.rc_mode);
+    int_f(vars, "vk_min_qp", video.vk.min_qp);
+    int_f(vars, "vk_max_qp", video.vk.max_qp);
 
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
@@ -1687,6 +1352,15 @@ namespace config {
     int_f(vars, "max_bitrate", video.max_bitrate);
     double_between_f(vars, "minimum_fps_target", video.minimum_fps_target, {0.0, 1000.0});
 
+    bool_f(vars, "adaptive_bitrate_enabled", video.adaptive_bitrate_enabled);
+    int_between_f(vars, "adaptive_bitrate_min", video.adaptive_bitrate_min, {100, 1000000});
+    int_between_f(vars, "adaptive_bitrate_max", video.adaptive_bitrate_max, {100, 1000000});
+
+    bool_f(vars, "headless_mode", video.linux_display.headless_mode);
+    bool_f(vars, "linux_use_cage_compositor", video.linux_display.use_cage_compositor);
+    bool_f(vars, "linux_prefer_gpu_native_capture", video.linux_display.prefer_gpu_native_capture);
+    string_restricted_f(vars, "compositor_backend", video.linux_display.compositor_backend, {"auto"sv, "labwc"sv, "krfb"sv, "gamescope"sv});
+
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
     string_f(vars, "sunshine_name", nvhttp.sunshine_name);
@@ -1706,6 +1380,76 @@ namespace config {
     bool_f(vars, "install_steam_audio_drivers", audio.install_steam_drivers);
 
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, {"pc"sv, "lan"sv, "wan"sv});
+
+    string_f(vars, "trusted_subnets", nvhttp.trusted_subnets);
+    bool_f(vars, "trusted_subnet_auto_pairing", nvhttp.trusted_subnet_auto_pairing);
+
+    // Parse api_tokens: pipe-separated `<name>\t<hex_hash>\t<hex_salt>\t<scope1,scope2,...>`.
+    // Tab separates fields (not colon) because scopes themselves contain colons
+    // (`config:get`, `apps:launch`). Each token's plaintext value is never
+    // persisted — only its SHA-256 hash + per-token salt + the granted scopes.
+    // Use POST /api/tokens (admin only) to mint a new token; the plaintext is
+    // shown once at creation time.
+    //
+    // Example sunshine.conf (tabs are literal tab characters):
+    //   api_tokens = "ci-bot\tabc123...\tdeadbeef...\tconfig:get,apps:launch"
+    {
+      std::string temp;
+      string_f(vars, "api_tokens", temp);
+      nvhttp.api_tokens.clear();
+      if (!temp.empty()) {
+        std::stringstream ss(temp);
+        std::string entry;
+        while (std::getline(ss, entry, '|')) {
+          // Trim whitespace around the whole entry
+          entry.erase(0, entry.find_first_not_of(" \t\r\n"));
+          entry.erase(entry.find_last_not_of(" \t\r\n") + 1);
+          if (entry.empty()) continue;
+
+          // Split on tab into 4 fields. Tab chosen because scopes contain colons.
+          std::vector<std::string> parts;
+          std::string part;
+          std::stringstream ps(entry);
+          while (std::getline(ps, part, '\t')) parts.push_back(part);
+
+          if (parts.size() != 4) {
+            BOOST_LOG(warning) << "config: api_tokens entry malformed (expected 4 tab-separated fields, got " << parts.size() << "); skipping";
+            continue;
+          }
+
+          api_token_t token;
+          token.name = parts[0];
+          token.token_hash = parts[1];
+          token.salt = parts[2];
+
+          if (token.name.empty() || token.token_hash.empty() || token.salt.empty()) {
+            BOOST_LOG(warning) << "config: api_tokens entry '" << token.name << "' missing required field; skipping";
+            continue;
+          }
+
+          // Parse scopes (comma-separated within parts[3])
+          std::stringstream scopes_ss(parts[3]);
+          std::string scope_str;
+          while (std::getline(scopes_ss, scope_str, ',')) {
+            scope_str.erase(0, scope_str.find_first_not_of(" \t\r\n"));
+            scope_str.erase(scope_str.find_last_not_of(" \t\r\n") + 1);
+            if (scope_str.empty()) continue;
+            auto parsed = api_scope_from_string(scope_str);
+            if (!parsed) {
+              BOOST_LOG(warning) << "config: api_tokens entry '" << token.name << "' has unknown scope '" << scope_str << "'; skipping scope";
+              continue;
+            }
+            token.scopes.push_back(*parsed);
+          }
+          if (token.scopes.empty()) {
+            BOOST_LOG(warning) << "config: api_tokens entry '" << token.name << "' has no valid scopes; skipping";
+            continue;
+          }
+          nvhttp.api_tokens.push_back(std::move(token));
+        }
+        BOOST_LOG(info) << "config: loaded " << nvhttp.api_tokens.size() << " api token(s)";
+      }
+    }
 
     // Parse CSRF allowed origins - always include defaults, then append user-configured origins
     std::vector<std::string> user_csrf_origins;
@@ -1729,7 +1473,7 @@ namespace config {
       }
     }
     if (csrf_invalid_config) {
-      BOOST_LOG(warning) << "Please refer to: https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2configuration.html#csrf_allowed_origins"sv;
+      BOOST_LOG(warning) << "Please refer to: https://github.com/vindeckyy/Solar-Flare#all-config-settings"sv;
     }
 
     int to = -1;
@@ -1805,6 +1549,20 @@ namespace config {
 
     bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
     bool_f(vars, "system_tray", sunshine.system_tray);
+
+    // SolarFlare fork tunables. See docs/CONFIGURATION.md for ranges and
+    // docs/PORTING.md for the multi-distro background. All defaults match
+    // the previously-hardcoded values, so a vanilla install is identical
+    // to the pre-config-fork behaviour. The helper below also re-runs from
+    // the hot-reload watcher (start_config_watcher) so a single edit to
+    // sunshine.conf can land in the running process without a restart.
+    apply_solarflare_keys(vars);
+
+    // Propagate the parsed audio_fx / Opus values to the runtime tuning struct
+    // used by the audio encode thread. Centralising this here keeps audio.cpp
+    // free of config-aware code; the hot reload path calls the same helper so
+    // a config edit at runtime actually takes effect on the next session.
+    apply_opus_tuning_runtime(solarflare.audio_fx);
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
@@ -1887,15 +1645,21 @@ namespace config {
     }
 
     if (sunshine.min_log_level <= 3) {
+      // Moonlight clients send these via the launch session but they are not
+      // Sunshine config keys. Suppress the warning to keep logs clean.
+      static const std::array<std::string_view, 4> client_keys = {
+        "hevc_bitrate_multiplier"sv, "fps"sv, "bitrate"sv, "gcmap"sv
+      };
+      for (auto &key : client_keys) {
+        vars.erase(std::string(key));
+      }
+
       for (auto &[var, _] : vars) {
         std::cout << "Warning: Unrecognized configurable option ["sv << var << ']' << std::endl;
       }
     }
   }
 
-  /**
-   * @brief Parse serialized text into the corresponding runtime representation.
-   */
   int parse(int argc, char *argv[]) {
     std::unordered_map<std::string, std::string> cmd_vars;
 #ifdef _WIN32
@@ -2042,4 +1806,208 @@ namespace config {
 
     return 0;
   }
+
+  void apply_nvenc_tuning_preset() {
+    if (video.nv_preset < 0 || video.nv_preset > 2) return;
+    switch (video.nv_preset) {
+      case 0:  // latency-optimised
+        video.nv.quality_preset = 1;
+        video.nv.bframes = 0;
+        video.nv.zerolatency = true;
+        video.nv.rc_lookahead = 0;
+        video.nv.two_pass = nvenc::nvenc_two_pass::quarter_resolution;
+        video.nv.adaptive_quantization = false;
+        video.nv.temporal_aq = false;
+        video.nv.weighted_prediction = false;
+        video.nv.enable_min_qp = false;
+        video.nv.vbv_percentage_increase = 0;
+        video.nv.surfaces = -1;
+        break;
+      case 1:  // balanced
+        video.nv.quality_preset = 4;
+        video.nv.bframes = 2;
+        video.nv.zerolatency = false;
+        video.nv.rc_lookahead = 20;
+        video.nv.two_pass = nvenc::nvenc_two_pass::quarter_resolution;
+        video.nv.adaptive_quantization = true;
+        video.nv.aq_strength = 8;
+        video.nv.temporal_aq = true;
+        video.nv.weighted_prediction = true;
+        video.nv.enable_min_qp = false;
+        video.nv.vbv_percentage_increase = 50;
+        video.nv.surfaces = -1;
+        break;
+      case 2:  // quality-optimised
+        video.nv.quality_preset = 7;
+        video.nv.bframes = 4;
+        video.nv.zerolatency = false;
+        video.nv.rc_lookahead = 40;
+        video.nv.two_pass = nvenc::nvenc_two_pass::full_resolution;
+        video.nv.adaptive_quantization = true;
+        video.nv.aq_strength = 12;
+        video.nv.temporal_aq = true;
+        video.nv.weighted_prediction = true;
+        video.nv.enable_min_qp = true;
+        video.nv.min_qp_h264 = 22;
+        video.nv.min_qp_hevc = 26;
+        video.nv.min_qp_av1 = 26;
+        video.nv.vbv_percentage_increase = 100;
+        video.nv.surfaces = -1;
+        break;
+    }
+  }
+
+  /**
+   * @brief Parse the SolarFlare fork tunables from @p vars into @c solarflare.
+   *
+   * Used by both the initial config parse (apply_config) and the hot-reload
+   * path (start_config_watcher). Out-of-range values are silently rejected
+   * (the int_between_f / float_between_f / bool_f convention) so a typo in
+   * sunshine.conf never applies a junk value at runtime.
+   *
+   * @param vars key/value map produced by parse_config(); keys we recognise
+   *             are erased; keys we don't recognise are left alone.
+   */
+  static void apply_solarflare_keys(std::unordered_map<std::string, std::string> &vars) {
+    // Top-level SolarFlare tunables.
+    int_between_f(vars, "busy_poll_us", solarflare.busy_poll_us, {0, 10000});
+    int_between_f(vars, "rate_cap_pct", solarflare.rate_cap_pct, {50, 95});
+    bool_f(vars, "enet_4mib_buffer", solarflare.enet_4mib_buffer);
+    int_between_f(vars, "pipewire_latency_ms", solarflare.pipewire_latency_ms, {1, 40});
+    bool_f(vars, "cpu_pinning", solarflare.cpu_pinning);
+    bool_f(vars, "dscp_qos", solarflare.dscp_qos);
+    bool_f(vars, "gpu_governor", solarflare.gpu_governor);
+    bool_f(vars, "headless_virtual_display", solarflare.headless_virtual_display);
+    bool_f(vars, "skip_wayland_correlation", solarflare.skip_wayland_correlation);
+
+    // audio_fx sub-tunables.
+    auto &af = solarflare.audio_fx;
+    bool_f(vars, "sf_audio_agc", af.enable_agc);
+    bool_f(vars, "sf_audio_vad", af.enable_vad);
+    bool_f(vars, "sf_audio_ducking", af.enable_ducking);
+    bool_f(vars, "sf_audio_noise_gate", af.enable_noise_gate);
+    float_between_f(vars, "sf_audio_noise_gate_db", af.noise_gate_threshold_db, {-90.0f, -10.0f});
+    float_between_f(vars, "sf_audio_agc_target_db", af.agc_target_rms_db, {-40.0f, -6.0f});
+    float_between_f(vars, "sf_audio_agc_max_gain_db", af.agc_max_gain_db, {0.0f, 30.0f});
+    float_between_f(vars, "sf_audio_agc_min_gain_db", af.agc_min_gain_db, {-30.0f, 0.0f});
+    float_between_f(vars, "sf_audio_agc_attack_ms", af.agc_attack_ms, {1.0f, 500.0f});
+    float_between_f(vars, "sf_audio_agc_hold_ms", af.agc_hold_ms, {0.0f, 5000.0f});
+    float_between_f(vars, "sf_audio_agc_release_ms", af.agc_release_ms, {1.0f, 5000.0f});
+    float_between_f(vars, "sf_audio_vad_threshold_db", af.vad_threshold_db, {-80.0f, -10.0f});
+    float_between_f(vars, "sf_audio_vad_hysteresis_db", af.vad_hysteresis_db, {0.0f, 30.0f});
+    float_between_f(vars, "sf_audio_vad_min_speech_ms", af.vad_min_speech_ms, {10.0f, 2000.0f});
+    float_between_f(vars, "sf_audio_vad_min_silence_ms", af.vad_min_silence_ms, {10.0f, 5000.0f});
+    float_between_f(vars, "sf_audio_ducker_attenuation_db", af.ducker_target_attenuation_db, {-40.0f, 0.0f});
+    float_between_f(vars, "sf_audio_ducker_attack_ms", af.ducker_attack_ms, {1.0f, 2000.0f});
+    float_between_f(vars, "sf_audio_ducker_release_ms", af.ducker_release_ms, {1.0f, 5000.0f});
+    int_between_f(vars, "sf_opus_application", af.opus_application, {0, 2});
+    int_between_f(vars, "sf_opus_vbr", af.opus_vbr, {0, 2});
+    int_between_f(vars, "sf_opus_complexity", af.opus_complexity, {0, 10});
+    bool_f(vars, "sf_opus_fec", af.opus_fec);
+    int_between_f(vars, "sf_opus_expected_loss_pct", af.opus_expected_loss_pct, {0, 100});
+    bool_f(vars, "sf_opus_bandwidth_extension", af.opus_bandwidth_extension);
+  }
+
+  /**
+   * @brief Propagate parsed @c sf_opus_* values into the runtime Opus tuning.
+   *
+   * @c g_opus_tuning is read by the audio encode thread when it constructs
+   * the Opus encoder. Updating the struct from the config loader side is
+   * safe because the encode thread re-reads on every new session; an
+   * in-flight stream continues with whatever values it was created with
+   * (intentional -- mid-stream tuning changes can glitch audio).
+   *
+   * Only the six @c sf_opus_* fields are wired here. The remaining
+   * @c audio_fx fields (AGC/VAD/Ducker/noise-gate enable flags +
+   * tunables) are read directly by @c audio.cpp every time a new
+   * @c PreProcessor is built for a session, so they take effect on the
+   * next stream without going through this helper.
+   *
+   * Called from both apply_config() and the hot-reload watcher so that
+   * editing @c sf_opus_* in sunshine.conf actually takes effect on the
+   * next stream.
+   */
+  void apply_opus_tuning_runtime(const solarflare_audio_fx_t &af) {
+    // Note: ::audio (global namespace) is used here because config::audio
+    // is the audio-config struct and would otherwise shadow the audio namespace.
+    auto &tuning = ::audio::opus_tuning();
+    switch (af.opus_application) {
+      case 1: tuning.application = ::audio::opus_tuning_t::application_e::VOIP; break;
+      case 2: tuning.application = ::audio::opus_tuning_t::application_e::AUDIO; break;
+      case 0:
+      default:
+        tuning.application = ::audio::opus_tuning_t::application_e::LOWDELAY; break;
+    }
+    switch (af.opus_vbr) {
+      case 1: tuning.vbr = ::audio::opus_tuning_t::vbr_e::CONSTRAINED; break;
+      case 2: tuning.vbr = ::audio::opus_tuning_t::vbr_e::FULL; break;
+      case 0:
+      default:
+        tuning.vbr = ::audio::opus_tuning_t::vbr_e::OFF; break;
+    }
+    tuning.complexity = af.opus_complexity;
+    tuning.enable_fec = af.opus_fec;
+    tuning.expected_packet_loss_pct = af.opus_expected_loss_pct;
+    tuning.enable_bandwidth_extension = af.opus_bandwidth_extension;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Config hot reload: watches sunshine.conf for changes and re-applies
+  // SolarFlare tunables without restarting.
+  // ponytail: one stat() poll + key re-parse, ~30 lines.
+  // ---------------------------------------------------------------------------
+
+  namespace {
+    std::atomic<bool> config_watcher_running {false};
+    std::thread config_watcher_thread;
+  }
+
+  static void reload_solarflare_keys() {
+    try {
+      auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
+
+      // Re-parse the fork keys + propagate the Opus tuning to the runtime
+      // global. Same helpers as the initial config load, so a fork tweak
+      // edits the right struct AND its shadow in audio::opus_tuning().
+      apply_solarflare_keys(vars);
+      apply_opus_tuning_runtime(solarflare.audio_fx);
+
+      BOOST_LOG(info) << "SolarFlare config reloaded from "sv << sunshine.config_file;
+    } catch (const std::exception &e) {
+      BOOST_LOG(warning) << "Config reload failed: "sv << e.what();
+    }
+  }
+
+  void start_config_watcher() {
+    if (config_watcher_running.exchange(true)) return;  // already running
+
+    BOOST_LOG(info) << "Config watcher started, monitoring "sv << sunshine.config_file;
+
+    config_watcher_thread = std::thread([]() {
+      platf::set_thread_name("cfgwatch");
+      namespace fs = std::filesystem;
+      auto last_write = fs::last_write_time(sunshine.config_file);
+
+      while (config_watcher_running) {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        try {
+          auto current = fs::last_write_time(sunshine.config_file);
+          if (current != last_write) {
+            last_write = current;
+            reload_solarflare_keys();
+          }
+        } catch (...) {
+          // File might be temporarily inaccessible; just retry next cycle.
+        }
+      }
+    });
+  }
+
+  void stop_config_watcher() {
+    config_watcher_running = false;
+    if (config_watcher_thread.joinable()) {
+      config_watcher_thread.join();
+    }
+  }
+
 }  // namespace config

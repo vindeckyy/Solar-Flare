@@ -56,7 +56,7 @@ jobs:
       options: --privileged
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
@@ -116,7 +116,7 @@ jobs:
           tar czf ../sunshine-solarflare-linux-x86_64.tar.gz sunshine
 
       - name: Upload as release asset
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        uses: softprops/action-gh-release@v2
         with:
           files: sunshine-solarflare-linux-x86_64.tar.gz
           fail_on_unmatched_files: true
@@ -129,7 +129,7 @@ jobs:
     name: macOS x86_64
     runs-on: macos-13
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - name: Install deps
@@ -151,7 +151,7 @@ jobs:
           cp build/sunshine stage/Sunshine.app/Contents/MacOS/sunshine
           cd stage && tar czf ../sunshine-macos-x86_64.tar.gz Sunshine.app
       - name: Upload
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        uses: softprops/action-gh-release@v2
         with:
           files: sunshine-macos-x86_64.tar.gz
           fail_on_unmatched_files: true
@@ -160,7 +160,7 @@ jobs:
     name: macOS arm64
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - name: Install deps
@@ -182,7 +182,7 @@ jobs:
           cp build/sunshine stage/Sunshine.app/Contents/MacOS/sunshine
           cd stage && tar czf ../sunshine-macos-arm64.tar.gz Sunshine.app
       - name: Upload
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        uses: softprops/action-gh-release@v2
         with:
           files: sunshine-macos-arm64.tar.gz
           fail_on_unmatched_files: true
@@ -197,11 +197,11 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
       - name: Set up MSVC
-        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756  # v1
+        uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
       - name: Configure
@@ -217,7 +217,7 @@ jobs:
         run: |
           Compress-Archive -Path build/sunshine.exe, build/assets -DestinationPath sunshine-windows-x86_64.zip
       - name: Upload
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        uses: softprops/action-gh-release@v2
         with:
           files: sunshine-windows-x86_64.zip
           fail_on_unmatched_files: true

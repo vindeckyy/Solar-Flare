@@ -128,8 +128,14 @@
       <advanced
         v-if="currentTab === 'advanced'"
         :config="config"
-        :platform="platform">
+         :platform="platform">
       </advanced>
+
+      <headless
+        v-if="currentTab === 'headless'"
+        :config="config"
+        :platform="platform">
+      </headless>
 
       <container-encoders
         :current-tab="currentTab"
@@ -156,6 +162,7 @@
   import Advanced from './configs/tabs/Advanced.vue'
   import AudioVideo from './configs/tabs/AudioVideo.vue'
   import ContainerEncoders from './configs/tabs/ContainerEncoders.vue'
+  import Headless from './configs/tabs/Headless.vue'
   import {$tp, usePlatformI18n} from './platform-i18n'
   import {
     Check,
@@ -184,6 +191,7 @@
       // They will be accessible via audio-video, container-encoders only.
       AudioVideo,
       ContainerEncoders,
+      Headless,
       // icons
       Cpu,
       Check,
@@ -216,6 +224,16 @@
               "global_prep_cmd": [],
               "notify_pre_releases": "disabled",
               "system_tray": "enabled",
+            },
+          },
+          {
+            id: "headless",
+            name: "Headless Stream",
+            options: {
+              "headless_mode": false,
+              "linux_use_cage_compositor": false,
+              "linux_prefer_gpu_native_capture": false,
+              "compositor_backend": "auto",
             },
           },
           {
@@ -261,7 +279,37 @@
               "dd_config_revert_on_disconnect": "disabled",
               "dd_mode_remapping": {"mixed": [], "resolution_only": [], "refresh_rate_only": []},
               "max_bitrate": 0,
-              "minimum_fps_target": 0
+              "minimum_fps_target": 0,
+              "adaptive_bitrate_enabled": false,
+              "adaptive_bitrate_min": 2000,
+              "adaptive_bitrate_max": 100000,
+              // SolarFlare audio: pre-encoder effects + Opus tuning. All
+              // default to upstream-compatible values, so a vanilla install
+              // behaves identically to pre-SolarFlare Sunshine.
+              "sf_audio_agc": false,
+              "sf_audio_vad": false,
+              "sf_audio_ducking": false,
+              "sf_audio_noise_gate": false,
+              "sf_audio_noise_gate_db": -55,
+              "sf_audio_agc_target_db": -20,
+              "sf_audio_agc_max_gain_db": 12,
+              "sf_audio_agc_min_gain_db": -12,
+              "sf_audio_agc_attack_ms": 10,
+              "sf_audio_agc_hold_ms": 200,
+              "sf_audio_agc_release_ms": 100,
+              "sf_audio_vad_threshold_db": -45,
+              "sf_audio_vad_hysteresis_db": 6,
+              "sf_audio_vad_min_speech_ms": 100,
+              "sf_audio_vad_min_silence_ms": 200,
+              "sf_audio_ducker_attenuation_db": -12,
+              "sf_audio_ducker_attack_ms": 50,
+              "sf_audio_ducker_release_ms": 500,
+              "sf_opus_application": 0,
+              "sf_opus_vbr": 0,
+              "sf_opus_complexity": 10,
+              "sf_opus_fec": true,
+              "sf_opus_expected_loss_pct": 0,
+              "sf_opus_bandwidth_extension": true,
             },
           },
           {
@@ -279,6 +327,8 @@
               "wan_encryption_mode": 1,
               "ping_timeout": 10000,
               "packetsize": 0,
+              "trusted_subnet_auto_pairing": false,
+              "trusted_subnets": "",
             },
           },
           {
@@ -319,6 +369,19 @@
               "nvenc_latency_over_power": "enabled",
               "nvenc_opengl_vulkan_on_dxgi": "enabled",
               "nvenc_h264_cavlc": "disabled",
+              "nvenc_weighted_prediction": false,
+              "nvenc_enable_min_qp": false,
+              "nvenc_min_qp_h264": 19,
+              "nvenc_min_qp_hevc": 23,
+              "nvenc_min_qp_av1": 23,
+              "nvenc_filler_data": false,
+              "nvenc_rc_lookahead": 0,
+              "nvenc_surfaces": -1,
+              "nvenc_bframes": 0,
+              "nvenc_zerolatency": false,
+              "nvenc_aq_strength": 8,
+              "nvenc_temporal_aq": false,
+              "nvenc_tuning_preset": -1,
             },
           },
           {
@@ -356,9 +419,6 @@
             id: "vaapi",
             name: "VA-API Encoder",
             options: {
-              "vaapi_blbrc": "disabled",
-              "vaapi_quality": "auto",
-              "vaapi_rc": "auto",
               "vaapi_strict_rc_buffer": "disabled",
             },
           },
@@ -368,6 +428,8 @@
             options: {
               "vk_tune": 2,
               "vk_rc_mode": 2,
+              "vk_min_qp": 0,
+              "vk_max_qp": 0,
             },
           },
           {
@@ -476,6 +538,7 @@
           'network': 'NetworkIcon',
           'files': 'FileCog',
           'advanced': 'Sliders',
+          'headless': 'Settings',
           'nv': 'Gpu',
           'amd': 'Gpu',
           'qsv': 'Gpu',

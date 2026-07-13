@@ -15,24 +15,16 @@ include_directories("${CMAKE_SOURCE_DIR}")
 enable_testing()
 
 # Add GoogleTest directory to the project
-set(GTEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third-party/lizardbyte-common/third-party/googletest")
+set(GTEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}/third-party/googletest")
 set(INSTALL_GTEST OFF)
 set(INSTALL_GMOCK OFF)
-if(NOT TARGET gtest)
-    add_subdirectory("${GTEST_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest")
-endif()
+add_subdirectory("${GTEST_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest")
 include_directories("${GTEST_SOURCE_DIR}/googletest/include" "${GTEST_SOURCE_DIR}")
 
 # coverage
 # https://gcovr.com/en/stable/guide/compiling.html#compiler-options
-option(SUNSHINE_LLVM_COVERAGE "Use LLVM source-based coverage" OFF)
-if(SUNSHINE_LLVM_COVERAGE)
-    add_compile_options(-fprofile-instr-generate -fcoverage-mapping -ggdb -O0)
-    add_link_options(-fprofile-instr-generate)
-else()
-    set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
-    set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
-endif()
+set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
+set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
 
 # Find the correct libgcov library path matching the gcc compiler version
 # This ensures the test executable links against the same libgcov version used during compilation
@@ -169,7 +161,7 @@ add_dependencies(${PROJECT_NAME} sync_locale_files)
 # Build the list of libraries to link
 set(TEST_LINK_LIBRARIES
     ${SUNSHINE_EXTERNAL_LIBRARIES}
-    lizardbyte::test_support
+    gtest
     ${PLATFORM_LIBRARIES}
 )
 
@@ -178,17 +170,10 @@ if(GCOV_LINK_LIBRARY)
     list(APPEND TEST_LINK_LIBRARIES ${GCOV_LINK_LIBRARY})
 endif()
 
-# inputtino requires dynamic libstdc++ — the -static-libstdc++ from linux.cmake
-# comes earlier in SUNSHINE_EXTERNAL_LIBRARIES, so re-add the dynamic lib last.
-# Without this, joypad_nintendo.cpp.o fails to resolve _M_replace_cold@@GLIBCXX_3.4.31.
-if(UNIX AND NOT APPLE)
-    list(APPEND TEST_LINK_LIBRARIES -lstdc++)
-endif()
-
 target_link_libraries(${PROJECT_NAME} ${TEST_LINK_LIBRARIES})
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${SUNSHINE_DEFINITIONS} ${TEST_DEFINITIONS})
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
-target_link_options(${PROJECT_NAME} PRIVATE ${SUNSHINE_LINK_OPTIONS})
+target_link_options(${PROJECT_NAME} PRIVATE)
 
 if (WIN32)
     # prefer static libraries since we're linking statically

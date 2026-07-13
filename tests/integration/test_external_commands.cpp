@@ -37,10 +37,9 @@ struct ExternalCommandTestData {
       xfail_reason(std::move(xfail_rsn)) {}
 };
 
-class ExternalCommandTest: public BaseTest, public ::testing::WithParamInterface<ExternalCommandTestData> {
+class ExternalCommandTest: public ::testing::TestWithParam<ExternalCommandTestData> {
 protected:
   void SetUp() override {
-    BaseTest::SetUp();
     if constexpr (IS_WINDOWS) {
       current_platform = "windows";
     } else if constexpr (IS_MACOS) {

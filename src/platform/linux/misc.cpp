@@ -5,20 +5,21 @@
 
 // Required for in6_pktinfo with glibc headers
 #ifndef _GNU_SOURCE
-  /**
-   * @def _GNU_SOURCE
-   * @brief Macro for GNU SOURCE.
-   */
   #define _GNU_SOURCE 1
 #endif
 
 // standard includes
-#include <cerrno>
-#include <cstring>
+#include <algorithm>
+#include <atomic>
+#include <cctype>
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <span>
 #include <sstream>
+#include <vector>
 
 // platform includes
 #include <arpa/inet.h>
@@ -32,8 +33,11 @@
 #include <sys/socket.h>
 
 #if !defined(__FreeBSD__)
+  #include <pthread.h>
+  #include <sched.h>
   #include <sys/capability.h>
   #include <sys/prctl.h>
+  #include <atomic>
 #endif
 #ifdef __FreeBSD__
   #include <net/if_dl.h>  // For sockaddr_dl, LLADDR, and AF_LINK
@@ -46,7 +50,6 @@
 #include <boost/asio/ip/host_name.hpp>
 #include <boost/process/v1.hpp>
 #include <fcntl.h>
-#include <lizardbyte/common/env.h>
 #include <unistd.h>
 
 #ifdef SUNSHINE_BUILD_DRM
@@ -67,32 +70,16 @@
 #ifdef __GNUC__
   #define SUNSHINE_GNUC_EXTENSION __extension__
 #else
-  /**
-   * @def SUNSHINE_GNUC_EXTENSION
-   * @brief Macro for SUNSHINE GNUC EXTENSION.
-   */
   #define SUNSHINE_GNUC_EXTENSION
 #endif
 
 #ifndef SOL_IP
-  /**
-   * @def SOL_IP
-   * @brief Macro for SOL IP.
-   */
   #define SOL_IP IPPROTO_IP
 #endif
 #ifndef SOL_IPV6
-  /**
-   * @def SOL_IPV6
-   * @brief Macro for SOL IPv6.
-   */
   #define SOL_IPV6 IPPROTO_IPV6
 #endif
 #ifndef SOL_UDP
-  /**
-   * @def SOL_UDP
-   * @brief Macro for SOL UDP.
-   */
   #define SOL_UDP IPPROTO_UDP
 #endif
 
@@ -100,12 +87,9 @@ using namespace std::literals;
 namespace fs = std::filesystem;
 namespace bp = boost::process::v1;
 
-window_system_e window_system;  ///< Window system.
+window_system_e window_system;
 
 namespace dyn {
-  /**
-   * @brief Return the native handle owned by the wrapper.
-   */
   void *handle(const std::vector<const char *> &libs) {
     void *handle;
 
@@ -129,9 +113,6 @@ namespace dyn {
     return nullptr;
   }
 
-  /**
-   * @brief Load persisted state from its backing store.
-   */
   int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict) {
     int err = 0;
     for (auto &func : funcs) {
@@ -151,90 +132,8 @@ namespace dyn {
 }  // namespace dyn
 
 namespace platf {
-  /**
-   * @brief Owning pointer for `getifaddrs` results.
-   */
   using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
 
-  /**
-   * @brief Open a DRM card node, dropping implicit DRM master when possible.
-   *
-   * See `misc.h` for full documentation. Master check/drop failures are logged
-   * as warnings but do not fail the call.
-   */
-  int open_drm_card_fd(const std::filesystem::path &path, int flags) {
-#ifdef SUNSHINE_BUILD_DRM
-    int fd = open(path.c_str(), flags | O_CLOEXEC);
-    if (fd < 0) {
-      BOOST_LOG(error) << "Couldn't open: "sv << path.string() << ": "sv << strerror(errno);
-      return -1;
-    }
-
-    auto is_master = [&]() -> int {
-      drm_auth_t auth {};
-      auth.magic = 0;
-
-      errno = 0;
-      if (drmIoctl(fd, DRM_IOCTL_AUTH_MAGIC, &auth) == 0) {
-        return 1;  ///< AUTH_MAGIC succeeded, so we are master.
-      }
-
-      auto err = errno;
-      if (err == EACCES) {
-        return 0;  ///< Kernel rejected the ioctl because we are not master.
-      }
-
-      if (err == EINVAL || err == ENOENT) {
-        return 1;  ///< Ioctl reached the master path but the magic (0) was invalid; we are master.
-      }
-
-      BOOST_LOG(warning) << "Couldn't determine DRM master state for "sv << path.string() << ": "sv << strerror(err);
-      return -1;
-    };
-
-    auto master = is_master();
-    if (master < 0) {
-      BOOST_LOG(warning) << "Proceeding without dropping DRM master for "sv << path.string()
-                         << "; compositor VT switches may fail."sv;
-      return fd;
-    }
-
-    if (master) {
-      if (drmDropMaster(fd)) {
-        auto err = errno;
-        BOOST_LOG(warning) << "Couldn't drop DRM master for "sv << path.string() << ": "sv << strerror(err)
-                           << ", Compositor VT switches may fail."sv;
-        return fd;
-      }
-
-      BOOST_LOG(info) << "Dropped DRM master for "sv << path.string();
-
-      master = is_master();
-      if (master < 0) {
-        BOOST_LOG(warning) << "Could not re-verify DRM master state after drop for "sv << path.string() << "."sv;
-        return fd;
-      }
-
-      if (master) {
-        BOOST_LOG(warning) << "Still DRM master after drop for "sv << path.string() << "."sv;
-        return fd;
-      }
-    }
-
-    return fd;
-#else
-  #ifndef __FreeBSD__
-    BOOST_LOG(info) << "Sunshine compiled without DRM support. Cannot control Linux DRM master state for "sv << path.string();
-  #endif
-    return open(path.c_str(), flags | O_CLOEXEC);
-#endif
-  }
-
-  /**
-   * @brief Read the local interface address list.
-   *
-   * @return Owning pointer to the interface address list, or nullptr on failure.
-   */
   ifaddr_t get_ifaddrs() {
     ifaddrs *p {nullptr};
 
@@ -256,35 +155,38 @@ namespace platf {
     std::call_once(migration_flag, []() {
       bool found = false;
       bool migrate_config = true;
-      fs::path homedir {lizardbyte::common::get_env("HOME")};
+      const char *dir;
+      const char *homedir;
+      const char *migrate_envvar;
 
       // Get the home directory
-      if (homedir.empty()) {
+      if ((homedir = getenv("HOME")) == nullptr || strlen(homedir) == 0) {
         // If HOME is empty or not set, use the current user's home directory
         homedir = getpwuid(geteuid())->pw_dir;
       }
 
       // May be set if running under a systemd service with the ConfigurationDirectory= option set.
-      if (std::string dir; lizardbyte::common::get_env("CONFIGURATION_DIRECTORY", dir) && !dir.empty()) {
+      if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr && strlen(dir) > 0) {
         found = true;
         config_path = fs::path(dir) / "sunshine"sv;
       }
       // Otherwise, follow the XDG base directory specification:
       // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-      if (std::string dir; !found && lizardbyte::common::get_env("XDG_CONFIG_HOME", dir) && !dir.empty()) {
+      if (!found && (dir = getenv("XDG_CONFIG_HOME")) != nullptr && strlen(dir) > 0) {
         found = true;
         config_path = fs::path(dir) / "sunshine"sv;
       }
       // As a last resort, use the home directory
       if (!found) {
         migrate_config = false;
-        config_path = homedir / ".config" / "sunshine";
+        config_path = fs::path(homedir) / ".config/sunshine"sv;
       }
 
       // migrate from the old config location if necessary
-      if (std::string migrate_envvar; migrate_config && found && lizardbyte::common::get_env("SUNSHINE_MIGRATE_CONFIG", migrate_envvar) && migrate_envvar == "1") {
+      migrate_envvar = getenv("SUNSHINE_MIGRATE_CONFIG");
+      if (migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
         std::error_code ec;
-        fs::path old_config_path = homedir / ".config" / "sunshine";
+        fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
         if (old_config_path != config_path && fs::exists(old_config_path, ec)) {
           if (!fs::exists(config_path, ec)) {
             std::cout << "Migrating config from "sv << old_config_path << " to "sv << config_path << std::endl;
@@ -323,9 +225,6 @@ namespace platf {
     return config_path;
   }
 
-  /**
-   * @brief Convert a socket address to a printable IP address.
-   */
   std::string from_sockaddr(const sockaddr *const ip_addr) {
     char data[INET6_ADDRSTRLEN] = {};
 
@@ -339,9 +238,6 @@ namespace platf {
     return std::string {data};
   }
 
-  /**
-   * @brief Convert a socket address to a port and printable IP address.
-   */
   std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_addr) {
     char data[INET6_ADDRSTRLEN] = {};
 
@@ -358,9 +254,6 @@ namespace platf {
     return {port, std::string {data}};
   }
 
-  /**
-   * @brief Return the hardware MAC address associated with a network address.
-   */
   std::string get_mac_address(const std::string_view &address) {
     auto ifaddrs = get_ifaddrs();
 
@@ -439,7 +332,7 @@ namespace platf {
    */
   void open_url(const std::string &url) {
     // set working dir to user home directory
-    auto working_dir = boost::filesystem::path(lizardbyte::common::get_env("HOME"));
+    auto working_dir = boost::filesystem::path(std::getenv("HOME"));
     std::string cmd = R"(xdg-open ")" + url + R"(")";
 
     boost::process::v1::environment _env = boost::this_process::environment();
@@ -453,9 +346,6 @@ namespace platf {
     }
   }
 
-  /**
-   * @brief Apply the requested scheduling priority to the current thread.
-   */
   void adjust_thread_priority(thread_priority_e priority) {
 #if defined(__FreeBSD__)
     pid_t tid = syscall(SYS_thr_self);
@@ -464,6 +354,7 @@ namespace platf {
 #endif
     bool success = false;
     int32_t linux_nice;
+    bool want_realtime = false;
 
     using enum thread_priority_e;
     switch (priority) {
@@ -478,6 +369,7 @@ namespace platf {
         break;
       case critical:
         linux_nice = -15;
+        want_realtime = true;
         break;
       default:
         BOOST_LOG(debug) << "Unknown thread priority: "sv << std::to_underlying(priority);
@@ -488,7 +380,7 @@ namespace platf {
     GDBusConnection *conn = g_bus_get_sync(G_BUS_TYPE_SYSTEM, nullptr, &err);
 
     if (conn) {
-      g_autoptr(GVariant) priority_response = g_dbus_connection_call_sync(
+      g_dbus_connection_call_sync(
         conn,
         "org.freedesktop.RealtimeKit1",
         "/org/freedesktop/RealtimeKit1",
@@ -512,43 +404,148 @@ namespace platf {
     }
 
     if (!success) {
-      // This will run on FreeBSD OR Linux if RTKit failed/was missing
+      // This will run on FreeBSD OR Linux if RTKit failed/was missing.
+      // On a non-root desktop the setpriority() call will fail with EPERM
+      // because regular users cannot decrease their nice value below 0.
+      // That's expected on a wall-powered desktop where the fork's
+      // cpu_pinning SCHED_RR path below is what actually matters for
+      // capture-thread latency; log it once per process at info-level
+      // instead of spamming a warning on every thread that tries.
+      // The static bool is at namespace scope (outside this lambda's
+      // capture) so all threads share the same latched state -- the
+      // first EPERM marks it, every subsequent EPERM is silent.
+      static std::atomic<bool> setpriority_noted {false};
       if (setpriority(PRIO_PROCESS, 0, linux_nice) == -1) {
-        BOOST_LOG(warning) << "setpriority failed for nice "sv << linux_nice << ": "sv << strerror(errno);
+        if (errno == EPERM && !setpriority_noted.exchange(true)) {
+          BOOST_LOG(info) << "nice adjustments skipped (no CAP_SYS_NICE); capture-thread priority comes from cpu_pinning."sv;
+        } else if (errno != EPERM) {
+          BOOST_LOG(warning) << "setpriority failed for nice "sv << linux_nice << ": "sv << strerror(errno);
+        }
       } else {
         BOOST_LOG(debug) << "setpriority success for nice "sv << linux_nice;
       }
     }
+
+#if !defined(__FreeBSD__)
+    // CachyOS / Linux local-LAN fast path. For the streaming capture thread:
+    //   - pin to a non-IRQ, non-SMT sibling core so L1/L2 stays warm
+    //     frame-to-frame and we don't pay the migration cost on every vblank.
+    //   - leave it on plain CFS rather than SCHED_RR. The capture thread is
+    //     mostly blocked on GPU fences / Wayland-KMS vblank waits; SCHED_RR
+    //     only helps when the thread is runnable, and when it IS runnable a
+    //     full SCHED_RR time slice (up to 100 ms) starves the game's main
+    //     thread. Reported symptom on Steam/Proton games (e.g. Meatboy 3D via
+    //     Non-Steam / Big Picture): the loader stalls while Sunshine is
+    //     streaming and the disconnect/reconnect dance unsticks it. Pinning
+    //     alone gives the cache-locality win without the priority-inversion
+    //     risk on I/O-bound waits.
+    //
+    // SCHED_RR is still applied to short-burst threads that call in with
+    // `critical` and aren't the capture loop (audio capture, control
+    // broadcast) -- those benefit from the lower wakeup latency.
+    //
+    // These calls fail silently under containers / systemd-run / non-PRI
+    // users. That's fine: the thread already has the nice level from above.
+    //
+    // SolarFlare fork knob: `cpu_pinning = false` skips both SCHED_RR (when
+    // applied below) and the affinity block entirely. The RTKit/nice path
+    // above still applies.
+    char current_name[16] = {};
+    ::pthread_getname_np(pthread_self(), current_name, sizeof(current_name));
+    bool is_capture_thread = std::strncmp(current_name, "video::capture", 14) == 0;
+    if (config::solarflare.cpu_pinning) {
+      if (want_realtime && !is_capture_thread) {
+        struct sched_param sp {};
+        sp.sched_priority = 10;  // lowest RT priority that still beats CFS
+        if (::pthread_setschedparam(pthread_self(), SCHED_RR, &sp) != 0) {
+          BOOST_LOG(debug) << "SCHED_RR not available; falling back to nice only"sv;
+        }
+      }
+
+      // Pick a non-SMT core to pin to. The naive `nproc / 2` heuristic we
+      // used previously was wrong on CPUs without SMT (Ryzen 5600 / 5600G)
+      // and on Apple silicon emulated through a hypervisor. The kernel
+      // publishes the real topology under /sys/devices/system/cpu/cpu*/
+      // topology/thread_siblings_list: cores with only themselves listed
+      // have no SMT sibling, cores with a comma-separated pair share a
+      // physical core. We read the directory once on first call and cache
+      // the candidate cores.
+      static const std::vector<unsigned> candidates = []() -> std::vector<unsigned> {
+        namespace fs = std::filesystem;
+        std::vector<unsigned> cores;
+        std::error_code ec;
+        fs::path topo {"/sys/devices/system/cpu"};
+        if (!fs::exists(topo, ec) || ec) {
+          return cores;
+        }
+        for (const auto &entry : fs::directory_iterator(topo, ec)) {
+          // Only consider cpuN directories.
+          const auto name = entry.path().filename().string();
+          if (name.size() < 4 || name.compare(0, 3, "cpu") != 0) {
+            continue;
+          }
+          const char *digits = name.c_str() + 3;
+          if (*digits == '\0' || !std::isdigit(static_cast<unsigned char>(*digits))) {
+            continue;
+          }
+          char *end = nullptr;
+          long n = std::strtol(digits, &end, 10);
+          if (end == digits || n < 0) {
+            continue;
+          }
+          // Read thread_siblings_list; if the file's first value equals this
+          // CPU's number, it's a primary thread (no SMT sibling). On Intel
+          // SMT and AMD SMT the value is "N,M" or "N".
+          fs::path sibs = entry.path() / "topology" / "thread_siblings_list";
+          std::ifstream f {sibs};
+          if (!f) continue;
+          std::string line;
+          if (!std::getline(f, line)) continue;
+          // Parse the first sibling number.
+          char *e2 = nullptr;
+          long first = std::strtol(line.c_str(), &e2, 10);
+          if (e2 == line.c_str()) continue;
+          if (first == n) {
+            cores.push_back(static_cast<unsigned>(n));
+          }
+        }
+        // Stable order so the round-robin advances deterministically.
+        std::sort(cores.begin(), cores.end());
+        return cores;
+      }();
+      if (!candidates.empty()) {
+        // Round-robin across physical cores so successive capture threads
+        // (audio + video) don't pile onto the same L2.
+        static std::atomic<unsigned> slot {0};
+        unsigned core = candidates[slot.fetch_add(1, std::memory_order_relaxed) % candidates.size()];
+
+        cpu_set_t set;
+        CPU_ZERO(&set);
+        CPU_SET(core, &set);
+        if (::sched_setaffinity(0, sizeof(set), &set) != 0) {
+          BOOST_LOG(debug) << "sched_setaffinity failed (container?); running unpinned"sv;
+        }
+      }
+    }
+#endif
   }
 
   void set_thread_name(const std::string &name) {
     pthread_setname_np(pthread_self(), name.c_str());
   }
 
-  /**
-   * @brief Enable or disable X11 mouse keys for the current session.
-   */
   void enable_mouse_keys() {
     // Unimplemented
   }
 
-  /**
-   * @brief Apply Linux platform state before streaming starts.
-   */
   void streaming_will_start() {
     // Nothing to do
   }
 
-  /**
-   * @brief Restore Linux platform state after streaming stops.
-   */
   void streaming_will_stop() {
     // Nothing to do
   }
 
-  /**
-   * @brief Request a Sunshine process restart on exit.
-   */
   void restart_on_exit() {
     char executable[PATH_MAX];
     ssize_t len = readlink("/proc/self/exe", executable, PATH_MAX - 1);
@@ -571,13 +568,32 @@ namespace platf {
     }
   }
 
-  /**
-   * @brief Restart the Sunshine process through the platform launcher.
-   */
   void restart() {
     // Gracefully clean up and restart ourselves instead of exiting
     atexit(restart_on_exit);
     lifetime::exit_sunshine(0, true);
+  }
+
+  std::string get_env(const std::string &name) {
+    if (const auto value = getenv(name.c_str()); value != nullptr) {
+      return value;
+    }
+    return "";
+  }
+
+  int set_env(const std::string &name, const std::string &value) {
+    return setenv(name.c_str(), value.c_str(), 1);
+  }
+
+  int append_env(const std::string &name, const std::string &value, const std::string &separator) {
+    if (const std::string old_value = get_env(name); !old_value.contains(value)) {
+      return set_env(name, old_value.empty() ? value : old_value + separator + value);
+    }
+    return 0;
+  }
+
+  int unset_env(const std::string &name) {
+    return unsetenv(name.c_str());
   }
 
   bool request_process_group_exit(std::uintptr_t native_handle) {
@@ -594,13 +610,6 @@ namespace platf {
     return waitpid(-((pid_t) native_handle), nullptr, WNOHANG) >= 0;
   }
 
-  /**
-   * @brief Convert to sockaddr.
-   *
-   * @param address Network address being parsed or filtered.
-   * @param port TCP or UDP port number.
-   * @return Value converted to sockaddr.
-   */
   struct sockaddr_in to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
     struct sockaddr_in saddr_v4 = {};
 
@@ -613,13 +622,6 @@ namespace platf {
     return saddr_v4;
   }
 
-  /**
-   * @brief Convert to sockaddr.
-   *
-   * @param address Network address being parsed or filtered.
-   * @param port TCP or UDP port number.
-   * @return Value converted to sockaddr.
-   */
   struct sockaddr_in6 to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
     struct sockaddr_in6 saddr_v6 = {};
 
@@ -633,9 +635,6 @@ namespace platf {
     return saddr_v6;
   }
 
-  /**
-   * @brief Send multiple fixed-size UDP payload blocks using the platform backend.
-   */
   bool send_batch(batched_send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
@@ -861,9 +860,6 @@ namespace platf {
     }
   }
 
-  /**
-   * @brief Send the serialized response over the active socket.
-   */
   bool send(send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
@@ -987,17 +983,8 @@ namespace platf {
   // are disconnected.
   static std::atomic<int> qos_ref_count = 0;
 
-  /**
-   * @brief Linux QoS state used to tune socket priority while streaming.
-   */
   class qos_t: public deinit_t {
   public:
-    /**
-     * @brief Apply Linux socket priority and DSCP QoS settings for scoped cleanup.
-     *
-     * @param sockfd Native socket descriptor whose options are updated.
-     * @param options Request options or socket options to apply.
-     */
     qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
         sockfd(sockfd),
         options(options) {
@@ -1022,6 +1009,11 @@ namespace platf {
 
   /**
    * @brief Enables QoS on the given socket for traffic to the specified destination.
+   * @param native_socket The native socket handle.
+   * @param address The destination address for traffic sent on this socket.
+   * @param port The destination port for traffic sent on this socket.
+   * @param data_type The type of traffic sent on this socket.
+   * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    */
   std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     int sockfd = (int) native_socket;
@@ -1101,9 +1093,6 @@ namespace platf {
   }
 
   namespace source {
-    /**
-     * @brief Enumerates supported source options.
-     */
     enum source_e : std::size_t {
 #ifdef SUNSHINE_BUILD_CUDA
       NVFBC,  ///< NvFBC
@@ -1123,6 +1112,7 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_PORTAL
       PORTAL,  ///< XDG PORTAL
 #endif
+      HERMES_KMS,  ///< Hermes-KMS (github.com/MrOz59/Hermes-KMS) — GPL-2.0+
       MAX_FLAGS  ///< The maximum number of flags
     };
   }  // namespace source
@@ -1139,27 +1129,9 @@ namespace platf {
 #endif
 
 #ifdef SUNSHINE_BUILD_WAYLAND
-  /**
-   * @brief Enumerate displays available through the Wayland capture backend.
-   *
-   * @return Wayland display names, or an empty list when discovery fails.
-   */
   std::vector<std::string> wl_display_names();
-  /**
-   * @brief Create a Wayland display capture backend.
-   *
-   * @param hwdevice_type Hardware device type requested for capture or encode.
-   * @param display_name Display name.
-   * @param config Configuration values to apply.
-   * @return Display backend, or nullptr when Wayland capture initialization fails.
-   */
   std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
-  /**
-   * @brief Check whether Wayland capture is available for the current session.
-   *
-   * @return True when the active window system is Wayland and at least one output is discoverable.
-   */
   bool verify_wl() {
     return window_system == window_system_e::WAYLAND && !wl_display_names().empty();
   }
@@ -1204,7 +1176,24 @@ namespace platf {
 #endif
 
   /**
-   * @brief List display names accepted by the selected capture backend.
+   * @brief Hermes-KMS forward declarations (see hermes_kms.h for full API).
+   * @details Always compiled in; runtime probe returns false when the
+   *          kernel module isn't loaded.
+   */
+  std::vector<std::string> hermes_kms_display_names(mem_type_e hwdevice_type);
+  std::shared_ptr<display_t> hermes_kms_display(mem_type_e hwdevice_type,
+                                                const std::string &display_name,
+                                                const video::config_t &config);
+  bool verify_hermes_kms();
+
+  /**
+   * @brief Enumerate available capture outputs for the current set of
+   *        auto-detected sources.
+   * @details Walks the @c sources bitset in priority order (NVFBC, Wayland,
+   *          KMS, X11, Portal, KWin, Hermes-KMS) and returns the output
+   *          names reported by the first matching source.
+   * @param hwdevice_type The encoder memory type requested by the caller.
+   * @return Vector of output names; empty if no source is usable.
    */
   std::vector<std::string> display_names(mem_type_e hwdevice_type) {
 #ifdef SUNSHINE_BUILD_CUDA
@@ -1234,28 +1223,24 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
-    if (sources[source::KWIN]) {
+    if (sources[source::KWIN] && !config::solarflare.skip_wayland_correlation) {
       return kwin_display_names();
     }
 #endif
+    if (sources[source::HERMES_KMS]) {
+      // Hermes-KMS exports exactly one virtual output named "HERMES-1".
+      // Mirrors the dispatch in display() below.
+      return hermes_kms_display_names(hwdevice_type);
+    }
     return {};
   }
 
   /**
-   * @brief Report whether encoder backends should be probed again before streaming.
-   *
-   * @return Always `true` because Linux GPU changes are not tracked by this backend.
+   * @brief Returns if GPUs/drivers have changed since the last call to this function.
+   * @return `true` if a change has occurred or if it is unknown whether a change occurred.
    */
   bool needs_encoder_reenumeration() {
-    // Only re-probe if the GPU render device changed (hotplug, driver reload).
-    // Full re-probing on every reconnect leaks ~20 MB due to FFmpeg CBS
-    // allocations during HEVC/AV1 codec validation.
-    static std::string last_render_device;
-    auto current = platf::resolve_render_device();
-    if (current == last_render_device) {
-      return false;
-    }
-    last_render_device = current;
+    // We don't track GPU state, so we will always reenumerate. Fortunately, it is fast on Linux.
     return true;
   }
 
@@ -1280,7 +1265,7 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (sources[source::WAYLAND]) {
+    if (sources[source::WAYLAND] && !config::solarflare.skip_wayland_correlation) {
       BOOST_LOG(info) << "Screencasting with Wayland's protocol"sv;
       return wl_display(hwdevice_type, display_name, config);
     }
@@ -1298,40 +1283,48 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
-    if (sources[source::KWIN]) {
+    if (sources[source::KWIN] && !config::solarflare.skip_wayland_correlation) {
       BOOST_LOG(info) << "Screencasting with KWin ScreenCast"sv;
       return kwin_display(hwdevice_type, display_name, config);
     }
 #endif
+    if (sources[source::HERMES_KMS]) {
+      BOOST_LOG(info) << "Screencasting with Hermes-KMS"sv;
+      return hermes_kms_display(hwdevice_type, display_name, config);
+    }
 
     return nullptr;
   }
 
-  /**
-   * @brief Initialize the Linux high-precision timer file descriptor.
-   */
   std::unique_ptr<deinit_t> init() {
     // enable low latency mode for AMD
     // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039
-    lizardbyte::common::set_env("AMD_DEBUG", "lowlatencyenc");
+    set_env("AMD_DEBUG", "lowlatencyenc");
 
     // enable Vulkan video extensions for AMD RADV
-    lizardbyte::common::set_env("RADV_PERFTEST", "video_encode");
+    set_env("RADV_PERFTEST", "video_encode");
     // Above is deprecated on Mesa 26.1+ and replaced by (keep both to ensure best compatibility):
-    lizardbyte::common::append_env("RADV_EXPERIMENTAL", "video_encode", ",");
+    append_env("RADV_EXPERIMENTAL", "video_encode", ",");
 
     // These are allowed to fail.
     gbm::init();
 
     window_system = window_system_e::NONE;
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (std::string v; lizardbyte::common::get_env("WAYLAND_DISPLAY", v)) {
+    if (std::getenv("WAYLAND_DISPLAY")) {
       window_system = window_system_e::WAYLAND;
     }
 #endif
 #if defined(SUNSHINE_BUILD_X11) || defined(SUNSHINE_BUILD_CUDA)
-    if (std::string v; lizardbyte::common::get_env("DISPLAY", v) && window_system != window_system_e::WAYLAND) {
-      if (lizardbyte::common::get_env("WAYLAND_DISPLAY", v)) {
+    // ponytail: when skip_wayland_correlation is set, force X11 window_system
+    // even on a Wayland session so x11grab can capture via XWayland. Without
+    // this override, window_system stays WAYLAND and verify_x11() returns
+    // false, making Sunshine fall through to "Unable to initialize capture
+    // method" when all Wayland-based backends are skipped or timeout.
+    if (std::getenv("DISPLAY") &&
+        (window_system != window_system_e::WAYLAND ||
+         config::solarflare.skip_wayland_correlation)) {
+      if (std::getenv("WAYLAND_DISPLAY")) {
         BOOST_LOG(warning) << "Wayland detected, yet sunshine will use X11 for screencasting, screencasting will only work on XWayland applications"sv;
       }
 
@@ -1345,7 +1338,8 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "wlr") && verify_wl()) {
+    if (!config::solarflare.skip_wayland_correlation &&
+        ((config::video.capture.empty() && sources.none()) || config::video.capture == "wlr") && verify_wl()) {
       sources[source::WAYLAND] = true;
     }
 #endif
@@ -1362,15 +1356,20 @@ namespace platf {
     }
 #endif
 #ifdef SUNSHINE_BUILD_PORTAL
-    if ((config::video.capture.empty() || config::video.capture == "portal") && verify_portal()) {
+    if (!config::solarflare.skip_wayland_correlation &&
+        (config::video.capture.empty() || config::video.capture == "portal") && verify_portal()) {
       sources[source::PORTAL] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_KWIN
-    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "kwin") && verify_kwin()) {
+    if (!config::solarflare.skip_wayland_correlation &&
+        ((config::video.capture.empty() && sources.none()) || config::video.capture == "kwin") && verify_kwin()) {
       sources[source::KWIN] = true;
     }
 #endif
+    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "hermes_kms") && verify_hermes_kms()) {
+      sources[source::HERMES_KMS] = true;
+    }
 
     if (sources.none()) {
       BOOST_LOG(error) << "Unable to initialize capture method"sv;
@@ -1385,9 +1384,6 @@ namespace platf {
     return std::make_unique<deinit_t>();
   }
 
-  /**
-   * @brief Linux high-precision timer implementation backed by `timerfd`.
-   */
   class linux_high_precision_timer: public high_precision_timer {
   public:
     void sleep_for(const std::chrono::nanoseconds &duration) override {
@@ -1403,11 +1399,6 @@ namespace platf {
     return std::make_unique<linux_high_precision_timer>();
   }
 
-  /**
-   * @brief Find the DRM render node associated with the active display.
-   *
-   * @return Render-node path, or an empty string when no matching node is found.
-   */
   std::string find_render_node_with_display() {
 #ifdef SUNSHINE_BUILD_DRM
     auto *dir = opendir("/dev/dri");
@@ -1468,8 +1459,8 @@ namespace platf {
   static constexpr cap_value_t FULL_CAPS[] = {CAP_SYS_ADMIN, CAP_SYS_NICE};
   static constexpr cap_value_t ADMIN_CAPS[] = {CAP_SYS_ADMIN};
 
-  constexpr std::span<const cap_value_t> ELEVATED_PRIVILEGES_FULL {FULL_CAPS};  ///< Protocol or platform constant for elevated privileges full.
-  constexpr std::span<const cap_value_t> ELEVATED_PRIVILEGES_ADMIN {ADMIN_CAPS};  ///< Protocol or platform constant for elevated privileges admin.
+  constexpr std::span<const cap_value_t> ELEVATED_PRIVILEGES_FULL {FULL_CAPS};
+  constexpr std::span<const cap_value_t> ELEVATED_PRIVILEGES_ADMIN {ADMIN_CAPS};
 #endif
 
   bool has_elevated_privileges(bool all_caps) {

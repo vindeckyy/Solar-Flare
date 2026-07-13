@@ -39,20 +39,34 @@
   #include <share.h>
 #endif
 
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(__APPLE__)
+  #include "platform/linux/headless_compositor.h"
+#endif
+
 namespace proc {
   using namespace std::literals;
   namespace pt = boost::property_tree;
 
-  proc_t proc;  ///< Global process registry used to track and terminate child processes.
+  proc_t proc;
 
-  /**
-   * @brief RAII helper that runs shutdown cleanup when destroyed.
-   */
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(__APPLE__)
+  /// Headless compositor instance for private game streaming.
+  static std::unique_ptr<platf::headless::compositor_t> g_headless_compositor;
+#endif
+
+  /// ponytail: saved encoder state for per-game override restore.
+  /// Both @c video.nv (the actual NVENC tunables) and @c video.nv_preset
+  /// (the higher-level preset selector) are stashed, because a preset
+  /// override overwrites the underlying @c video.nv fields via
+  /// apply_nvenc_tuning_preset(). Restoring only @c nv_preset would leave
+  /// the user-configured NVENC tunables (e.g. @c nvenc_bframes=3) silently
+  /// replaced with the preset's values after every game launch.
+  static nvenc::nvenc_config g_saved_nv_config {};
+  static int g_saved_nv_preset = -99;
+  static bool g_nv_preset_overridden = false;
+
   class deinit_t: public platf::deinit_t {
   public:
-    /**
-     * @brief Destroy the process subsystem deinitializer.
-     */
     ~deinit_t() {
       proc.terminate();
     }
@@ -100,13 +114,6 @@ namespace proc {
     }
   }
 
-  /**
-   * @brief Resolve the working directory for a configured command.
-   *
-   * @param cmd Command line to execute or inspect.
-   * @param env Environment variables for the child process.
-   * @return Directory used to launch the command, falling back to PATH lookup when needed.
-   */
   boost::filesystem::path find_working_directory(const std::string &cmd, boost::process::v1::environment &env) {
     // Parse the raw command string into parts to get the actual command portion
     std::vector<std::string> parts;
@@ -165,6 +172,29 @@ namespace proc {
     _app = *iter;
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
+
+    // ponytail: per-game encoder preset override. If the app has one set,
+    // stash both the preset selector and the underlying NVENC tunables so
+    // terminate() can restore them exactly. A preset override calls
+    // apply_nvenc_tuning_preset() which overwrites the underlying fields,
+    // so we have to remember the original @c video.nv struct too -- not
+    // just the @c nv_preset selector.
+    //
+    // Out-of-range values are silently ignored so a typo in apps.json
+    // (e.g. encoder-preset = 99) can't brick the user's manual NVENC
+    // settings by running apply_nvenc_tuning_preset() with a junk value.
+    if (_app.encoder_preset_override >= 0 && _app.encoder_preset_override <= 2) {
+      g_saved_nv_config = config::video.nv;
+      g_saved_nv_preset = config::video.nv_preset;
+      config::video.nv_preset = _app.encoder_preset_override;
+      config::apply_nvenc_tuning_preset();
+      g_nv_preset_overridden = true;
+      BOOST_LOG(info) << "App ["sv << _app.name << "] overrides encoder preset to "sv << _app.encoder_preset_override;
+    } else if (_app.encoder_preset_override > 2) {
+      BOOST_LOG(warning) << "App ["sv << _app.name << "] has encoder_preset_override="sv
+                         << _app.encoder_preset_override
+                         << " which is outside the valid range [0,2]; ignoring."sv;
+    }
 
     // Add Stream-specific environment variables
     _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
@@ -264,6 +294,34 @@ namespace proc {
       BOOST_LOG(info) << "Executing [Desktop]"sv;
       placebo = true;
     } else {
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(__APPLE__)
+      // If headless compositor mode is enabled, start labwc before the game.
+      if (config::video.linux_display.headless_mode && config::video.linux_display.use_cage_compositor) {
+        g_headless_compositor = std::make_unique<platf::headless::compositor_t>();
+
+        // Resolve backend from config
+        auto &backend_str = config::video.linux_display.compositor_backend;
+        if (backend_str == "labwc") g_headless_compositor->set_backend(platf::headless::backend_e::labwc);
+        else if (backend_str == "krfb") g_headless_compositor->set_backend(platf::headless::backend_e::krfb);
+        else if (backend_str == "gamescope") g_headless_compositor->set_backend(platf::headless::backend_e::gamescope);
+
+        std::string wrapped_cmd = g_headless_compositor->wrap_cmd(_app.cmd);
+        if (!g_headless_compositor->start(launch_session->width, launch_session->height, launch_session->fps, wrapped_cmd)) {
+          BOOST_LOG(error) << "Headless compositor failed to start"sv;
+          g_headless_compositor.reset();
+          return -1;
+        }
+        // Inject the compositor's Wayland/X11 sockets into the launch environment.
+        if (!g_headless_compositor->wayland_socket().empty()) {
+          _env["WAYLAND_DISPLAY"] = g_headless_compositor->wayland_socket();
+        }
+        if (!g_headless_compositor->x11_display().empty()) {
+          _env["DISPLAY"] = g_headless_compositor->x11_display();
+        }
+        BOOST_LOG(info) << "Headless compositor ready, launching game inside it"sv;
+      }
+#endif
+
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
@@ -271,6 +329,12 @@ namespace proc {
       _process = platf::run_command(_app.elevated, true, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_group);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(__APPLE__)
+        if (g_headless_compositor) {
+          g_headless_compositor->stop();
+          g_headless_compositor.reset();
+        }
+#endif
         return -1;
       }
     }
@@ -301,9 +365,8 @@ namespace proc {
     } else if (_process.running()) {
       // The app is still running only if the initial process launched is still running
       return _app_id;
-    } else if (_app.auto_detach && _process.native_exit_code() == 0 &&
-               std::chrono::steady_clock::now() - _app_launch_time < 5s) {
-      BOOST_LOG(info) << "App exited gracefully within 5 seconds of launch. Treating the app as a detached command."sv;
+    } else if (_app.auto_detach && _process.native_exit_code() == 0) {
+      BOOST_LOG(info) << "App exited gracefully. Treating the app as a detached command (auto-detach enabled)."sv;
       BOOST_LOG(info) << "Adjust this behavior in the Applications tab or apps.json if this is not what you want."sv;
       placebo = true;
       return _app_id;
@@ -324,6 +387,14 @@ namespace proc {
     terminate_process_group(_process, _process_group, _app.exit_timeout);
     _process = boost::process::v1::child();
     _process_group = boost::process::v1::group();
+
+#if !defined(_WIN32) && !defined(__ANDROID__) && !defined(__APPLE__)
+    // Stop the headless compositor if it was started for this session.
+    if (g_headless_compositor) {
+      g_headless_compositor->stop();
+      g_headless_compositor.reset();
+    }
+#endif
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
       auto &cmd = *(_app_prep_it - 1);
@@ -364,6 +435,18 @@ namespace proc {
       display_device::revert_configuration();
     }
 
+    // ponytail: restore the global encoder preset if a per-game override was
+    // active. Both the preset selector AND the underlying NVENC tunables
+    // must be restored, otherwise the user's manual nvenc_bframes /
+    // nvenc_zerolatency / etc. stay at whatever the preset put them at.
+    if (g_nv_preset_overridden) {
+      config::video.nv = g_saved_nv_config;
+      config::video.nv_preset = g_saved_nv_preset;
+      g_nv_preset_overridden = false;
+      g_saved_nv_preset = -99;
+      BOOST_LOG(info) << "Restored encoder preset to "sv << config::video.nv_preset;
+    }
+
     _app_id = -1;
   }
 
@@ -401,13 +484,6 @@ namespace proc {
     assert(!_process.running());
   }
 
-  /**
-   * @brief Find the closing parenthesis for an environment-variable expression.
-   *
-   * @param begin Iterator positioned at the opening parenthesis.
-   * @param end End iterator for the expression being scanned.
-   * @return Iterator for the matching closing parenthesis, or end when unmatched.
-   */
   std::string_view::iterator find_match(std::string_view::iterator begin, std::string_view::iterator end) {
     int stack = 0;
 
@@ -429,13 +505,6 @@ namespace proc {
     return begin;
   }
 
-  /**
-   * @brief Parse env val.
-   *
-   * @param env Environment variables for the child process.
-   * @param val_raw Raw value that may contain $(NAME) substitutions.
-   * @return Value with recognized environment-variable substitutions expanded.
-   */
   std::string parse_env_val(boost::process::v1::native_environment &env, const std::string_view &val_raw) {
     auto pos = std::begin(val_raw);
     auto dollar = std::find(pos, std::end(val_raw), '$');
@@ -525,9 +594,6 @@ namespace proc {
     return header == PNG_SIGNATURE;
   }
 
-  /**
-   * @brief Validate app image path.
-   */
   std::string validate_app_image_path(std::string app_image_path) {
     if (app_image_path.empty()) {
       return DEFAULT_APP_IMAGE_PATH;
@@ -575,12 +641,6 @@ namespace proc {
     return app_image_path;
   }
 
-  /**
-   * @brief Calculate the SHA-256 digest for a file.
-   *
-   * @param filename File path whose contents should be hashed.
-   * @return Lowercase hexadecimal SHA-256 digest, or std::nullopt on read/hash failure.
-   */
   std::optional<std::string> calculate_sha256(const std::string &filename) {
     crypto::md_ctx_t ctx {EVP_MD_CTX_create()};
     if (!ctx) {
@@ -616,12 +676,6 @@ namespace proc {
     return ss.str();
   }
 
-  /**
-   * @brief Calculate the CRC-32 checksum for a string.
-   *
-   * @param input Bytes to include in the checksum.
-   * @return CRC-32 value for the input bytes.
-   */
   uint32_t calculate_crc32(const std::string &input) {
     boost::crc_32_type result;
     result.process_bytes(input.data(), input.length());
@@ -659,9 +713,6 @@ namespace proc {
     return std::make_tuple(id_no_index, id_with_index);
   }
 
-  /**
-   * @brief Parse serialized text into the corresponding runtime representation.
-   */
   std::optional<proc::proc_t> parse(const std::string &file_name) {
     pt::ptree tree;
 
@@ -765,6 +816,10 @@ namespace proc {
         ctx.wait_all = wait_all.value_or(true);
         ctx.exit_timeout = std::chrono::seconds {exit_timeout.value_or(5)};
 
+        /// @brief Per-app encoder preset override. -1 = none, 0-2 = override.
+        auto encoder_preset = app_node.get_optional<int>("encoder-preset"s);
+        ctx.encoder_preset_override = encoder_preset.value_or(-1);
+
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {
           // Avoid using index to generate id if possible
@@ -793,9 +848,6 @@ namespace proc {
     return std::nullopt;
   }
 
-  /**
-   * @brief Refresh cached platform state from the operating system.
-   */
   void refresh(const std::string &file_name) {
     auto proc_opt = proc::parse(file_name);
 

@@ -2,6 +2,9 @@
  * @file src/platform/linux/wayland.cpp
  * @brief Definitions for Wayland capture.
  */
+// standard includes
+#include <cstdlib>
+
 // platform includes
 #include <drm_fourcc.h>
 #include <fcntl.h>
@@ -12,9 +15,6 @@
 #include <wayland-util.h>
 #include <xf86drm.h>
 
-// lib includes
-#include <lizardbyte/common/env.h>
-
 // local includes
 #include "graphics.h"
 #include "src/logging.h"
@@ -23,7 +23,7 @@
 #include "src/utility.h"
 #include "wayland.h"
 
-extern const wl_interface wl_output_interface;  ///< Wayland output interface.
+extern const wl_interface wl_output_interface;
 
 using namespace std::literals;
 
@@ -40,10 +40,6 @@ namespace wl {
     return ((*reinterpret_cast<T *>(data)).*m)(params...);
   }
 
-/**
- * @def CLASS_CALL(c, m)
- * @brief Macro for CLASS CALL.
- */
 #define CLASS_CALL(c, m) classCall<c, decltype(&c::m), &c::m>
 
   // Define buffer params listener
@@ -53,11 +49,8 @@ namespace wl {
   };
 
   int display_t::init(const char *display_name) {
-    std::string env_display_name;
     if (!display_name) {
-      if (lizardbyte::common::get_env("WAYLAND_DISPLAY", env_display_name)) {
-        display_name = env_display_name.c_str();
-      }
+      display_name = std::getenv("WAYLAND_DISPLAY");
     }
 
     if (!display_name) {
@@ -553,9 +546,6 @@ namespace wl {
     std::fill_n(sd.fds, 4, -1);
   };
 
-  /**
-   * @brief Refresh the monitor list reported by the display server.
-   */
   std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name) {
     display_t display;
 
@@ -566,7 +556,10 @@ namespace wl {
     interface_t interface;
     interface.listen(display.registry());
 
-    display.roundtrip();
+    // ponytail: timeout-guarded dispatch in place of blocking roundtrip.
+    for (auto _ = 0; _ < 20; ++_) {
+      if (!display.dispatch(std::chrono::milliseconds(100))) break;
+    }
 
     if (!interface[interface_t::XDG_OUTPUT]) {
       BOOST_LOG(error) << "[wayland] Missing Wayland wire XDG_OUTPUT"sv;
@@ -577,7 +570,10 @@ namespace wl {
       monitor->listen(interface.output_manager);
     }
 
-    display.roundtrip();
+    // ponytail: timeout-guarded dispatch for output details.
+    for (auto _ = 0; _ < 20; ++_) {
+      if (!display.dispatch(std::chrono::milliseconds(100))) break;
+    }
 
     return std::move(interface.monitors);
   }
@@ -588,9 +584,6 @@ namespace wl {
     return display.init() == 0;
   }
 
-  /**
-   * @brief Initialize Wayland registry interfaces required for capture.
-   */
   int init() {
     static bool validated = validate();
 

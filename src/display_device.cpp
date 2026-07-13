@@ -5,13 +5,6 @@
 // header include
 #include "display_device.h"
 
-// standard includes
-#include <algorithm>
-#include <cctype>
-#include <mutex>
-#include <regex>
-#include <string_view>
-
 // lib includes
 #include <boost/algorithm/string.hpp>
 #include <display_device/audio_context_interface.h>
@@ -19,6 +12,8 @@
 #include <display_device/json.h>
 #include <display_device/retry_scheduler.h>
 #include <display_device/settings_manager_interface.h>
+#include <mutex>
+#include <regex>
 
 // local includes
 #include "audio.h"
@@ -30,13 +25,6 @@
   #include <display_device/windows/settings_manager.h>
   #include <display_device/windows/win_api_layer.h>
   #include <display_device/windows/win_display_device.h>
-#endif
-
-#ifdef __APPLE__
-  #include <display_device/macos/display_power.h>
-  #include <display_device/macos/mac_api_layer.h>
-  #include <display_device/macos/mac_display_device.h>
-  #include <display_device/macos/settings_manager.h>
 #endif
 
 namespace display_device {
@@ -139,37 +127,6 @@ namespace display_device {
         throw std::out_of_range("stou");
       }
       return (int) result;
-    }
-
-#ifdef __APPLE__
-    bool is_unsigned_integer(std::string_view value) {
-      return !value.empty() && std::ranges::all_of(value, [](unsigned char character) {
-        return std::isdigit(character);
-      });
-    }
-#endif
-
-    std::string_view apply_result_name(SettingsManagerInterface::ApplyResult result) {
-      using enum SettingsManagerInterface::ApplyResult;
-
-      switch (result) {
-        case Ok:
-          return "Ok";
-        case ApiTemporarilyUnavailable:
-          return "ApiTemporarilyUnavailable";
-        case DevicePrepFailed:
-          return "DevicePrepFailed";
-        case PrimaryDevicePrepFailed:
-          return "PrimaryDevicePrepFailed";
-        case DisplayModePrepFailed:
-          return "DisplayModePrepFailed";
-        case HdrStatePrepFailed:
-          return "HdrStatePrepFailed";
-        case PersistenceSaveFailed:
-          return "PersistenceSaveFailed";
-      }
-
-      return "Unknown";
     }
 
     /**
@@ -499,7 +456,7 @@ namespace display_device {
     }
 
     /**
-     * @brief Enumerates supported contains remapping data parsed from the string options.
+     * @brief Contains remapping data parsed from the string values.
      */
     struct parsed_remapping_entry_t {
       std::optional<Resolution> requested_resolution;
@@ -667,23 +624,6 @@ namespace display_device {
           .m_hdr_blank_delay = video_config.dd.wa.hdr_toggle_delay != std::chrono::milliseconds::zero() ? std::make_optional(video_config.dd.wa.hdr_toggle_delay) : std::nullopt
         }
       );
-#elif defined(__APPLE__)
-      return std::make_unique<MacSettingsManager>(
-        std::make_shared<MacDisplayDevice>(std::make_shared<MacApiLayer>()),
-        std::make_shared<sunshine_audio_context_t>(),
-        std::make_unique<MacPersistentState>(
-          std::make_shared<FileSettingsPersistence>(persistence_filepath)
-        ),
-        MacWorkarounds {}
-      );
-#else
-      return nullptr;
-#endif
-    }
-
-    std::unique_ptr<DisplayPowerInterface> make_display_power() {
-#ifdef __APPLE__
-      return std::make_unique<MacDisplayPower>(std::make_shared<MacApiLayer>());
 #else
       return nullptr;
 #endif
@@ -805,24 +745,6 @@ namespace display_device {
     return std::make_unique<deinit_t>();
   }
 
-  bool wake_display(const std::string &display_name, std::chrono::milliseconds timeout) {
-    const auto display_power {make_display_power()};
-    if (!display_power) {
-      return false;
-    }
-
-    return display_power->wakeDisplay(display_name, timeout);
-  }
-
-  std::unique_ptr<DisplayPowerGuardInterface> keep_display_awake(const std::string &reason) {
-    const auto display_power {make_display_power()};
-    if (!display_power) {
-      return nullptr;
-    }
-
-    return display_power->keepDisplayAwake(reason);
-  }
-
   std::string map_output_name(const std::string &output_name) {
     std::lock_guard lock {DD_DATA.mutex};
     if (!DD_DATA.sm_instance) {
@@ -830,17 +752,9 @@ namespace display_device {
       return output_name;
     }
 
-    const auto mapped_name {DD_DATA.sm_instance->execute([&output_name](auto &settings_iface) {
+    return DD_DATA.sm_instance->execute([&output_name](auto &settings_iface) {
       return settings_iface.getDisplayName(output_name);
-    })};
-
-#ifdef __APPLE__
-    if (mapped_name.empty() && is_unsigned_integer(output_name)) {
-      return output_name;
-    }
-#endif
-
-    return mapped_name;
+    });
   }
 
   void configure_display(const config::video_t &video_config, const rtsp_stream::launch_session_t &session) {
@@ -851,13 +765,11 @@ namespace display_device {
     }
 
     if (const auto *disabled {std::get_if<configuration_disabled_tag_t>(&result)}; disabled) {
-      BOOST_LOG(info) << "Display device configuration is disabled. Reverting any active display device configuration.";
       revert_configuration();
       return;
     }
 
-    BOOST_LOG(error) << "Failed to parse display device configuration. Display settings will not be changed.";
-    // Error details should already be logged for failed_to_parse_tag_t case, and we also don't
+    // Error already logged for failed_to_parse_tag_t case, and we also don't
     // want to revert active configuration in case we have any
   }
 
@@ -868,24 +780,10 @@ namespace display_device {
       return;
     }
 
-    BOOST_LOG(info) << "Scheduling display device configuration:\n"
-                    << toJson(config);
-
     DD_DATA.sm_instance->schedule([config](auto &settings_iface, auto &stop_token) {
-      using enum SettingsManagerInterface::ApplyResult;
-
       // We only want to keep retrying in case of a transient errors.
       // In other cases, when we either fail or succeed we just want to stop...
-      const auto result {settings_iface.applySettings(config)};
-      if (result == Ok) {
-        BOOST_LOG(info) << "Display device configuration applied successfully.";
-      } else if (result == ApiTemporarilyUnavailable) {
-        BOOST_LOG(warning) << "Display device configuration API is temporarily unavailable. Will retry.";
-      } else {
-        BOOST_LOG(error) << "Display device configuration failed with result: " << apply_result_name(result);
-      }
-
-      if (result != ApiTemporarilyUnavailable) {
+      if (settings_iface.applySettings(config) != SettingsManagerInterface::ApplyResult::ApiTemporarilyUnavailable) {
         stop_token.requestStop();
       }
     },
@@ -933,21 +831,7 @@ namespace display_device {
     SingleDisplayConfiguration config;
     config.m_device_id = video_config.output_name;
     config.m_device_prep = *device_prep;
-
-    const auto hdr_state {parse_hdr_option(video_config, session)};
-#ifdef __APPLE__
-    if (hdr_state) {
-      BOOST_LOG(info) << "Ignoring HDR display device request on macOS because macOS HDR changes are not supported by libdisplaydevice.";
-    }
-#else
-    config.m_hdr_state = hdr_state;
-#endif
-
-#ifdef __APPLE__
-    if (config.m_device_prep != SingleDisplayConfiguration::DevicePreparation::VerifyOnly) {
-      BOOST_LOG(warning) << "macOS libdisplaydevice currently supports only VerifyOnly display preparation. The requested preparation mode will fail.";
-    }
-#endif
+    config.m_hdr_state = parse_hdr_option(video_config, session);
 
     if (!parse_resolution_option(video_config, session, config)) {
       // Error already logged

@@ -6,7 +6,6 @@ const props = defineProps([
   'config',
 ])
 
-const config = ref(props.config)
 </script>
 
 <template>
@@ -33,6 +32,21 @@ const config = ref(props.config)
         <option value="4">{{ $t('config.vk_rc_vbr') }}</option>
       </select>
       <div class="form-text">{{ $t('config.vk_rc_mode_desc') }}</div>
+    </div>
+
+    <!-- QP bounds: flatten encode-time variance for predictable per-frame latency. -->
+    <div class="mb-3">
+      <label for="vk_min_qp" class="form-label">{{ $t('config.vk_min_qp') }}</label>
+      <input id="vk_min_qp" type="number" min="0" max="63" class="form-control"
+        v-model.number="config.vk_min_qp" />
+      <div class="form-text">{{ $t('config.vk_min_qp_desc') }}</div>
+    </div>
+
+    <div class="mb-3">
+      <label for="vk_max_qp" class="form-label">{{ $t('config.vk_max_qp') }}</label>
+      <input id="vk_max_qp" type="number" min="0" max="63" class="form-control"
+        v-model.number="config.vk_max_qp" />
+      <div class="form-text">{{ $t('config.vk_max_qp_desc') }}</div>
     </div>
   </div>
 </template>

@@ -1,3 +1,54 @@
 ©2018 Valve Corporation. Steam and the Steam logo are trademarks and/or
 registered trademarks of Valve Corporation in the U.S. and/or other countries. All
 rights reserved.
+
+================================================================================
+SolarFlare fork (https://github.com/vindeckyy/Solar-Flare)
+================================================================================
+
+The SolarFlare fork is a derivative of upstream LizardByte/Sunshine
+(https://github.com/LizardByte/Sunshine), copyright the LizardByte
+maintainers and contributors, distributed under the GPL-3.0-only
+license. The fork's own contributions are documented in
+docs/CHANGELOG-SolarFlare.md and consist primarily of:
+
+* 5 Linux-only configuration keys (`busy_poll_us`, `rate_cap_pct`,
+  `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`) wired
+  through the standard Sunshine config plumbing.
+* CachyOS-native build flags (Zen 1/2/3/4 microarchitecture
+  auto-detection, -march / -mtune / -O3 / -flto) in
+  cmake/compile_definitions/common.cmake.
+* A multi-distro build script (scripts/cachyos-build.sh) supporting
+  Arch / CachyOS / Debian / Ubuntu / Fedora / Nobara / openSUSE.
+* A web UI rebrand (SolarFlare logo, navbar wordmark, "SolarFlare"
+  theme, fork footer pointing at vindeckyy/Solar-Flare).
+* Fork-specific documentation (docs/PORTING.md,
+  docs/CONFIGURATION.md, docs/CHANGELOG-SolarFlare.md,
+  CONTRIBUTING.md, SECURITY.md).
+* A fork-specific CI workflow (.github/workflows/ci-solarflare.yml)
+  that runs scripts/cachyos-build.sh on an Arch container and
+  verifies the fork banner + the 5 fork config keys + the test
+  suite.
+* 17 upstream-friendly overrides of the centrally-managed
+  LizardByte-pinned GitHub Actions workflows, each with a one-line
+  no-op explanation.
+* 22 cherry-picked upstream commits (4 with manual conflict
+  resolution); see docs/CHANGELOG-SolarFlare.md for the full list.
+* 12 unit tests for the fork config keys in
+  tests/unit/test_config_fork_keys.cpp and 5 regression tests
+  for the upstream e40d355f fix(video) cherry-pick in
+  tests/unit/test_thread_safe_try_pop.cpp.
+
+All fork modifications are released under the same GPL-3.0-only
+license as upstream. The fork does not claim any copyright on the
+upstream Sunshine code; the upstream copyright notices and the
+GPL-3.0 license text in the LICENSE file apply to the upstream
+code unchanged. The fork's modifications are too small to warrant
+their own copyright header; they are documented in the changelog
+and git history.
+
+For the full list of fork-specific files, see git log origin/master
+--stat. For the diff between the fork and upstream, regenerate
+cachyos-fastpath.patch with:
+
+    git diff 1fce18d9..HEAD > cachyos-fastpath.patch

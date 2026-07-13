@@ -20,13 +20,13 @@
 // local includes
 #include "src/file_handler.h"
 
-class ConfigConsistencyTest: public BaseTest {
+class ConfigConsistencyTest: public ::testing::Test {
 protected:
   void SetUp() override {
-    BaseTest::SetUp();
     // Define the expected mapping between documentation sections and UI tabs
     expectedDocToTabMapping = {
       {"General", "general"},
+      {"Headless Stream", "headless"},
       {"Input", "input"},
       {"Audio/Video", "av"},
       {"Network", "network"},
@@ -360,6 +360,18 @@ protected:
 
   std::map<std::string, std::string, std::less<>> expectedDocToTabMapping;
 
+  // Documentation sections that are intentionally NOT exposed in the web UI
+  // (typically fork-only expert tunables edited via sunshine.conf directly).
+  // Listed here so the tab/section mapping tests don't flag them as
+  // inconsistent. The corresponding `cppOptions` are also listed in the
+  // `internalOptions` set further down so the per-option file-presence
+  // test doesn't expect them in config.html / en.json either.
+  const std::set<std::string, std::less<>> docOnlySections = {
+    // SolarFlare fork tunables (see src/config.h > solarflare_t,
+    // docs/CONFIGURATION.md, docs/configuration.md > SolarFlare Fork).
+    "SolarFlare Fork",
+  };
+
   // Helper function to check if an option exists in HTML options
   static bool isOptionInHtml(const std::string &option, const std::map<std::string, std::string, std::less<>> &htmlOptions) {
     return htmlOptions.contains(option);
@@ -386,7 +398,7 @@ protected:
   }
 
   // Helper function to check tab correspondence with documentation sections
-  static void checkTabCorrespondence(const std::string &tab, const std::map<std::string, std::string, std::less<>> &expectedDocToTabMapping, const std::set<std::string, std::less<>> &mdSections, std::vector<std::string> &inconsistencies) {
+  static void checkTabCorrespondence(const std::string &tab, const std::map<std::string, std::string, std::less<>> &expectedDocToTabMapping, const std::set<std::string, std::less<>> &mdSections, const std::set<std::string, std::less<>> &docOnlySections, std::vector<std::string> &inconsistencies) {
     bool found = false;
 
     for (const auto &[docSection, expectedTab] : expectedDocToTabMapping) {
@@ -438,16 +450,64 @@ protected:
   }
 };
 
+// Options that are internal/special and shouldn't be in UI/docs.
+// Returns a fresh copy each call so individual tests can mutate it without
+// leaking state across tests. The two tests below (the "is everything
+// covered" check and the "does the framework detect missing options" check)
+// use the SAME set so a fork-key addition only needs to happen in one place.
+static std::set<std::string, std::less<>> make_internal_options() {
+  return {
+    "flags",  // Internal config flags, not user-configurable
+    // SolarFlare fork tunables: expert kernel-level knobs documented in
+    // docs/CONFIGURATION.md but intentionally NOT exposed in the web UI
+    // (changing them mid-session needs a restart anyway, and most users
+    // should leave the defaults alone).
+    "busy_poll_us",
+    "rate_cap_pct",
+    "enet_4mib_buffer",
+    "pipewire_latency_ms",
+    "cpu_pinning",
+    // ponytail: expert Linux-only latency/display toggles, same rationale.
+    "dscp_qos",
+    "gpu_governor",
+    "headless_virtual_display",
+    "skip_wayland_correlation",
+    // ponytail: sf_opus_* and sf_audio_* are expert audio tunables, not web UI knobs
+    "sf_opus_application",
+    "sf_opus_vbr",
+    "sf_opus_complexity",
+    "sf_opus_fec",
+    "sf_opus_expected_loss_pct",
+    "sf_opus_bandwidth_extension",
+    "sf_audio_agc",
+    "sf_audio_vad",
+    "sf_audio_ducking",
+    "sf_audio_noise_gate",
+    "sf_audio_noise_gate_db",
+    "sf_audio_agc_target_db",
+    "sf_audio_agc_max_gain_db",
+    "sf_audio_agc_min_gain_db",
+    "sf_audio_agc_attack_ms",
+    "sf_audio_agc_hold_ms",
+    "sf_audio_agc_release_ms",
+    "sf_audio_vad_threshold_db",
+    "sf_audio_vad_hysteresis_db",
+    "sf_audio_vad_min_speech_ms",
+    "sf_audio_vad_min_silence_ms",
+    "sf_audio_ducker_attenuation_db",
+    "sf_audio_ducker_attack_ms",
+    "sf_audio_ducker_release_ms",
+    // ponytail: api_tokens are managed via /api/tokens CRUD, not the web UI.
+    "api_tokens",
+  };
+}
+
 TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
   const auto cppOptions = extractConfigCppOptions();
   const auto htmlOptions = extractConfigHtmlOptions();
   const auto mdOptions = extractConfigMdOptions();
   const auto jsonOptions = extractEnJsonConfigOptions();
-
-  // Options that are internal/special and shouldn't be in UI/docs
-  const std::set<std::string, std::less<>> internalOptions = {
-    "flags"  // Internal config flags, not user-configurable
-  };
+  const auto internalOptions = make_internal_options();
 
   std::vector<std::string> missingFromFiles;
 
@@ -489,12 +549,17 @@ TEST_F(ConfigConsistencyTest, ConfigTabsMatchDocumentationSections) {
 
   // Check that each HTML tab has a corresponding documentation section
   for (const auto &tab : htmlTabs) {
-    checkTabCorrespondence(tab, expectedDocToTabMapping, mdSections, inconsistencies);
+    checkTabCorrespondence(tab, expectedDocToTabMapping, mdSections, docOnlySections, inconsistencies);
   }
 
   // Check that each documentation section has a corresponding HTML tab
   for (const auto &section : mdSections) {
     if (!expectedDocToTabMapping.contains(section)) {
+      // Doc-only sections (e.g. fork-specific expert tunables) are
+      // intentionally not exposed in the web UI; skip them here.
+      if (docOnlySections.contains(section)) {
+        continue;
+      }
       inconsistencies.push_back(std::format("Documentation section '{}' has no corresponding UI tab", section));
     }
   }
@@ -626,10 +691,9 @@ TEST_F(ConfigConsistencyTest, TestFrameworkDetectsMissingOptions) {
   const std::string testDummyOption = "test_framework_validation_option";
   modifiedCppOptions.insert(testDummyOption);
 
-  // Options that are internal/special and shouldn't be in UI/docs
-  std::set<std::string, std::less<>> internalOptions = {
-    "flags"  // Internal config flags, not user-configurable
-  };
+  // Reuse the canonical internal-options set from make_internal_options()
+  // so the two tests stay in lockstep when a fork key is added.
+  const std::set<std::string, std::less<>> internalOptions = make_internal_options();
 
   std::vector<std::string> missingFromFiles;
 

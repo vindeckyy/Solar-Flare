@@ -31,10 +31,6 @@ fi
 depends=(
   'avahi'
   'curl'
-  'gcc-libs'
-  'gtk3'
-  'hicolor-icon-theme'
-  'libayatana-appindicator'
   'libcap'
   'libdrm'
   'libevdev'
@@ -70,6 +66,7 @@ makedepends=(
   'nodejs'
   'npm'
   'python-jinja'  # required by the glad OpenGL/EGL loader generator
+  'python-setuptools'  # required for glad OpenGL/EGL loader generated, v2.0.0
   'shaderc'
 )
 
@@ -171,13 +168,9 @@ build() {
       _cmake_options+=(-DBUILD_TESTS=OFF)
     fi
 
-    if [[ -z "${GITHUB_ACTIONS}" ]]; then
-	    _appstreamcli_arguments=(--no-net)
-    fi
-
     cmake "${_cmake_options[@]}"
 
-    appstreamcli validate "${_appstreamcli_arguments[@]}" "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
+    appstreamcli validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
     appstream-util validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
     desktop-file-validate "build/dev.lizardbyte.app.Sunshine.desktop"
     desktop-file-validate "build/dev.lizardbyte.app.Sunshine.terminal.desktop"
@@ -245,4 +238,27 @@ check() {
 package() {
     export MAKEFLAGS="${MAKEFLAGS:--j$(nproc)}"
     DESTDIR="$pkgdir" cmake --install build
+
+    # Install the Solar-Flare fork's boot-time redesign services.
+    # These ship as plain *.service files in the source tree so a clean
+    # install reproduces the fork's tuning out of the box. The post-install
+    # hook (see sunshine.install) runs the installer to actually drop them
+    # into /etc/systemd/system and enable them; the package just lays the
+    # files down where that installer can find them.
+    install -Dm644 "$srcdir/$pkgname/packaging/linux/redesign/systemd/cpu-performance.service" \
+        "$pkgdir/usr/share/sunshine/redesign/systemd/cpu-performance.service"
+    install -Dm755 "$srcdir/$pkgname/packaging/linux/redesign/systemd/cpu-performance.sh" \
+        "$pkgdir/usr/share/sunshine/redesign/systemd/cpu-performance.sh"
+    install -Dm644 "$srcdir/$pkgname/packaging/linux/redesign/systemd/nic-tuning.service" \
+        "$pkgdir/usr/share/sunshine/redesign/systemd/nic-tuning.service"
+    install -Dm755 "$srcdir/$pkgname/packaging/linux/redesign/systemd/nic-tuning.sh" \
+        "$pkgdir/usr/share/sunshine/redesign/systemd/nic-tuning.sh"
+    install -Dm644 "$srcdir/$pkgname/packaging/linux/redesign/systemd/nvidia-clock-lock.service" \
+        "$pkgdir/usr/share/sunshine/redesign/systemd/nvidia-clock-lock.service"
+    install -Dm755 "$srcdir/$pkgname/packaging/linux/redesign/systemd/nvidia-clock-lock.sh" \
+        "$pkgdir/usr/share/sunshine/redesign/systemd/nvidia-clock-lock.sh"
+    install -Dm755 "$srcdir/$pkgname/packaging/linux/redesign/install-redesign-services.sh" \
+        "$pkgdir/usr/share/sunshine/redesign/install-redesign-services.sh"
+    install -Dm644 "$srcdir/$pkgname/packaging/linux/redesign/README.md" \
+        "$pkgdir/usr/share/sunshine/redesign/README.md"
 }

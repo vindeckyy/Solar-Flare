@@ -15,6 +15,7 @@
 #include <spa/pod/builder.h>
 
 // local includes
+#include "config.h"
 #include "cuda.h"
 #include "graphics.h"
 #include "src/main.h"
@@ -25,7 +26,7 @@
 #include "wayland.h"
 
 #if !PW_CHECK_VERSION(1, 6, 0)
-constexpr int SPA_VIDEO_TRANSFER_SMPTE2084 = 14;  ///< Protocol or platform constant for spa video transfer smpte2084.
+constexpr int SPA_VIDEO_TRANSFER_SMPTE2084 = 14;
 #endif
 
 #if PW_CHECK_VERSION(0, 3, 75)
@@ -36,11 +37,7 @@ const bool SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL = pw_check_library_version(0, 3, 
 constexpr bool SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL = true;
 #else
 // Pipewire object serials are unsupported without PW_KEY_TARGET_OBJECT (we define it here so compilation won't break but don't use it).
-constexpr bool SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL = false;  ///< Whether PipeWire object serials should be used for matching.
-  /**
-   * @def PW_KEY_TARGET_OBJECT
-   * @brief Macro for PW KEY TARGET OBJECT.
-   */
+constexpr bool SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL = false;
   #define PW_KEY_TARGET_OBJECT "target.object"
 #endif
 
@@ -55,12 +52,9 @@ namespace {
 using namespace std::literals;
 
 namespace pipewire {
-  /**
-   * @brief PipeWire SPA format mapped to Sunshine pixel format.
-   */
   struct format_map_t {
-    uint64_t fourcc;  ///< DRM fourcc pixel format.
-    int32_t pw_format;  ///< Matching PipeWire SPA video format.
+    uint64_t fourcc;
+    int32_t pw_format;
   };
 
   static constexpr std::array<format_map_t, 7> format_map = {{
@@ -73,71 +67,47 @@ namespace pipewire {
     {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
   }};
 
-  /**
-   * @brief PipeWire capture state shared with callback threads.
-   */
   struct shared_state_t {
-    std::atomic<int> negotiated_width {0};  ///< Width negotiated with PipeWire for the stream.
-    std::atomic<int> negotiated_height {0};  ///< Height negotiated with PipeWire for the stream.
-    std::atomic<int> color_primaries {0};  ///< PipeWire color-primaries metadata for the stream.
-    std::atomic<int> transfer_function {0};  ///< PipeWire transfer-function metadata for the stream.
-    std::atomic<bool> stream_dead {false};  ///< Whether the PipeWire stream has been destroyed.
-    pw_stream_state previous_state;  ///< Previous PipeWire stream state reported by callbacks.
-    pw_stream_state current_state;  ///< Current PipeWire stream state reported by callbacks.
-    std::string err_msg;  ///< Last PipeWire error message reported by the stream.
+    std::atomic<int> negotiated_width {0};
+    std::atomic<int> negotiated_height {0};
+    std::atomic<int> color_primaries {0};
+    std::atomic<int> transfer_function {0};
+    std::atomic<bool> stream_dead {false};
+    pw_stream_state previous_state;
+    pw_stream_state current_state;
+    std::string err_msg;
   };
 
-  /**
-   * @brief PipeWire stream handle, format, and shared state pointer.
-   */
   struct stream_data_t {
-    struct pw_stream *stream;  ///< PipeWire stream handle used for screencast frames.
-    struct spa_hook stream_listener;  ///< Hook registering callbacks on the PipeWire stream.
-    struct spa_video_info format;  ///< Negotiated PipeWire video format.
-    struct pw_buffer *current_buffer;  ///< PipeWire buffer currently exposed to the capture thread.
-    uint64_t drm_format;  ///< DRM format.
-    std::shared_ptr<shared_state_t> shared;  ///< State shared between PipeWire callbacks and the capture backend.
-    std::mutex frame_mutex;  ///< Synchronizes access to the current PipeWire frame.
-    std::condition_variable frame_cv;  ///< Signals arrival or release of a PipeWire frame.
-    size_t local_stride = 0;  ///< Local stride.
-    bool frame_ready = false;  ///< Whether a PipeWire frame is ready to consume.
+    struct pw_stream *stream;
+    struct spa_hook stream_listener;
+    struct spa_video_info format;
+    struct pw_buffer *current_buffer;
+    uint64_t drm_format;
+    std::shared_ptr<shared_state_t> shared;
+    std::mutex frame_mutex;
+    std::condition_variable frame_cv;
+    size_t local_stride = 0;
+    bool frame_ready = false;
     // Two distinct memory pools
-    std::vector<uint8_t> buffer_a;  ///< First staging buffer used for CPU-copy PipeWire frames.
-    std::vector<uint8_t> buffer_b;  ///< Second staging buffer used for CPU-copy PipeWire frames.
+    std::vector<uint8_t> buffer_a;
+    std::vector<uint8_t> buffer_b;
     // Points to the buffer currently owned by fill_img
-    std::vector<uint8_t> *front_buffer;  ///< Staging buffer currently readable by `fill_img`.
+    std::vector<uint8_t> *front_buffer;
     // Points to the buffer currently being written by on_process
-    std::vector<uint8_t> *back_buffer;  ///< Staging buffer currently writable by PipeWire callbacks.
+    std::vector<uint8_t> *back_buffer;
 
     stream_data_t():
         front_buffer(&buffer_a),
         back_buffer(&buffer_b) {}
   };
 
-  /**
-   * @brief DMA-BUF format and modifier list advertised by PipeWire.
-   */
   struct dmabuf_format_info_t {
-    int32_t format;  ///< PipeWire SPA video format being advertised.
-    uint64_t *modifiers;  ///< DRM format modifiers supported for the format.
-    int n_modifiers;  ///< Number of entries in `modifiers`.
+    int32_t format;
+    uint64_t *modifiers;
+    int n_modifiers;
   };
 
-  /**
-   * @brief Pipewire image assembled for encoding.
-   */
-  struct img_descriptor_t: public egl::img_descriptor_t {
-    ~img_descriptor_t() override {
-      if (data) {
-        delete[] data;
-        data = nullptr;
-      }
-    }
-  };
-
-  /**
-   * @brief PipeWire core, context, and stream setup used for screencast capture.
-   */
   class pipewire_t {
   public:
     pipewire_t():
@@ -148,94 +118,55 @@ namespace pipewire {
 
     ~pipewire_t() {
       BOOST_LOG(debug) << "[pipewire] Destroying pipewire_t"sv;
+      try {
+        cleanup_stream();
+      } catch (const std::exception &e) {
+        BOOST_LOG(error) << "[pipewire] Standard exception caught in ~pipewire_t cleanup_stream: "sv << e.what();
+      } catch (...) {
+        BOOST_LOG(error) << "[pipewire] Unknown exception caught in ~pipewire_t cleanup_stream"sv;
+      }
+
       pw_thread_loop_lock(loop);
 
-      // Lock the frame mutex to stop fill_img
-      BOOST_LOG(debug) << "[pipewire] Stop fill_img"sv;
-      {
-        std::scoped_lock lock(stream_data.frame_mutex);
-        stream_data.frame_ready = false;
-        stream_data.current_buffer = nullptr;
-      }
-
-      // Release pipewire stream
-      if (stream_data.stream) {
-        BOOST_LOG(debug) << "[pipewire] Disconnect stream"sv;
-        pw_stream_disconnect(stream_data.stream);
-        BOOST_LOG(debug) << "[pipewire] Destroy stream"sv;
-        pw_stream_destroy(stream_data.stream);
-        stream_data.stream = nullptr;
-      }
-      // Release pipewire core
       if (core) {
         BOOST_LOG(debug) << "[pipewire] Disconnect PW core"sv;
         pw_core_disconnect(core);
         core = nullptr;
       }
-      // Release pipewire context
       if (context) {
         BOOST_LOG(debug) << "[pipewire] Destroy PW context"sv;
         pw_context_destroy(context);
         context = nullptr;
       }
-      // Release pipewire file descriptor
+
+      pw_thread_loop_unlock(loop);
+
       if (fd >= 0) {
         BOOST_LOG(debug) << "[pipewire] Close pipewire_fd"sv;
         close(fd);
       }
-      // Release pipewire thread loop
       BOOST_LOG(debug) << "[pipewire] Stop PW thread loop"sv;
-      pw_thread_loop_unlock(loop);
       pw_thread_loop_stop(loop);
       BOOST_LOG(debug) << "[pipewire] Destroy PW thread loop"sv;
       pw_thread_loop_destroy(loop);
     }
 
-    /**
-     * @brief Return the mutex protecting PipeWire frame state.
-     *
-     * @return Mutex used by producer and capture threads.
-     */
     std::mutex &frame_mutex() {
       return stream_data.frame_mutex;
     }
 
-    /**
-     * @brief Return the condition variable signaled when frame state changes.
-     *
-     * @return Condition variable used to wait for frames or shutdown.
-     */
     std::condition_variable &frame_cv() {
       return stream_data.frame_cv;
     }
 
-    /**
-     * @brief Check whether frame ready.
-     *
-     * @return True when PipeWire has delivered a frame ready for capture.
-     */
     bool is_frame_ready() const {
       return stream_data.frame_ready;
     }
 
-    /**
-     * @brief Set frame ready.
-     *
-     * @param ready Whether the PipeWire frame is ready for capture.
-     */
     void set_frame_ready(bool ready) {
       stream_data.frame_ready = ready;
     }
 
-    /**
-     * @brief Initialize PipeWire core objects and optional stream negotiation.
-     *
-     * @param stream_fd Stream fd.
-     * @param stream_node Stream node.
-     * @param stream_object_serial Stream object serial.
-     * @param shared_state Shared state.
-     * @return 0 on success; nonzero or negative platform status on failure.
-     */
     int init(const int stream_fd, const uint32_t stream_node, const uint64_t stream_object_serial, std::shared_ptr<shared_state_t> shared_state) {
       fd = stream_fd;
       node = stream_node;
@@ -267,18 +198,31 @@ namespace pipewire {
       return 0;
     }
 
-    /**
-     * @brief Create the PipeWire stream if it is not already active.
-     *
-     * @param mem_type Mem type.
-     * @param width Frame or display width in pixels.
-     * @param height Frame or display height in pixels.
-     * @param refresh_rate Refresh rate.
-     * @param dmabuf_infos Dmabuf infos.
-     * @param n_dmabuf_infos N dmabuf infos.
-     * @param display_is_nvidia Display is nvidia.
-     * @return 0 when the PipeWire stream is configured; nonzero on negotiation failure.
-     */
+    void cleanup_stream() {
+      BOOST_LOG(debug) << "[pipewire] Cleaning up stream"sv;
+      if (loop && stream_data.stream) {
+        pw_thread_loop_lock(loop);
+
+        // 1. Lock the frame mutex to stop fill_img
+        BOOST_LOG(debug) << "[pipewire] Stop fill_img"sv;
+        {
+          std::scoped_lock lock(stream_data.frame_mutex);
+          stream_data.frame_ready = false;
+          stream_data.current_buffer = nullptr;
+        }
+
+        if (stream_data.stream) {
+          BOOST_LOG(debug) << "[pipewire] Disconnect stream"sv;
+          pw_stream_disconnect(stream_data.stream);
+          BOOST_LOG(debug) << "[pipewire] Destroy stream"sv;
+          pw_stream_destroy(stream_data.stream);
+          stream_data.stream = nullptr;
+        }
+
+        pw_thread_loop_unlock(loop);
+      }
+    }
+
     int ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const uint32_t refresh_rate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
       pw_thread_loop_lock(loop);
       int result = 0;
@@ -290,6 +234,40 @@ namespace pipewire {
         }
 
         struct pw_properties *props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
+        // CachyOS / Linux local-LAN fast path: ask PipeWire for a configurable
+        // node latency (default 8 ms). The default is closer to ~20-40 ms
+        // which adds 1-2 frames of buffering before the encoder ever sees a
+        // pixel. Setting PW_KEY_NODE_LATENCY is just a hint -- the compositor
+        // can still give us a larger quantum if the GPU/driver can't keep up,
+        // but on CachyOS with Wayland/Mutter + a discrete GPU we usually get
+        // what we ask for.
+        //
+        // Value is a fraction string in nanoseconds: "8192/1000" = 8.192 ms.
+        // We pick 8 ms because at 120 fps that's still <1 frame of latency
+        // and gives the driver enough headroom to not drop frames.
+        //
+        // SolarFlare fork knob: `pipewire_latency_ms` (range 1-40, default 8).
+#ifdef PW_KEY_NODE_LATENCY
+        {
+          int ms = config::solarflare.pipewire_latency_ms;
+          if (ms < 1) {
+            ms = 1;
+          }
+          if (ms > 40) {
+            ms = 40;
+          }
+          // nanoseconds = ms * 1'000'000; denominator stays 1000 so the
+          // fraction "Ns/1000" reads naturally in pw-top / pw-dump.
+          auto latency_str = std::to_string(ms * 1000000) + "/1000";
+          pw_properties_set(props, PW_KEY_NODE_LATENCY, latency_str.c_str());
+        }
+#endif
+        // The PW_KEY_TARGET_OBJECT serial path is handled below in the
+        // ensure_stream connect step, gated by SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL
+        // (see the SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL block at the top of
+        // this file). The old in-place serial set was removed by upstream
+        // commit 4e6e1377 in favour of a try-serial-then-fall-back-to-node-id
+        // pair of pw_stream_connect calls.
 
         BOOST_LOG(debug) << "[pipewire] Create PW stream"sv;
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
@@ -346,11 +324,6 @@ namespace pipewire {
       return result;
     }
 
-    /**
-     * @brief Close img fds.
-     *
-     * @param img_descriptor Image descriptor whose duplicated DMA-BUF fds are closed.
-     */
     static void close_img_fds(egl::img_descriptor_t *img_descriptor) {
       for (int &fd : img_descriptor->sd.fds) {
         if (fd >= 0) {
@@ -360,12 +333,6 @@ namespace pipewire {
       }
     }
 
-    /**
-     * @brief Copy PipeWire metadata into the Sunshine image descriptor.
-     *
-     * @param img_descriptor Image descriptor receiving timestamps, sequence, and damage flags.
-     * @param buf Raw byte buffer used for serialization.
-     */
     static void fill_img_metadata(egl::img_descriptor_t *img_descriptor, struct spa_buffer *buf) {
       img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
 
@@ -387,13 +354,6 @@ namespace pipewire {
       img_descriptor->pw_damage = (damage && damage->region.size.width > 0 && damage->region.size.height > 0) ? std::optional<bool>(true) : std::nullopt;
     }
 
-    /**
-     * @brief Populate a Sunshine image descriptor from PipeWire DMA-BUF planes.
-     *
-     * @param img_descriptor Image descriptor receiving duplicated fds and plane layout.
-     * @param buf Raw byte buffer used for serialization.
-     * @param d PipeWire listener data passed to the callback.
-     */
     static void fill_img_dmabuf(egl::img_descriptor_t *img_descriptor, struct spa_buffer *buf, const stream_data_t &d) {
       img_descriptor->sd.width = d.format.info.raw.size.width;
       img_descriptor->sd.height = d.format.info.raw.size.height;
@@ -406,11 +366,6 @@ namespace pipewire {
       }
     }
 
-    /**
-     * @brief Copy the latest PipeWire frame into Sunshine's image buffer.
-     *
-     * @param img Image or frame object to read from or populate.
-     */
     void fill_img(platf::img_t *img) {
       pw_thread_loop_lock(loop);
       std::scoped_lock lock(stream_data.frame_mutex);
@@ -443,11 +398,6 @@ namespace pipewire {
       pw_thread_loop_unlock(loop);
     }
 
-    /**
-     * @brief Set negotiate maxframerate.
-     *
-     * @param negotiate_maxframerate Negotiate maxframerate.
-     */
     void set_negotiate_maxframerate(bool negotiate_maxframerate) {
       negotiate_maxframerate_ = negotiate_maxframerate;
     }
@@ -712,27 +662,8 @@ namespace pipewire {
     };
   };
 
-  /**
-   * @brief Display capture backend that consumes frames from a PipeWire stream.
-   */
   class pipewire_display_t: public platf::display_t {
   public:
-    /**
-     * @brief Initialise dmabuf counter so the destructor safely iterates an
-     *        empty modifier array when query_dmabuf_formats() was never called.
-     */
-    pipewire_display_t():
-        n_dmabuf_infos {0} {}
-
-    /**
-     * @brief Release cached DMA-BUF modifier arrays.
-     */
-    ~pipewire_display_t() override {
-      for (int i = 0; i < n_dmabuf_infos; ++i) {
-        g_free(dmabuf_infos[i].modifiers);
-      }
-    }
-
     static bool init_pipewire_and_check_hwdevice_type(platf::mem_type_e hwdevice_type) {
       // Initialize pipewire to load necessary modules
       pw_init(nullptr, nullptr);
@@ -779,26 +710,14 @@ namespace pipewire {
             this->logical_height = monitor->viewport.logical_height;
             BOOST_LOG(debug) << "[pipewire] Set logical resolution: "sv << logical_width << 'x' << logical_height;
           }
-          // Update desktop dimensions to setup maximum environment size over all screens.
-          // Some compositors (KWin) report a 0x0 physical resolution via wl_output while
-          // the logical resolution is valid, so fall back per monitor to keep zeros out.
-          int monitor_width = monitor->viewport.width > 0 ? monitor->viewport.width : monitor->viewport.logical_width;
-          int monitor_height = monitor->viewport.height > 0 ? monitor->viewport.height : monitor->viewport.logical_height;
-          desktop_width = std::max(desktop_width, monitor->viewport.offset_x + monitor_width);
-          desktop_height = std::max(desktop_height, monitor->viewport.offset_y + monitor_height);
+          // Update desktop dimensions to setup maximum environment size over all screens
+          desktop_width = std::max(desktop_width, monitor->viewport.offset_x + monitor->viewport.width);
+          desktop_height = std::max(desktop_height, monitor->viewport.offset_y + monitor->viewport.height);
           // Update desktop logical dimensions to setup maximum logical environment size over all screens
           desktop_logical_width = std::max(desktop_logical_width, monitor->viewport.offset_x + monitor->viewport.logical_width);
           desktop_logical_height = std::max(desktop_logical_height, monitor->viewport.offset_y + monitor->viewport.logical_height);
         }
         if (env_height <= 0 || env_width <= 0) {
-          if (desktop_width <= 0 || desktop_height <= 0) {
-            // Last resort: assume the captured stream spans the whole desktop.
-            // A zero env size invalidates the touch port and silently discards
-            // all absolute mouse input, so any sane value beats zero.
-            desktop_width = width;
-            desktop_height = height;
-            BOOST_LOG(warning) << "[pipewire] No usable monitor dimensions; falling back to stream size for desktop resolution"sv;
-          }
           this->env_width = desktop_width;
           this->env_height = desktop_height;
           BOOST_LOG(debug) << "[pipewire] Set desktop resolution: "sv << env_width << 'x' << env_height;
@@ -811,23 +730,18 @@ namespace pipewire {
       }
     }
 
-    /**
-     * @brief Initialize the PipeWire display backend for a selected stream.
-     *
-     * @param hwdevice_type Hardware device type requested for capture or encode.
-     * @param display_name Display name.
-     * @param config Configuration values to apply.
-     * @return 0 on success; nonzero or negative platform status on failure.
-     */
     int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
       // calculate frame interval we should capture at
       framerate = config.framerate;
-      delay = ::video::capture_frame_interval(config);
-      const AVRational fps = ::video::framerate_to_rational(config);
-      if (fps.den != 1) {
-        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps.num << "/" << fps.den << ", approx. " << av_q2d(fps) << " fps]";
+      if (config.framerateX100 > 0) {
+        AVRational fps_strict = ::video::framerateX100_to_rational(config.framerateX100);
+        delay = std::chrono::nanoseconds(
+          (static_cast<int64_t>(fps_strict.den) * 1'000'000'000LL) / fps_strict.num
+        );
+        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps_strict.num << "/" << fps_strict.den << ", approx. " << av_q2d(fps_strict) << " fps]";
       } else {
-        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps.num << "fps]";
+        delay = std::chrono::nanoseconds {1s} / framerate;
+        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << framerate << "fps]";
       }
       mem_type = hwdevice_type;
 
@@ -903,15 +817,6 @@ namespace pipewire {
       return 0;
     }
 
-    /**
-     * @brief Capture a display frame into the provided image object.
-     *
-     * @param pull_free_image_cb Callback that provides an available image buffer.
-     * @param img_out Captured PipeWire image returned to the streaming pipeline.
-     * @param timeout Maximum time to wait for the operation.
-     * @param show_cursor Show cursor.
-     * @return Capture status reported to the streaming pipeline.
-     */
     platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool show_cursor) {
       // FIXME: show_cursor is ignored
       auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -943,14 +848,9 @@ namespace pipewire {
       return platf::capture_e::timeout;
     }
 
-    /**
-     * @brief Allocate an image buffer compatible with this display backend.
-     *
-     * @return Allocated img object, or null when unavailable.
-     */
     std::shared_ptr<platf::img_t> alloc_img() override {
       // Note: this img_t type is also used for memory buffers
-      auto img = std::make_shared<img_descriptor_t>();
+      auto img = std::make_shared<egl::img_descriptor_t>();
 
       img->width = width;
       img->height = height;
@@ -964,12 +864,6 @@ namespace pipewire {
       return img;
     }
 
-    /**
-     * @brief Check stream dead.
-     *
-     * @param out_status Out status.
-     * @return True when the PipeWire stream can no longer produce frames.
-     */
     virtual bool check_stream_dead(platf::capture_e &out_status) {
       return false;  // Return to default stream dead handling.
     }
@@ -1041,12 +935,6 @@ namespace pipewire {
       return platf::capture_e::ok;
     }
 
-    /**
-     * @brief Create AVCodec encode device.
-     *
-     * @param pix_fmt Sunshine pixel format to convert or allocate for.
-     * @return Constructed AVCodec encode device object.
-     */
     std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == platf::mem_type_e::vaapi) {
@@ -1076,22 +964,17 @@ namespace pipewire {
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
-    /**
-     * @brief Populate a fallback image when real capture data is unavailable.
-     *
-     * @param img Image or frame object to read from or populate.
-     * @return Capture status reported to the streaming pipeline.
-     */
     int dummy_img(platf::img_t *img) override {
-      // Empty images are recognized as dummies by the zero sequence number
+      if (!img) {
+        return -1;
+      }
+
+      delete[] img->data;
+      img->data = new std::uint8_t[img->height * img->row_pitch];
+      std::fill_n(img->data, img->height * img->row_pitch, 0);
       return 0;
     }
 
-    /**
-     * @brief Report whether the active display mode is HDR.
-     *
-     * @return True when the active display mode is HDR.
-     */
     bool is_hdr() override {
       int color_primaries = shared_state->color_primaries.load();
       int transfer_function = shared_state->transfer_function.load();
@@ -1103,12 +986,6 @@ namespace pipewire {
       return false;
     }
 
-    /**
-     * @brief Read HDR metadata for the active display mode.
-     *
-     * @param metadata Output structure populated with HDR metadata.
-     * @return True when HDR metadata was written to the output structure.
-     */
     bool get_hdr_metadata(SS_HDR_METADATA &metadata) override {
       int color_primaries = shared_state->color_primaries.load();
       int transfer_function = shared_state->transfer_function.load();
@@ -1282,7 +1159,7 @@ namespace pipewire {
 
   protected:
     // Allow subclasses to access for pipewire requirements setup and stream dead checks
-    pipewire_t pipewire;  ///< Pipewire.
-    std::shared_ptr<shared_state_t> shared_state;  ///< Shared state.
+    pipewire_t pipewire;
+    std::shared_ptr<shared_state_t> shared_state;
   };
 }  // namespace pipewire

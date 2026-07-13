@@ -104,17 +104,11 @@ namespace nvenc {
       return false;
     }
 
-    /**
-     * @brief Check whether an NVENC API status represents failure.
-     *
-     * @param status Native status code returned by the platform API.
-     * @return True when the status is an NVENC error code.
-     */
     bool nvenc_failed(NVENCSTATUS status);
 
-    const NV_ENC_DEVICE_TYPE device_type;  ///< NVENC device backend used by this encoder instance.
+    const NV_ENC_DEVICE_TYPE device_type;
 
-    void *encoder = nullptr;  ///< Opaque NVENC encoder session handle returned by the driver.
+    void *encoder = nullptr;
 
     struct {
       uint32_t width = 0;
@@ -122,9 +116,10 @@ namespace nvenc {
       NV_ENC_BUFFER_FORMAT buffer_format = NV_ENC_BUFFER_FORMAT_UNDEFINED;
       uint32_t ref_frames_in_dpb = 0;
       bool rfi = false;
-    } encoder_params;  ///< Current encoder dimensions, pixel format, and reference-frame settings.
+      uint32_t bframes = 0;  ///< B-frames between P-frames (0-4). 0 = no B-frames.
+    } encoder_params;
 
-    std::string last_nvenc_error_string;  ///< Last NVENC error string.
+    std::string last_nvenc_error_string;
 
     // Derived classes set these variables
     void *device = nullptr;  ///< Platform-specific handle of encoding device.

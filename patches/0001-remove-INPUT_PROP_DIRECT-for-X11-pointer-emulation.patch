@@ -1,0 +1,19 @@
+diff --git a/src/uinput/touchscreen.cpp b/src/uinput/touchscreen.cpp
+index ac23b94..ae36543 100644
+--- a/src/uinput/touchscreen.cpp
++++ b/src/uinput/touchscreen.cpp
+@@ -59,8 +59,12 @@ Result<libevdev_uinput_ptr> create_touch_screen(const DeviceDefinition &device)
+   input_absinfo orientation{0, -90, 90, 0, 0, 0};
+   libevdev_enable_event_code(dev, EV_ABS, ABS_MT_ORIENTATION, &orientation);
+ 
+-  // https://docs.kernel.org/input/event-codes.html#touchscreens
+-  libevdev_enable_property(dev, INPUT_PROP_DIRECT);
++  // On X11, INPUT_PROP_DIRECT suppresses core pointer event emulation.
++  // Without it, libinput generates both touch AND pointer events, making
++  // touch input work in legacy apps (games) alongside XI 2.2 multitouch.
++  // udev's input_id still classifies this as ID_INPUT_TOUCHSCREEN because
++  // BTN_TOUCH + ABS_MT_POSITION_X/Y is sufficient.
++  // libevdev_enable_property(dev, INPUT_PROP_DIRECT);
+ 
+   auto err = libevdev_uinput_create_from_device(dev, LIBEVDEV_UINPUT_OPEN_MANAGED, &uidev);
+   libevdev_free(dev);

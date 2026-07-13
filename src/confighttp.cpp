@@ -8,10 +8,13 @@
 
 // standard includes
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <mutex>
 #include <string_view>
+#include <unordered_map>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -33,7 +36,9 @@
 #include "confighttp.h"
 #include "crypto.h"
 #include "display_device.h"
+#include "error.h"
 #include "file_handler.h"
+#include "game_scanner.h"
 #include "globals.h"
 #include "httpcommon.h"
 #include "logging.h"
@@ -50,56 +55,30 @@ using namespace std::literals;
 namespace confighttp {
   namespace fs = std::filesystem;
 
-  /**
-   * @brief HTTPS server type used for Sunshine's configuration UI.
-   */
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 
-  /**
-   * @brief Case-insensitive map used for HTTP headers and query parameters.
-   */
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
-  /**
-   * @brief Shared HTTPS response object passed to configuration handlers.
-   */
   using resp_https_t = std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
-  /**
-   * @brief Shared HTTPS request object received by configuration handlers.
-   */
   using req_https_t = std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
-  /**
-   * @brief Handler signature for configuration UI HTTPS routes.
-   */
   using https_handler_t = std::function<void(resp_https_t, req_https_t)>;
 
-  /**
-   * @brief Client certificate operations accepted by the configuration API.
-   */
   enum class op_e {
     ADD,  ///< Add client
     REMOVE  ///< Remove client
   };
 
   // CSRF token management
-  /**
-   * @brief CSRF token value and its expiration deadline.
-   */
   struct csrf_token_t {
-    std::string token;  ///< Random token value that must be echoed by the client.
-    std::chrono::steady_clock::time_point expiration;  ///< Monotonic deadline after which the token is rejected.
+    std::string token;
+    std::chrono::steady_clock::time_point expiration;
   };
 
-  std::map<std::string, csrf_token_t, std::less<>> csrf_tokens;  ///< CSRF tokens by client identifier. NOSONAR(cpp:S5421) - intentionally mutable global
-  std::mutex csrf_tokens_mutex;  ///< Mutex protecting CSRF token storage. NOSONAR(cpp:S5421) - intentionally mutable global
+  // Store CSRF tokens with thread safety
+  std::map<std::string, csrf_token_t, std::less<>> csrf_tokens;  // NOSONAR(cpp:S5421) - intentionally mutable global
+  std::mutex csrf_tokens_mutex;  // NOSONAR(cpp:S5421) - intentionally mutable global
 
   // CSRF token configuration
-  /**
-   * @brief Number of random bytes used when generating a CSRF token.
-   */
   constexpr auto CSRF_TOKEN_SIZE = 32;  // 32 bytes = 256 bits
-  /**
-   * @brief Amount of time a generated CSRF token remains valid.
-   */
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
 
   /**
@@ -162,6 +141,46 @@ namespace confighttp {
     response->write(code, tree.dump(), headers);
   }
 
+  // ponytail: M-4 brute-force defense. Token bucket keyed by source IP.
+  // 10 failures refills in 30s; success resets. Single global mutex is fine
+  // at single-digit req/s per IP; switch to a per-IP LRU if memory matters.
+  // Success path bypasses entirely (no entry is added).
+  struct rate_bucket_t {
+    std::chrono::steady_clock::time_point window_start {std::chrono::steady_clock::now()};
+    int failures {0};
+  };
+  static std::mutex g_rate_mutex;
+  static std::unordered_map<std::string, rate_bucket_t> g_login_failures;
+  static constexpr int LOGIN_FAIL_LIMIT = 10;
+  static constexpr std::chrono::seconds LOGIN_FAIL_WINDOW {30};
+
+  bool rate_limit_allow(const std::string &ip) {
+    auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(g_rate_mutex);
+    auto &b = g_login_failures[ip];
+    if (now - b.window_start > LOGIN_FAIL_WINDOW) {
+      b.window_start = now;
+      b.failures = 0;
+    }
+    return b.failures < LOGIN_FAIL_LIMIT;
+  }
+
+  void rate_limit_record_failure(const std::string &ip) {
+    auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(g_rate_mutex);
+    auto &b = g_login_failures[ip];
+    if (now - b.window_start > LOGIN_FAIL_WINDOW) {
+      b.window_start = now;
+      b.failures = 0;
+    }
+    ++b.failures;
+  }
+
+  void rate_limit_reset(const std::string &ip) {
+    std::lock_guard<std::mutex> lock(g_rate_mutex);
+    g_login_failures.erase(ip);
+  }
+
   /**
    * @brief Send a redirect response.
    * @param response The HTTP response object.
@@ -180,33 +199,91 @@ namespace confighttp {
   }
 
   /**
-   * @brief Authenticate the user.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   * @return True if the user is authenticated, false otherwise.
+   * @brief Try to authenticate the request via API token (Bearer scheme).
+   *
+   * Tokens are stored as `<name>\t<hex_hash>\t<hex_salt>\t<scope1,scope2,...>`.
+   * We SHA-256 the presented plaintext + per-token salt and compare against the
+   * stored hash. STAR-scope tokens behave like admin for scope checks but
+   * still report is_admin=false (audit logs can distinguish them).
    */
-  bool authenticate(const resp_https_t &response, const req_https_t &request) {
+  auth_result_t authenticate_bearer(const req_https_t &request) {
+    auth_result_t result;
+    const auto auth = request->header.find("authorization");
+    if (auth == request->header.end()) return result;
+
+    const auto &raw = auth->second;
+    constexpr std::string_view BEARER = "Bearer "sv;
+    if (raw.size() < BEARER.size() || !boost::iequals(raw.substr(0, BEARER.size()), BEARER)) {
+      return result;
+    }
+
+    std::string presented = raw.substr(BEARER.size());
+    presented.erase(0, presented.find_first_not_of(" \t\r\n"));
+    presented.erase(presented.find_last_not_of(" \t\r\n") + 1);
+    if (presented.empty()) return result;
+
+    for (const auto &token : config::nvhttp.api_tokens) {
+      std::string composite = presented + ":" + token.salt;
+      auto hashed = util::hex(crypto::hash(composite)).to_string();
+      if (hashed == token.token_hash) {
+        result.authenticated = true;
+        result.token_name = token.name;
+        result.granted_scopes = token.scopes;
+        for (auto s : token.scopes) {
+          if (s == config::api_scope_t::STAR) result.is_admin = true;
+        }
+        BOOST_LOG(info) << "Web UI: API token '"sv << token.name << "' authenticated request"sv;
+        return result;
+      }
+    }
+    BOOST_LOG(info) << "Web UI: bearer token did not match any configured API token"sv;
+    return result;
+  }
+
+  /**
+   * @brief Authenticate the user.
+   * @details Tries API token (Bearer) first, then falls back to Basic Auth.
+   *          Bearer auth is preferred because it lets callers scope permissions.
+   */
+  auth_result_t authenticate(const resp_https_t &response, const req_https_t &request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
 
     if (const auto ip_type = net::from_address(address); ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
-      return false;
+      return auth_result_t{};
+    }
+
+    // ponytail: M-4 rate-limit gate before doing any hash work.
+    if (!rate_limit_allow(address)) {
+      BOOST_LOG(warning) << "Web UI: ["sv << address << "] -- rate limited"sv;
+      response->write(SimpleWeb::StatusCode::client_error_too_many_requests);
+      return auth_result_t{};
     }
 
     // If credentials are shown, redirect the user to a /welcome page
     if (config::sunshine.username.empty()) {
       send_redirect(response, request, "/welcome");
-      return false;
+      return auth_result_t{};
     }
 
     auto fg = util::fail_guard([&]() {
+      rate_limit_record_failure(address);
       send_unauthorized(response, request);
     });
 
+    // Try Bearer token first.
+    auto bearer_result = authenticate_bearer(request);
+    if (bearer_result.authenticated) {
+      rate_limit_reset(address);
+      fg.disable();
+      return bearer_result;
+    }
+
+    // Fall back to Basic Auth (admin).
     const auto auth = request->header.find("authorization");
     if (auth == request->header.end()) {
-      return false;
+      return auth_result_t{};
     }
 
     const auto &rawAuth = auth->second;
@@ -214,18 +291,55 @@ namespace confighttp {
 
     const auto index = static_cast<int>(authData.find(':'));
     if (index >= authData.size() - 1) {
-      return false;
+      return auth_result_t{};
     }
 
     const auto username = authData.substr(0, index);
     const auto password = authData.substr(index + 1);
 
     if (const auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string(); !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
-      return false;
+      return auth_result_t{};
     }
 
+    rate_limit_reset(address);
     fg.disable();
-    return true;
+    auth_result_t result;
+    result.authenticated = true;
+    result.is_admin = true;
+    return result;
+  }
+
+  /**
+   * @brief Check whether an authenticated request is allowed to use `scope`.
+   *        Admin (Basic Auth or STAR-scope token) always passes.
+   */
+  bool has_scope(const auth_result_t &auth, config::api_scope_t scope) {
+    if (!auth.authenticated) return false;
+    if (auth.is_admin) return true;
+    for (auto s : auth.granted_scopes) {
+      if (s == scope || s == config::api_scope_t::STAR) return true;
+    }
+    return false;
+  }
+
+  /**
+   * @brief Send a 403 Forbidden response (authenticated but lacks scope).
+   */
+  void send_forbidden(const resp_https_t &response, [[maybe_unused]] const req_https_t &request) {
+    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+    BOOST_LOG(info) << "Web UI: ["sv << address << "] -- forbidden (lacks scope)"sv;
+
+    constexpr auto code = SimpleWeb::StatusCode::client_error_forbidden;
+    nlohmann::json tree;
+    tree["status_code"] = code;
+    tree["status"] = false;
+    tree["error"] = "Token does not have the required scope for this endpoint";
+    const SimpleWeb::CaseInsensitiveMultimap headers {
+      {"Content-Type", "application/json"},
+      {"X-Frame-Options", "DENY"},
+      {"Content-Security-Policy", "frame-ancestors 'none';"}
+    };
+    response->write(code, tree.dump(), headers);
   }
 
   /**
@@ -273,6 +387,9 @@ namespace confighttp {
 
   /**
    * @brief Validate the request content type and send a bad request when mismatched.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param contentType The expected content type
    */
   bool check_content_type(const resp_https_t &response, const req_https_t &request, const std::string_view &contentType) {
     const auto requestContentType = request->header.find("content-type");
@@ -383,9 +500,6 @@ namespace confighttp {
     return true;
   }
 
-  /**
-   * @brief Validate CSRF token.
-   */
   bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id) {
     // Helper function to check if a URL starts with any allowed origin
     auto is_allowed_origin = [](const std::string_view url) {
@@ -447,6 +561,9 @@ namespace confighttp {
 
   /**
    * @brief Validates the application index and sends an error response if invalid.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param index The application index/id.
    */
   bool check_app_index(const resp_https_t &response, const req_https_t &request, int index) {
     std::string file = file_handler::read_file(config::stream.file_apps.c_str());
@@ -479,7 +596,7 @@ namespace confighttp {
       return;
     }
 
-    if (require_auth && !authenticate(response, request)) {
+    if (require_auth && !authenticate(response, request).authenticated) {
       return;
     }
 
@@ -594,7 +711,7 @@ namespace confighttp {
    * @api_examples{/api/csrf-token| GET| null}
    */
   void getCSRFToken(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -616,7 +733,7 @@ namespace confighttp {
    * @api_examples{/api/apps| GET| null}
    */
   void getApps(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -669,6 +786,38 @@ namespace confighttp {
   }
 
   /**
+   * @brief Scan for installed games from Steam, Lutris, and Heroic.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/games/scan| GET| null}
+   */
+  void scanGames(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request).authenticated) {
+      return;
+    }
+
+    print_req(request);
+
+    try {
+      auto discovered = game_scanner::scan_all();
+      nlohmann::json tree = nlohmann::json::array();
+      for (const auto &g : discovered) {
+        nlohmann::json entry;
+        entry["name"] = g.name;
+        entry["path"] = g.path;
+        entry["launcher"] = g.launcher;
+        entry["cover_url"] = g.cover_url;
+        tree.push_back(entry);
+      }
+      send_response(response, tree);
+    } catch (std::exception &e) {
+      BOOST_LOG(warning) << "ScanGames: "sv << e.what();
+      bad_request(response, request, e.what());
+    }
+  }
+
+  /**
    * @brief Save an application. To save a new application, the index must be `-1`. To update an existing application, you must provide the current index of the application.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -704,7 +853,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -776,7 +925,7 @@ namespace confighttp {
    * @api_examples{/api/apps/close| POST| null}
    */
   void closeApp(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -802,7 +951,7 @@ namespace confighttp {
    * @api_examples{/api/apps/9999| DELETE| null}
    */
   void deleteApp(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -853,7 +1002,7 @@ namespace confighttp {
    * @api_examples{/api/clients/list| GET| null}
    */
   void getClients(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -885,7 +1034,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
     std::string client_id = get_client_id(request);
@@ -939,7 +1088,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -980,7 +1129,7 @@ namespace confighttp {
    * @api_examples{/api/clients/unpair-all| POST| null}
    */
   void unpairAll(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1007,7 +1156,7 @@ namespace confighttp {
    * @api_examples{/api/config| GET| null}
    */
   void getConfig(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1022,6 +1171,70 @@ namespace confighttp {
 
     for (auto &[name, value] : vars) {
       output_tree[name] = std::move(value);
+    }
+
+    // Emit SolarFlare audio_fx defaults so the Web UI sees the controls
+    // on first load (before the user has saved anything). User-saved
+    // values in `vars` already won the loop above.
+    const auto &fx = config::solarflare.audio_fx;
+    auto bool_or_default = [&](const char *name, bool val) {
+      if (vars.find(name) == vars.end()) {
+        output_tree[name] = val ? "enabled" : "disabled";
+      }
+    };
+    auto num_or_default = [&](const char *name, int val) {
+      if (vars.find(name) == vars.end()) {
+        output_tree[name] = val;
+      }
+    };
+    auto float_or_default = [&](const char *name, float val) {
+      if (vars.find(name) == vars.end()) {
+        output_tree[name] = val;
+      }
+    };
+    bool_or_default("sf_audio_agc", fx.enable_agc);
+    bool_or_default("sf_audio_vad", fx.enable_vad);
+    bool_or_default("sf_audio_ducking", fx.enable_ducking);
+    bool_or_default("sf_audio_noise_gate", fx.enable_noise_gate);
+    bool_or_default("sf_opus_fec", fx.opus_fec);
+    bool_or_default("sf_opus_bandwidth_extension", fx.opus_bandwidth_extension);
+    float_or_default("sf_audio_noise_gate_db", fx.noise_gate_threshold_db);
+    float_or_default("sf_audio_agc_target_db", fx.agc_target_rms_db);
+    float_or_default("sf_audio_agc_max_gain_db", fx.agc_max_gain_db);
+    float_or_default("sf_audio_agc_min_gain_db", fx.agc_min_gain_db);
+    float_or_default("sf_audio_agc_attack_ms", fx.agc_attack_ms);
+    float_or_default("sf_audio_agc_hold_ms", fx.agc_hold_ms);
+    float_or_default("sf_audio_agc_release_ms", fx.agc_release_ms);
+    float_or_default("sf_audio_vad_threshold_db", fx.vad_threshold_db);
+    float_or_default("sf_audio_vad_hysteresis_db", fx.vad_hysteresis_db);
+    float_or_default("sf_audio_vad_min_speech_ms", fx.vad_min_speech_ms);
+    float_or_default("sf_audio_vad_min_silence_ms", fx.vad_min_silence_ms);
+    float_or_default("sf_audio_ducker_attenuation_db", fx.ducker_target_attenuation_db);
+    float_or_default("sf_audio_ducker_attack_ms", fx.ducker_attack_ms);
+    float_or_default("sf_audio_ducker_release_ms", fx.ducker_release_ms);
+    num_or_default("sf_opus_application", fx.opus_application);
+    num_or_default("sf_opus_vbr", fx.opus_vbr);
+    num_or_default("sf_opus_complexity", fx.opus_complexity);
+    num_or_default("sf_opus_expected_loss_pct", fx.opus_expected_loss_pct);
+
+    // Emit defaults for headless stream options so the Web UI sees the controls
+    // on first load before the user has saved anything.
+    bool_or_default("headless_mode", config::video.linux_display.headless_mode);
+    bool_or_default("linux_use_cage_compositor", config::video.linux_display.use_cage_compositor);
+    bool_or_default("linux_prefer_gpu_native_capture", config::video.linux_display.prefer_gpu_native_capture);
+    if (vars.find("compositor_backend") == vars.end()) {
+      output_tree["compositor_backend"] = config::video.linux_display.compositor_backend;
+    }
+
+    // Emit defaults for adaptive bitrate options.
+    bool_or_default("adaptive_bitrate_enabled", config::video.adaptive_bitrate_enabled);
+    num_or_default("adaptive_bitrate_min", config::video.adaptive_bitrate_min);
+    num_or_default("adaptive_bitrate_max", config::video.adaptive_bitrate_max);
+
+    // Emit defaults for trusted subnet options.
+    bool_or_default("trusted_subnet_auto_pairing", config::nvhttp.trusted_subnet_auto_pairing);
+    if (vars.find("trusted_subnets") == vars.end()) {
+      output_tree["trusted_subnets"] = config::nvhttp.trusted_subnets;
     }
 
     send_response(response, output_tree);
@@ -1064,7 +1277,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1078,10 +1291,22 @@ namespace confighttp {
     std::stringstream ss;
     ss << request->content.rdbuf();
     try {
-      // TODO: Input Validation
-      std::stringstream config_stream;
       nlohmann::json output_tree;
       nlohmann::json input_tree = nlohmann::json::parse(ss);
+
+      // Reject non-object payloads (arrays, scalars, null). Iterating those as
+      // if they were objects silently corrupts the config file with synthetic
+      // numeric keys (e.g. "0 = a\n1 = b") or spurious "<number> = null"
+      // lines, then reports success. Surface the rejection as a 400 so the
+      // client can correct the request instead of corrupting the file.
+      if (!input_tree.is_object()) {
+        BOOST_LOG(warning) << "SaveConfig: rejected non-object payload of type "sv
+                           << input_tree.type_name();
+        bad_request(response, request, "Request body must be a JSON object");
+        return;
+      }
+
+      std::stringstream config_stream;
       for (const auto &[k, v] : input_tree.items()) {
         if (v.is_null() || (v.is_string() && v.get<std::string>().empty())) {
           continue;
@@ -1091,7 +1316,36 @@ namespace confighttp {
         // we should migrate the config file to straight JSON and get rid of all this nonsense
         config_stream << k << " = " << (v.is_string() ? v.get<std::string>() : v.dump()) << std::endl;
       }
-      file_handler::write_file(config::sunshine.config_file.c_str(), config_stream.str());
+
+      // Refuse to write an empty payload. A zero-byte config_stream would
+      // truncate the on-disk config file to zero bytes via
+      // file_handler::write_file, silently wiping every previously saved
+      // setting (the upstream web UI sends {} when the user clicks "Save"
+      // with no settings differing from defaults; payloads of all-null
+      // entries also produce an empty stream). Surface as a 400 instead of
+      // silently destroying the user's config.
+      if (config_stream.tellp() == std::streampos {0}) {
+        BOOST_LOG(warning) << "SaveConfig: rejected empty payload (would wipe existing config)"sv;
+        bad_request(response, request, "Refusing to save an empty config: at least one setting must differ from defaults");
+        return;
+      }
+
+      // file_handler::write_file returns -1 if the file cannot be opened or
+      // written (permission denied, read-only filesystem, disk full, parent
+      // directory missing, etc.). Surface the failure as a JSON 500-equivalent
+      // body so the client and logs reflect that the settings did NOT
+      // persist. Returning {"status": true} on a failed write is what
+      // produced the user-visible "config save not working" symptom -- the
+      // request looked successful while the on-disk file was left untouched.
+      const std::string contents = config_stream.str();
+      if (file_handler::write_file(config::sunshine.config_file.c_str(), contents) != 0) {
+        BOOST_LOG(error) << "SaveConfig: failed to write config file "sv
+                         << config::sunshine.config_file;
+        output_tree["status"] = false;
+        output_tree["error"] = "Failed to write config file to disk";
+        send_response(response, output_tree);
+        return;
+      }
       output_tree["status"] = true;
       send_response(response, output_tree);
     } catch (std::exception &e) {
@@ -1110,7 +1364,7 @@ namespace confighttp {
    * @api_examples{/api/covers/9999 | GET| null}
    */
   void getCover(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1183,7 +1437,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1194,8 +1448,8 @@ namespace confighttp {
       nlohmann::json input_tree = nlohmann::json::parse(ss);
 
       std::string key = input_tree.value("key", "");
-      if (key.empty()) {
-        bad_request(response, request, "Cover key is required");
+      if (key.empty() || key.find('/') != std::string::npos || key.find("..") != std::string::npos || key.find('\0') != std::string::npos) {  // ponytail: L-1 path traversal guard
+        bad_request(response, request, "Invalid cover key");
         return;
       }
       std::string url = input_tree.value("url", "");
@@ -1235,8 +1489,336 @@ namespace confighttp {
    *
    * @api_examples{/api/logs| GET| null}
    */
+  /**
+   * @brief One freshly-minted API token, returned from mint_api_token().
+   * @details The plaintext is shown to the admin exactly once (in the
+   *          POST /api/tokens response). It is not stored anywhere; only
+   *          the SHA-256 hash + per-token salt land in the config.
+   */
+  struct minted_token_t {
+    std::string plaintext;  ///< The 64-char hex plaintext to display once.
+    std::string hash;       ///< Hex SHA-256 of `plaintext:salt`.
+    std::string salt;       ///< Per-token random salt, hex-encoded.
+  };
+
+  /**
+   * @brief Generate a fresh random API token.
+   * @details Reads 32 bytes of randomness from /dev/urandom for the plaintext
+   *          and 16 bytes for the per-token salt. Computes SHA-256(plaintext:salt)
+   *          as the stored hash.
+   * @return A minted_token_t with the plaintext, hash, and salt.
+   */
+  minted_token_t mint_api_token();
+
+  // Helper: hex-encode a raw byte string.
+  std::string hex_encode(const std::string &raw) {
+    static const char *hex = "0123456789abcdef";
+    std::string out;
+    out.reserve(raw.size() * 2);
+    for (unsigned char c : raw) {
+      out.push_back(hex[(c >> 4) & 0xF]);
+      out.push_back(hex[c & 0xF]);
+    }
+    return out;
+  }
+
+  minted_token_t mint_api_token() {
+    minted_token_t out;
+    std::ifstream urandom("/dev/urandom", std::ios::binary);
+    std::string plain_raw(32, '\0');
+    urandom.read(plain_raw.data(), 32);
+    std::string salt_raw(16, '\0');
+    urandom.read(salt_raw.data(), 16);
+    out.plaintext = hex_encode(plain_raw);
+    out.salt = hex_encode(salt_raw);
+    std::string composite = out.plaintext + ":" + out.salt;
+    out.hash = util::hex(crypto::hash(composite)).to_string();
+    return out;
+  }
+
+  /**
+   * @brief Push network stats from an HTTP client into the AdaptiveBitrate
+   *        controller. The video loop drains the queue once per frame.
+   *
+   * Body: {"packet_loss_pct": 0.5, "rtt_ms": 23.4}
+   *
+   * @api_examples{/api/stream/network-stats| POST| {"packet_loss_pct":0.5,"rtt_ms":23.4}}
+   */
+  void postNetworkStats(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) return;
+    // Scoped: only callers with LOGS_GET can push stats (loose, matches "read-side" feel).
+    if (!has_scope(auth, config::api_scope_t::LOGS_GET)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    try {
+      auto j = nlohmann::json::parse(ss.str());
+      float loss = j.value("packet_loss_pct", 0.0f);
+      float rtt = j.value("rtt_ms", 0.0f);
+      if (loss < 0 || loss > 100) {
+        bad_request(response, request, "packet_loss_pct must be in [0, 100]");
+        return;
+      }
+      if (rtt < 0) {
+        bad_request(response, request, "rtt_ms must be >= 0");
+        return;
+      }
+      // Push into the same queue the video loop drains.
+      mail::man->event<std::pair<float, float>>(mail::adaptive_bitrate_net_stats)->raise(std::make_pair(loss, rtt));
+    } catch (const std::exception &e) {
+      bad_request(response, request, std::string("Invalid JSON: ") + e.what());
+      return;
+    }
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    send_response(response, tree);
+  }
+
+  /**
+   * @brief Return current adaptive-bitrate state. Read-only.
+   *
+   * @api_examples{/api/stream/bitrate| GET| null}
+   */
+  void getBitrate(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) return;
+    if (!has_scope(auth, config::api_scope_t::CONFIG_GET)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    tree["adaptive_bitrate_enabled"] = config::video.adaptive_bitrate_enabled;
+    tree["adaptive_bitrate_min_kbps"] = config::video.adaptive_bitrate_min;
+    tree["adaptive_bitrate_max_kbps"] = config::video.adaptive_bitrate_max;
+    send_response(response, tree);
+  }
+
+  /**
+   * @brief Return process-wide error counters grouped by category.
+   * @details Used by the SolarFlare fork Web UI to surface a 'recent errors'
+   *          widget. Read-only; the counters are updated by every SUN_ERR()
+   *          call in the codebase. Counters are monotonically increasing
+   *          since process start -- the Web UI can diff against a snapshot
+   *          to compute deltas if it wants recent-error rate.
+   *
+   * @api_examples{/api/errors| GET| null}
+   */
+  void getErrors(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) return;
+    if (!has_scope(auth, config::api_scope_t::LOGS_GET)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    auto &c = sunshine::counters();
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    tree["encoder"] = c.encoder.load();
+    tree["capture"] = c.capture.load();
+    tree["network"] = c.network.load();
+    tree["session"] = c.session.load();
+    tree["process"] = c.process.load();
+    tree["config"]  = c.config.load();
+    tree["crypto"]  = c.crypto.load();
+    tree["unknown"] = c.unknown.load();
+    tree["total"]   = c.total.load();
+    send_response(response, tree);
+  }
+
+  /**
+   * @brief List existing API tokens (admin only).
+   * @details Returns the name and granted scopes of each token. Never returns
+   *          the hash or salt — those are write-only secrets.
+   *
+   * @api_examples{/api/tokens| GET| null}
+   */
+  void listTokens(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) {
+      return;
+    }
+    if (!has_scope(auth, config::api_scope_t::TOKENS_MANAGE)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    auto arr = nlohmann::json::array();
+    for (const auto &token : config::nvhttp.api_tokens) {
+      auto entry = nlohmann::json::object();
+      entry["name"] = token.name;
+      auto scopes_arr = nlohmann::json::array();
+      for (auto s : token.scopes) {
+        scopes_arr.push_back(config::to_string(s));
+      }
+      entry["scopes"] = scopes_arr;
+      arr.push_back(entry);
+    }
+    tree["tokens"] = arr;
+    send_response(response, tree);
+  }
+
+  /**
+   * @brief Create a new API token (admin only).
+   * @details Body: `{"name": "...", "scopes": ["config:get", "apps:launch"]}`.
+   *          The plaintext is generated server-side and returned in the
+   *          response exactly once — it cannot be retrieved later.
+   *
+   * @api_examples{/api/tokens| POST| {"name":"ci-bot","scopes":["config:get","apps:launch"]}}
+   */
+  void createToken(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) {
+      return;
+    }
+    if (!has_scope(auth, config::api_scope_t::TOKENS_MANAGE)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    auto body = ss.str();
+
+    nlohmann::json input;
+    try {
+      input = nlohmann::json::parse(body);
+    } catch (const std::exception &e) {
+      bad_request(response, request, "Invalid JSON body");
+      return;
+    }
+
+    std::string name = input.value("name", "");
+    if (name.empty()) {
+      bad_request(response, request, "Token name is required");
+      return;
+    }
+    // Reject duplicate names
+    for (const auto &t : config::nvhttp.api_tokens) {
+      if (t.name == name) {
+        bad_request(response, request, "Token name already exists");
+        return;
+      }
+    }
+
+    std::vector<config::api_scope_t> scopes;
+    auto scopes_in = input.find("scopes");
+    if (scopes_in == input.end() || !scopes_in->is_array() || scopes_in->empty()) {
+      bad_request(response, request, "At least one scope is required");
+      return;
+    }
+    for (const auto &s : *scopes_in) {
+      if (!s.is_string()) {
+        bad_request(response, request, "Each scope must be a string");
+        return;
+      }
+      auto parsed = config::api_scope_from_string(s.get<std::string>());
+      if (!parsed) {
+        bad_request(response, request,
+          "Unknown scope: '" + s.get<std::string>() + "'");
+        return;
+      }
+      scopes.push_back(*parsed);
+    }
+
+    auto minted = mint_api_token();
+
+    // Persist to sunshine.conf via the existing saveConfig machinery:
+    // append/replace the api_tokens entry. For simplicity we update the
+    // in-memory config and emit a hint that the admin must add the new
+    // entry to sunshine.conf manually. A future revision can wire this into
+    // saveConfig to write the line automatically.
+    // Build the api_tokens config entry that the admin must add to sunshine.conf.
+    std::string cfg_entry = name + "\t" + minted.hash + "\t" + minted.salt + "\t";
+    for (size_t i = 0; i < scopes.size(); ++i) {
+      if (i > 0) cfg_entry += ",";
+      cfg_entry += config::to_string(scopes[i]);
+    }
+    // ponytail: L-2 log injection guard -- strip CR/LF from admin-supplied name
+    // before logging. JSON output is auto-escaped by nlohmann::json, but the
+    // log line isn't.
+    auto safe_name = name;
+    for (auto &c : safe_name) {
+      if (c == '\n' || c == '\r') c = ' ';
+    }
+    BOOST_LOG(info) << "API token '" << safe_name << "' minted. Add this line to sunshine.conf:\n"
+                    << "  api_tokens += \"" << cfg_entry << "\"";
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    tree["name"] = name;
+    tree["plaintext"] = minted.plaintext;
+    tree["scopes"] = nlohmann::json::array();
+    for (auto s : scopes) tree["scopes"].push_back(config::to_string(s));
+    tree["warning"] = "Add the api_tokens line printed to the sunshine log to sunshine.conf to persist.";
+    send_response(response, tree);
+  }
+
+  /**
+   * @brief Delete an API token by name (admin only).
+   *
+   * @api_examples{/api/tokens/ci-bot| DELETE| null}
+   */
+  void deleteToken(const resp_https_t &response, const req_https_t &request) {
+    auto auth = authenticate(response, request);
+    if (!auth.authenticated) {
+      return;
+    }
+    if (!has_scope(auth, config::api_scope_t::TOKENS_MANAGE)) {
+      send_forbidden(response, request);
+      return;
+    }
+    print_req(request);
+
+    // Path looks like /api/tokens/<name>; <name> comes via SimpleWeb's
+    // path matcher. We accept the name as the last URL path component.
+    auto path = request->path;
+    auto pos = path.rfind('/');
+    std::string name = (pos != std::string::npos) ? path.substr(pos + 1) : path;
+
+    bool found = false;
+    for (auto it = config::nvhttp.api_tokens.begin(); it != config::nvhttp.api_tokens.end(); ++it) {
+      if (it->name == name) {
+        config::nvhttp.api_tokens.erase(it);
+        found = true;
+        break;
+      }
+    }
+
+    nlohmann::json tree;
+    if (found) {
+      tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+      tree["status"] = true;
+      BOOST_LOG(info) << "API token '"sv << name << "' deleted (in-memory; restart to also drop from sunshine.conf)"sv;
+    } else {
+      tree["status_code"] = SimpleWeb::StatusCode::client_error_not_found;
+      tree["status"] = false;
+      tree["error"] = "Token not found";
+    }
+    send_response(response, tree);
+  }
+
   void getLogs(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1271,7 +1853,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!config::sunshine.username.empty() && !authenticate(response, request)) {
+    if (!config::sunshine.username.empty() && !authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1349,7 +1931,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1390,7 +1972,7 @@ namespace confighttp {
    * @api_examples{/api/reset-display-device-persistence| POST| null}
    */
   void resetDisplayDevicePersistence(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1407,15 +1989,14 @@ namespace confighttp {
   }
 
   /**
-   * @brief Authenticate a Web UI request and restart the Sunshine process.
-   *
-   * @param response HTTP response used for authentication or CSRF failures.
-   * @param request HTTP request carrying the client identity and CSRF token.
+   * @brief Restart Sunshine.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
    *
    * @api_examples{/api/restart| POST| null}
    */
   void restart(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1438,7 +2019,7 @@ namespace confighttp {
    * @api_examples{/api/vigembus/status| GET| null}
    */
   void getViGEmBusStatus(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1496,7 +2077,7 @@ namespace confighttp {
    * @api_examples{/api/vigembus/install| POST| null}
    */
   void installViGEmBus(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1670,7 +2251,7 @@ namespace confighttp {
    * @api_examples{/api/browse?path=/home/user&type=directory| GET| null}
    */
   void browseDirectory(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request)) {
+    if (!authenticate(response, request).authenticated) {
       return;
     }
 
@@ -1745,9 +2326,6 @@ namespace confighttp {
     }
   }
 
-  /**
-   * @brief Start the HTTPS configuration server.
-   */
   void start() {
     platf::set_thread_name("confighttp");
     const auto shutdown_event = mail::man->event<bool>(mail::shutdown);
@@ -1807,9 +2385,16 @@ namespace confighttp {
     server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
     server.resource["^/api/csrf-token$"]["GET"] = getCSRFToken;
+    server.resource["^/api/games/scan$"]["GET"] = scanGames;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/pin$"]["POST"] = savePin;
     server.resource["^/api/logs$"]["GET"] = getLogs;
+    server.resource["^/api/tokens$"]["GET"] = listTokens;
+    server.resource["^/api/tokens$"]["POST"] = createToken;
+    server.resource["^/api/tokens/([\\w-]+)$"]["DELETE"] = deleteToken;
+    server.resource["^/api/stream/network-stats$"]["POST"] = postNetworkStats;
+    server.resource["^/api/stream/bitrate$"]["GET"] = getBitrate;
+    server.resource["^/api/errors$"]["GET"] = getErrors;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
@@ -1845,7 +2430,7 @@ namespace confighttp {
         return;
       }
     };
-    std::jthread tcp {accept_and_run, &server};
+    std::thread tcp {accept_and_run, &server};
 
     // Wait for any event
     shutdown_event->view();

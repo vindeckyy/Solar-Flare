@@ -313,27 +313,8 @@
     },
     methods: {
       async loadFeaturedApps() {
-        try {
-          this.loading = true;
-          this.error = null;
-
-          // Fetch the app directory for Sunshine
-          const indexUrl = 'https://app.lizardbyte.dev/app-directory/sunshine.json';
-
-          const response = await fetch(indexUrl);
-          if (!response.ok) {
-            throw new Error('Failed to load featured apps');
-          }
-
-          const data = await response.json();
-          this.apps = data.apps || [];
-          this.categories = data.categories || [];
-        } catch (err) {
-          console.error('Error loading featured apps:', err);
-          this.error = err.message;
-        } finally {
-          this.loading = false;
-        }
+        this.loading = false;
+        this.error = null;
       },
       platformName(platform) {
         const names = {

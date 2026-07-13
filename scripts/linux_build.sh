@@ -19,9 +19,13 @@ cuda_system_package=0
 cuda_system_package_name=""
 force_cuda_runfile=0
 num_processors=$(nproc)
+# SolarFlare fork: match the cmake/prep/options.cmake defaults so the
+# publisher metadata in sunshine.log points at the fork repo. Override
+# with --publisher-* args on the command line to ship a different
+# downstream binary.
 publisher_name="Third Party Publisher"
-publisher_website=""
-publisher_issue_url="https://app.lizardbyte.dev/support"
+publisher_website="https://github.com/vindeckyy/Solar-Flare"
+publisher_issue_url="https://github.com/vindeckyy/Solar-Flare/issues"
 skip_cleanup=0
 skip_cuda=0
 skip_libva=0
@@ -299,6 +303,7 @@ function add_arch_deps() {
     'openssl'
     'opus'
     'python-jinja'  # glad OpenGL/EGL loader generator
+    'python-setuptools'  # glad OpenGL/EGL loader generated, v2.0.0
     'qt6-base'
     'qt6-svg'
     'shaderc'
@@ -363,6 +368,7 @@ function add_debian_based_deps() {
     "ninja-build"
     "npm"  # web-ui
     "python3-jinja2"  # glad OpenGL/EGL loader generator
+    "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
     "qt6-base-dev"
     "systemd"
     "udev"
@@ -468,6 +474,7 @@ function add_fedora_deps() {
     "pipewire-devel"
     "pulseaudio-libs-devel"
     "python3-jinja2"  # glad OpenGL/EGL loader generator
+    "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
     "qt6-qtbase-devel"
     "qt6-qtsvg-devel"
     "rpm-build"  # if you want to build an RPM binary package

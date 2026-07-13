@@ -23,29 +23,22 @@ elseif(UNIX)
     endif()
 endif()
 
-target_link_libraries(sunshine PRIVATE ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
+target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
 
 # CLion complains about unknown flags after running cmake, and cannot add symbols to the index for cuda files
 if(CUDA_INHERIT_COMPILE_OPTIONS)
     foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
-        # Exclude LTO flags from CUDA -- nvcc does not support -flto and will fail at link time
-        # with "bytecode stream generated with LTO version X instead of expected version Y".
-        if(flag MATCHES "-flto")
-            continue()
-        endif()
         list(APPEND SUNSHINE_COMPILE_OPTIONS_CUDA "$<$<COMPILE_LANGUAGE:CUDA>:--compiler-options=${flag}>")
     endforeach()
 endif()
 
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
-target_link_options(sunshine PRIVATE ${SUNSHINE_LINK_OPTIONS})
 
-# inputtino requires dynamic libstdc++ — the -static-libstdc++ from linux.cmake
-# comes earlier in SUNSHINE_EXTERNAL_LIBRARIES, so re-add the dynamic lib last.
-# Without this, joypad_nintendo.cpp.o fails to resolve _M_replace_cold@@GLIBCXX_3.4.31.
-if(UNIX AND NOT APPLE)
-    target_link_libraries(sunshine PRIVATE -lstdc++)
+# CachyOS / Linux local-LAN: pair the -flto we set above with link-time LTO,
+# and add -Wl,-O2 so the linker re-runs cross-TU optimisations on Release.
+if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_link_options(sunshine PRIVATE "-flto=auto" "-Wl,-O2")
 endif()
 
 # Homebrew build fails the vite build if we set these environment variables
@@ -97,6 +90,11 @@ endif()
 set_source_files_properties("${CMAKE_SOURCE_DIR}/src/upnp.cpp"
         DIRECTORY "${CMAKE_SOURCE_DIR}" "${TEST_DIR}"
         PROPERTIES COMPILE_FLAGS -Wno-pedantic)
+
+# third-party/nanors
+set_source_files_properties("${CMAKE_SOURCE_DIR}/src/rswrapper.c"
+        DIRECTORY "${CMAKE_SOURCE_DIR}" "${TEST_DIR}"
+        PROPERTIES COMPILE_FLAGS "-ftree-vectorize -funroll-loops")
 
 # third-party/ViGEmClient
 set(VIGEM_COMPILE_FLAGS "")

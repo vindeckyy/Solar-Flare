@@ -3,8 +3,12 @@
  * @brief Definitions for KMS screen capture.
  */
 // standard includes
+#include <algorithm>
+#include <cctype>
 #include <errno.h>
 #include <fcntl.h>
+#include <fstream>
+#include <cstdio>
 #include <filesystem>
 #include <thread>
 #include <unistd.h>
@@ -20,6 +24,7 @@
 // local includes
 #include "cuda.h"
 #include "graphics.h"
+#include "kmsgrab.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -37,9 +42,6 @@ namespace platf {
 
   namespace kms {
 
-    /**
-     * @brief Temporarily owns CAP_SYS_ADMIN while opening DRM capture resources.
-     */
     class cap_sys_admin {
     public:
       cap_sys_admin() {
@@ -59,20 +61,11 @@ namespace platf {
         cap_free(caps);
       }
 
-      cap_t caps;  ///< Caps.
+      cap_t caps;
     };
 
-    /**
-     * @brief RAII wrapper for DRM framebuffer metadata and GEM handles.
-     */
     class wrapper_fb {
     public:
-      /**
-       * @brief Wrap legacy DRM framebuffer metadata.
-       *
-       * @param card_fd DRM card file descriptor used to close GEM handles.
-       * @param fb Legacy framebuffer metadata returned by drmModeGetFB.
-       */
       wrapper_fb(uint32_t card_fd, drmModeFB *fb):
           card_fd {card_fd},
           fb {fb},
@@ -88,12 +81,6 @@ namespace platf {
         pitches[0] = fb->pitch;
       }
 
-      /**
-       * @brief Wrap DRM framebuffer metadata with per-plane modifiers.
-       *
-       * @param card_fd DRM card file descriptor used to close GEM handles.
-       * @param fb2 Framebuffer metadata returned by drmModeGetFB2.
-       */
       wrapper_fb(uint32_t card_fd, drmModeFB2 *fb2):
           card_fd {card_fd},
           fb2 {fb2},
@@ -125,63 +112,30 @@ namespace platf {
         }
       }
 
-      uint32_t card_fd;  ///< DRM card file descriptor that owns the framebuffer ID.
-      drmModeFB *fb = nullptr;  ///< Legacy DRM framebuffer metadata when modifier data is unavailable.
-      drmModeFB2 *fb2 = nullptr;  ///< DRM framebuffer metadata with modifier support.
-      uint32_t fb_id;  ///< DRM framebuffer ID being captured.
-      uint32_t width;  ///< Framebuffer width in pixels.
-      uint32_t height;  ///< Framebuffer height in pixels.
-      uint32_t pixel_format;  ///< DRM fourcc pixel format for the framebuffer.
-      uint64_t modifier;  ///< DRM format modifier describing framebuffer memory layout.
-      uint32_t handles[4];  ///< GEM handles for each framebuffer plane.
-      uint32_t pitches[4];  ///< Row stride in bytes for each framebuffer plane.
-      uint32_t offsets[4];  ///< Byte offset to the first pixel for each framebuffer plane.
+      uint32_t card_fd;
+      drmModeFB *fb = nullptr;
+      drmModeFB2 *fb2 = nullptr;
+      uint32_t fb_id;
+      uint32_t width;
+      uint32_t height;
+      uint32_t pixel_format;
+      uint64_t modifier;
+      uint32_t handles[4];
+      uint32_t pitches[4];
+      uint32_t offsets[4];
     };
 
-    /**
-     * @brief DRM plane resource list released with `drmModeFreePlaneResources`.
-     */
     using plane_res_t = util::safe_ptr<drmModePlaneRes, drmModeFreePlaneResources>;
-    /**
-     * @brief DRM encoder pointer released with `drmModeFreeEncoder`.
-     */
     using encoder_t = util::safe_ptr<drmModeEncoder, drmModeFreeEncoder>;
-    /**
-     * @brief DRM resource list released with `drmModeFreeResources`.
-     */
     using res_t = util::safe_ptr<drmModeRes, drmModeFreeResources>;
-    /**
-     * @brief DRM plane pointer released with `drmModeFreePlane`.
-     */
     using plane_t = util::safe_ptr<drmModePlane, drmModeFreePlane>;
-    /**
-     * @brief DRM framebuffer pointer released with `drmModeFreeFB2`.
-     */
     using fb_t = std::unique_ptr<wrapper_fb>;
-    /**
-     * @brief DRM CRTC pointer released with `drmModeFreeCrtc`.
-     */
     using crtc_t = util::safe_ptr<drmModeCrtc, drmModeFreeCrtc>;
-    /**
-     * @brief DRM object-property list released with `drmModeFreeObjectProperties`.
-     */
     using obj_prop_t = util::safe_ptr<drmModeObjectProperties, drmModeFreeObjectProperties>;
-    /**
-     * @brief DRM property pointer released with `drmModeFreeProperty`.
-     */
     using prop_t = util::safe_ptr<drmModePropertyRes, drmModeFreeProperty>;
-    /**
-     * @brief DRM property-blob pointer released with `drmModeFreePropertyBlob`.
-     */
     using prop_blob_t = util::safe_ptr<drmModePropertyBlobRes, drmModeFreePropertyBlob>;
-    /**
-     * @brief DRM version pointer released with `drmFreeVersion`.
-     */
     using version_t = util::safe_ptr<drmVersion, drmFreeVersion>;
 
-    /**
-     * @brief Counter map keyed by DRM connector type.
-     */
     using conn_type_count_t = std::map<std::uint32_t, std::uint32_t>;
 
     static int env_width;
@@ -190,12 +144,6 @@ namespace platf {
     static int env_logical_width;
     static int env_logical_height;
 
-    /**
-     * @brief Convert a DRM plane type value to a diagnostic string.
-     *
-     * @param val Value assigned to the synchronized object.
-     * @return Static text for the DRM plane type.
-     */
     std::string_view plane_type(std::uint64_t val) {
       switch (val) {
         case DRM_PLANE_TYPE_OVERLAY:
@@ -209,56 +157,45 @@ namespace platf {
       return "UNKNOWN"sv;
     }
 
-    /**
-     * @brief DRM connector and mode information for one display.
-     */
     struct connector_t {
       // For example: HDMI-A or HDMI
-      std::uint32_t type;  ///< Type.
+      std::uint32_t type;
 
       // Equals zero if not applicable
-      std::uint32_t crtc_id;  ///< Crtc ID.
+      std::uint32_t crtc_id;
 
       // For example HDMI-A-{index} or HDMI-{index}
-      std::uint32_t index;  ///< Index.
+      std::uint32_t index;
 
       // ID of the connector
-      std::uint32_t connector_id;  ///< Connector ID.
+      std::uint32_t connector_id;
 
-      bool connected;  ///< Whether the DRM connector is connected.
+      bool connected;
     };
 
-    /**
-     * @brief KMS monitor capture state and DRM resources.
-     */
     struct monitor_t {
       // Connector attributes
-      std::uint32_t type;  ///< Type.
-      std::uint32_t index;  ///< Index.
+      std::uint32_t type;
+      std::uint32_t index;
 
       // Monitor index in the global list
-      std::uint32_t monitor_index;  ///< Monitor index.
+      std::uint32_t monitor_index;
 
-      platf::touch_port_t viewport;  ///< Viewport.
+      platf::touch_port_t viewport;
     };
 
-    /**
-     * @brief DRM card, device path, and render-node metadata.
-     */
     struct card_descriptor_t {
-      std::string path;  ///< Path.
+      std::string path;
 
-      std::map<std::uint32_t, monitor_t> crtc_to_monitor;  ///< Crtc to monitor.
+      std::map<std::uint32_t, monitor_t> crtc_to_monitor;
     };
 
     static std::vector<card_descriptor_t> card_descriptors;
 
     static std::uint32_t from_view(const std::string_view &string) {
-#ifndef DOXYGEN
-  #define _CONVERT(x, y) \
-    if (string == x) \
-    return DRM_MODE_CONNECTOR_##y
-#endif
+#define _CONVERT(x, y) \
+  if (string == x) \
+  return DRM_MODE_CONNECTOR_##y
 
       // This list was created from the following sources:
       // https://gitlab.freedesktop.org/mesa/drm/-/blob/main/xf86drmMode.c (drmModeGetConnectorTypeName)
@@ -312,18 +249,8 @@ namespace platf {
       return DRM_MODE_CONNECTOR_Unknown;
     }
 
-    /**
-     * @brief Iterator over DRM planes and their associated properties.
-     */
     class plane_it_t: public round_robin_util::it_wrap_t<plane_t::element_type, plane_it_t> {
     public:
-      /**
-       * @brief Create an iterator over DRM planes starting at a specific plane ID.
-       *
-       * @param fd DRM card file descriptor.
-       * @param plane_p Current plane ID pointer.
-       * @param end One-past-the-end plane ID pointer.
-       */
       plane_it_t(int fd, std::uint32_t *plane_p, std::uint32_t *end):
           fd {fd},
           plane_p {plane_p},
@@ -331,21 +258,12 @@ namespace platf {
         load_next_valid_plane();
       }
 
-      /**
-       * @brief Create the end iterator for a DRM plane range.
-       *
-       * @param fd DRM card file descriptor.
-       * @param end One-past-the-end plane ID pointer.
-       */
       plane_it_t(int fd, std::uint32_t *end):
           fd {fd},
           plane_p {end},
           end {end} {
       }
 
-      /**
-       * @brief Load next valid plane.
-       */
       void load_next_valid_plane() {
         this->plane.reset();
 
@@ -361,83 +279,56 @@ namespace platf {
         }
       }
 
-      /**
-       * @brief Advance the iterator to the next element.
-       */
       void inc() {
         ++plane_p;
         load_next_valid_plane();
       }
 
-      /**
-       * @brief Compare two iterators for equality.
-       *
-       * @param other Plane iterator to compare against.
-       * @return True when both iterators reference the same plane position.
-       */
       bool eq(const plane_it_t &other) const {
         return plane_p == other.plane_p;
       }
 
-      /**
-       * @brief Return the currently wrapped value or handle.
-       *
-       * @return Underlying native handle or object pointer.
-       */
       plane_t::pointer get() {
         return plane.get();
       }
 
-      int fd;  ///< DRM card file descriptor.
-      std::uint32_t *plane_p;  ///< Current plane ID pointer.
-      std::uint32_t *end;  ///< One-past-the-end plane ID pointer.
+      int fd;
+      std::uint32_t *plane_p;
+      std::uint32_t *end;
 
-      util::shared_t<plane_t> plane;  ///< Plane.
+      util::shared_t<plane_t> plane;
     };
 
-    /**
-     * @brief Cursor position and visibility for the current capture frame.
-     */
     struct cursor_t {
       // Public properties used during blending
-      bool visible = false;  ///< Whether the KMS cursor plane is visible.
-      std::int32_t x;  ///< X.
-      std::int32_t y;  ///< Y.
-      std::uint32_t dst_w;  ///< Dst w.
-      std::uint32_t dst_h;  ///< Dst h.
-      std::uint32_t src_w;  ///< Src w.
-      std::uint32_t src_h;  ///< Src h.
-      std::vector<std::uint8_t> pixels;  ///< Pixels.
-      unsigned long serial;  ///< Serial.
+      bool visible = false;
+      std::int32_t x;
+      std::int32_t y;
+      std::uint32_t dst_w;
+      std::uint32_t dst_h;
+      std::uint32_t src_w;
+      std::uint32_t src_h;
+      std::vector<std::uint8_t> pixels;
+      unsigned long serial;
 
       // Private properties used for tracking cursor changes
-      std::uint64_t prop_src_x;  ///< Prop src x.
-      std::uint64_t prop_src_y;  ///< Prop src y.
-      std::uint64_t prop_src_w;  ///< Prop src w.
-      std::uint64_t prop_src_h;  ///< Prop src h.
-      std::uint32_t fb_id;  ///< Fb ID.
+      std::uint64_t prop_src_x;
+      std::uint64_t prop_src_y;
+      std::uint64_t prop_src_w;
+      std::uint64_t prop_src_h;
+      std::uint32_t fb_id;
     };
 
-    /**
-     * @brief DRM card, render node, and plane metadata used for KMS capture.
-     */
     class card_t {
     public:
-      /**
-       * @brief Internal connector metadata tuple used while selecting a monitor.
-       */
       using connector_interal_t = util::safe_ptr<drmModeConnector, drmModeFreeConnector>;
 
-      /**
-       * @brief Open a DRM connector and cache its monitor metadata.
-       *
-       * @param path Filesystem path for the DRM device or resource.
-       * @return 0 on success; nonzero or negative platform status on failure.
-       */
       int init(const char *path) {
         cap_sys_admin admin;
-        fd.el = open_drm_card_fd(path);
+        fd.el = open(path, O_RDWR);
+
         if (fd.el < 0) {
+          BOOST_LOG(error) << "Couldn't open: "sv << path << ": "sv << strerror(errno);
           return -1;
         }
 
@@ -487,12 +378,6 @@ namespace platf {
         return 0;
       }
 
-      /**
-       * @brief Return framebuffer metadata for the current CRTC.
-       *
-       * @param plane DRM or EGL plane index being described.
-       * @return Framebuffer metadata wrapper, or nullptr when the framebuffer cannot be read.
-       */
       fb_t fb(plane_t::pointer plane) {
         cap_sys_admin admin;
 
@@ -509,51 +394,23 @@ namespace platf {
         return nullptr;
       }
 
-      /**
-       * @brief Return the DRM CRTC object for the monitor.
-       *
-       * @param id DRM CRTC ID.
-       * @return Owning pointer to the DRM CRTC object.
-       */
       crtc_t crtc(std::uint32_t id) {
         return drmModeGetCrtc(fd.el, id);
       }
 
-      /**
-       * @brief Return the DRM encoder object for the connector.
-       *
-       * @param id DRM encoder ID.
-       * @return Owning pointer to the DRM encoder object.
-       */
       encoder_t encoder(std::uint32_t id) {
         return drmModeGetEncoder(fd.el, id);
       }
 
-      /**
-       * @brief Return the DRM resource list for the card.
-       *
-       * @return DRM card resource list.
-       */
       res_t res() {
         return drmModeGetResources(fd.el);
       }
 
-      /**
-       * @brief Check whether nvidia.
-       *
-       * @return True when the DRM device appears to be driven by NVIDIA.
-       */
       bool is_nvidia() {
         version_t ver {drmGetVersion(fd.el)};
         return ver && ver->name && strncmp(ver->name, "nvidia-drm", 10) == 0;
       }
 
-      /**
-       * @brief Check whether cursor.
-       *
-       * @param plane_id Plane ID.
-       * @return True when the DRM plane is a cursor plane.
-       */
       bool is_cursor(std::uint32_t plane_id) {
         auto props = plane_props(plane_id);
         for (auto &[prop, val] : props) {
@@ -569,13 +426,6 @@ namespace platf {
         return false;
       }
 
-      /**
-       * @brief Look up a DRM property value by property name.
-       *
-       * @param props DRM property collection to inspect.
-       * @param name DRM property name to search for.
-       * @return Property value when the property exists.
-       */
       std::optional<std::uint64_t> prop_value_by_name(const std::vector<std::pair<prop_t, std::uint64_t>> &props, std::string_view name) {
         for (auto &[prop, val] : props) {
           if (prop->name == name) {
@@ -585,12 +435,6 @@ namespace platf {
         return std::nullopt;
       }
 
-      /**
-       * @brief Get panel orientation.
-       *
-       * @param plane_id Plane ID.
-       * @return DRM rotation bitmask for the panel orientation.
-       */
       std::uint32_t get_panel_orientation(std::uint32_t plane_id) {
         auto props = plane_props(plane_id);
         auto value = prop_value_by_name(props, "rotation"sv);
@@ -602,12 +446,6 @@ namespace platf {
         return DRM_MODE_ROTATE_0;
       }
 
-      /**
-       * @brief Get crtc index by ID.
-       *
-       * @param crtc_id Crtc ID.
-       * @return Zero-based CRTC index, or -1 when the CRTC ID is unknown.
-       */
       int get_crtc_index_by_id(std::uint32_t crtc_id) {
         auto resources = res();
         for (int i = 0; i < resources->count_crtcs; i++) {
@@ -618,22 +456,10 @@ namespace platf {
         return -1;
       }
 
-      /**
-       * @brief Return the DRM connector object for the display.
-       *
-       * @param id DRM connector ID.
-       * @return Owning pointer to the DRM connector object.
-       */
       connector_interal_t connector(std::uint32_t id) {
         return drmModeGetConnector(fd.el, id);
       }
 
-      /**
-       * @brief Refresh the monitor list reported by the display server.
-       *
-       * @param conn_type_count Conn type count.
-       * @return Connector descriptors for monitors known to the DRM card.
-       */
       std::vector<connector_t> monitors(conn_type_count_t &conn_type_count) {
         auto resources = res();
         if (!resources) {
@@ -668,12 +494,6 @@ namespace platf {
         return monitors;
       }
 
-      /**
-       * @brief Return the DRM file descriptor owned by the object.
-       *
-       * @param handle GEM handle exported by the DRM framebuffer.
-       * @return DMA-BUF file descriptor for the GEM handle.
-       */
       file_t handleFD(std::uint32_t handle) {
         file_t fb_fd;
 
@@ -685,13 +505,6 @@ namespace platf {
         return fb_fd;
       }
 
-      /**
-       * @brief Return DRM object properties for the resource.
-       *
-       * @param id DRM object ID.
-       * @param type DRM object type.
-       * @return DRM properties and their current values.
-       */
       std::vector<std::pair<prop_t, std::uint64_t>> props(std::uint32_t id, std::uint32_t type) {
         obj_prop_t obj_prop = drmModeObjectGetProperties(fd.el, id, type);
         if (!obj_prop) {
@@ -708,84 +521,39 @@ namespace platf {
         return props;
       }
 
-      /**
-       * @brief Return DRM plane properties.
-       *
-       * @param id DRM plane ID.
-       * @return Plane properties and their current values.
-       */
       std::vector<std::pair<prop_t, std::uint64_t>> plane_props(std::uint32_t id) {
         return props(id, DRM_MODE_OBJECT_PLANE);
       }
 
-      /**
-       * @brief Return DRM CRTC properties.
-       *
-       * @param id DRM CRTC ID.
-       * @return CRTC properties and their current values.
-       */
       std::vector<std::pair<prop_t, std::uint64_t>> crtc_props(std::uint32_t id) {
         return props(id, DRM_MODE_OBJECT_CRTC);
       }
 
-      /**
-       * @brief Return DRM connector properties.
-       *
-       * @param id DRM connector ID.
-       * @return Connector properties and their current values.
-       */
       std::vector<std::pair<prop_t, std::uint64_t>> connector_props(std::uint32_t id) {
         return props(id, DRM_MODE_OBJECT_CONNECTOR);
       }
 
-      /**
-       * @brief Fetch DRM plane metadata by plane-list index.
-       *
-       * @param index Zero-based index into the DRM plane resource list.
-       * @return Plane metadata for the requested DRM plane.
-       */
       plane_t operator[](std::uint32_t index) {
         return drmModeGetPlane(fd.el, plane_res->planes[index]);
       }
 
-      /**
-       * @brief Return the number of items in the wrapped DRM collection.
-       *
-       * @return Number of DRM planes reported by the card.
-       */
       std::uint32_t count() {
         return plane_res->count_planes;
       }
 
-      /**
-       * @brief Return an iterator to the first byte in the buffer view.
-       *
-       * @return Iterator to the first element.
-       */
       plane_it_t begin() const {
         return plane_it_t {fd.el, plane_res->planes, plane_res->planes + plane_res->count_planes};
       }
 
-      /**
-       * @brief Return an iterator one past the final byte in the buffer view.
-       *
-       * @return Iterator one past the last element.
-       */
       plane_it_t end() const {
         return plane_it_t {fd.el, plane_res->planes + plane_res->count_planes};
       }
 
-      file_t fd;  ///< DRM card file descriptor.
-      file_t render_fd;  ///< Render fd.
-      plane_res_t plane_res;  ///< Plane res.
+      file_t fd;
+      file_t render_fd;
+      plane_res_t plane_res;
     };
 
-    /**
-     * @brief Build a lookup from DRM CRTC IDs to monitor descriptors.
-     *
-     * @param connectors DRM connector list being mapped to monitors.
-     * @return Map keyed by CRTC ID.
-     */
     std::map<std::uint32_t, monitor_t> map_crtc_to_monitor(const std::vector<connector_t> &connectors) {
       std::map<std::uint32_t, monitor_t> result;
 
@@ -799,9 +567,6 @@ namespace platf {
       return result;
     }
 
-    /**
-     * @brief Multi-source KMS image assembled for encoding.
-     */
     struct kms_img_t: public img_t {
       ~kms_img_t() override {
         delete[] data;
@@ -809,13 +574,6 @@ namespace platf {
       }
     };
 
-    /**
-     * @brief Write a debug log representation of the input packet.
-     *
-     * @param plane DRM or EGL plane index being described.
-     * @param fb Framebuffer object to bind or update.
-     * @param crtc DRM CRTC identifier to map.
-     */
     void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
       if (crtc) {
         BOOST_LOG(debug) << "crtc("sv << crtc->x << ", "sv << crtc->y << ')';
@@ -848,32 +606,32 @@ namespace platf {
       BOOST_LOG(debug) << ss.str();
     }
 
-    /**
-     * @brief Base KMS display capture backend shared by RAM and VRAM paths.
-     */
     class display_t: public platf::display_t {
     public:
-      /**
-       * @brief Initialize common KMS display state for the requested memory type.
-       *
-       * @param mem_type Mem type.
-       */
       display_t(mem_type_e mem_type):
           platf::display_t(),
           mem_type {mem_type} {
       }
 
-      /**
-       * @brief Initialize the base KMS capture state for the selected monitor.
-       *
-       * @param display_name Display name.
-       * @param config Configuration values to apply.
-       * @return 0 on success; nonzero or negative platform status on failure.
-       */
       int init(const std::string &display_name, const ::video::config_t &config) {
-        delay = ::video::capture_frame_interval(config);
+        delay = std::chrono::nanoseconds {1s} / config.framerate;
 
-        int monitor_index = util::from_view(display_name);
+        // Sanitize the monitor index. parse_monitor_index() validates every
+        // character is an ASCII digit before delegating to from_view(); a
+        // non-numeric name like "Virtual-Virtual-1" (produced by KWin's
+        // double-prefixed virtual outputs) or "DP-1" would otherwise be
+        // decoded as an arbitrary negative number that becomes an
+        // out-of-bounds index into the KMS plane scan array and trips the
+        // encoder's monitor lookup with garbage like -1797036149.
+        constexpr std::int64_t kFallbackMonitor = 0;
+        std::int64_t parsed_index = util::parse_monitor_index(display_name, kFallbackMonitor);
+        if (!display_name.empty() && parsed_index == kFallbackMonitor &&
+            !std::all_of(display_name.begin(), display_name.end(),
+                         [](unsigned char c) { return std::isdigit(c); })) {
+          BOOST_LOG(warning) << "kmsgrab: display_name '"sv << display_name
+                             << "' is not a numeric monitor index; falling back to 0"sv;
+        }
+        int monitor_index = static_cast<int>(parsed_index);
         int monitor = 0;
 
         fs::path card_dir {"/dev/dri"sv};
@@ -1078,11 +836,6 @@ namespace platf {
         return 0;
       }
 
-      /**
-       * @brief Report whether the active display mode is HDR.
-       *
-       * @return True when the active display mode is HDR.
-       */
       bool is_hdr() {
         if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
           return false;
@@ -1129,12 +882,6 @@ namespace platf {
         }
       }
 
-      /**
-       * @brief Read HDR metadata for the active display mode.
-       *
-       * @param metadata Output structure populated with HDR metadata.
-       * @return True when HDR metadata was written to the output structure.
-       */
       bool get_hdr_metadata(SS_HDR_METADATA &metadata) {
         // This performs all the metadata validation
         if (!is_hdr()) {
@@ -1164,9 +911,6 @@ namespace platf {
         return true;
       }
 
-      /**
-       * @brief Update cached cursor-plane image and position.
-       */
       void update_cursor() {
         if (cursor_plane_id < 0) {
           return;
@@ -1345,14 +1089,6 @@ namespace platf {
         }
       }
 
-      /**
-       * @brief Refresh cached platform state from the operating system.
-       *
-       * @param file DMA-BUF file descriptors exported for the current framebuffer.
-       * @param sd EGL surface descriptor to import.
-       * @param frame_timestamp Output timestamp assigned to the captured frame.
-       * @return Capture status after refreshing framebuffer and cursor state.
-       */
       inline capture_e refresh(file_t *file, egl::surface_descriptor_t *sd, std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
         // Check for a change in HDR metadata
         if (connector_id) {
@@ -1364,6 +1100,19 @@ namespace platf {
         }
 
         plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
+
+        // drmModeGetPlane returns nullptr when the plane has been destroyed
+        // by a hot-swap event (e.g. the user just disabled DP-3 via
+        // kscreen-doctor or unplugged a physical connector). Without this
+        // null check the next line dereferences a null pointer to read
+        // plane->fb_id, segfaulting the capture thread. Treat it the same
+        // as a temporary framebuffer-miss: log a warning, sleep for one
+        // frame interval, and retry rather than aborting the stream.
+        if (!plane) {
+          BOOST_LOG(warning) << "kmsgrab: drmModeGetPlane("sv << plane_id << ") returned nullptr; plane may have been removed by a hot-swap event. Retrying."sv;
+          return capture_e::timeout;
+        }
+
         frame_timestamp = std::chrono::steady_clock::now();
 
         auto fb = card.fb(plane.get());
@@ -1417,49 +1166,34 @@ namespace platf {
         return capture_e::ok;
       }
 
-      mem_type_e mem_type;  ///< Mem type.
+      mem_type_e mem_type;
 
-      std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
+      std::chrono::nanoseconds delay;
 
-      int img_width;  ///< Img width.
-      int img_height;  ///< Img height.
-      int img_offset_x;  ///< Img offset x.
-      int img_offset_y;  ///< Img offset y.
+      int img_width;
+      int img_height;
+      int img_offset_x;
+      int img_offset_y;
 
-      int plane_id;  ///< Plane ID.
-      int crtc_id;  ///< Crtc ID.
-      int crtc_index;  ///< Crtc index.
+      int plane_id;
+      int crtc_id;
+      int crtc_index;
 
-      std::optional<uint32_t> connector_id;  ///< Connector ID.
-      std::optional<uint64_t> hdr_metadata_blob_id;  ///< HDR metadata blob ID.
+      std::optional<uint32_t> connector_id;
+      std::optional<uint64_t> hdr_metadata_blob_id;
 
-      int cursor_plane_id;  ///< Cursor plane ID.
-      cursor_t captured_cursor {};  ///< Captured cursor.
+      int cursor_plane_id;
+      cursor_t captured_cursor {};
 
-      card_t card;  ///< Card.
+      card_t card;
     };
 
-    /**
-     * @brief KMS capture backend that copies frames into system memory.
-     */
     class display_ram_t: public display_t {
     public:
-      /**
-       * @brief Initialize a KMS display backend that copies frames through RAM.
-       *
-       * @param mem_type Mem type.
-       */
       display_ram_t(mem_type_e mem_type):
           display_t(mem_type) {
       }
 
-      /**
-       * @brief Initialize KMS capture that copies frames into system memory.
-       *
-       * @param display_name Display name.
-       * @param config Configuration values to apply.
-       * @return 0 on success; nonzero or negative platform status on failure.
-       */
       int init(const std::string &display_name, const ::video::config_t &config) {
         if (!gbm::create_device) {
           BOOST_LOG(warning) << "libgbm not initialized"sv;
@@ -1536,12 +1270,6 @@ namespace platf {
         return capture_e::ok;
       }
 
-      /**
-       * @brief Create AVCodec encode device.
-       *
-       * @param pix_fmt Sunshine pixel format to convert or allocate for.
-       * @return Constructed AVCodec encode device object.
-       */
       std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi) {
@@ -1558,11 +1286,6 @@ namespace platf {
         return std::make_unique<avcodec_encode_device_t>();
       }
 
-      /**
-       * @brief Blend the captured cursor plane into a KMS frame.
-       *
-       * @param img Image or frame object to read from or populate.
-       */
       void blend_cursor(img_t &img) {
         // TODO: Cursor scaling is not supported in this codepath.
         // We always draw the cursor at the source size.
@@ -1611,15 +1334,6 @@ namespace platf {
         }
       }
 
-      /**
-       * @brief Capture a display frame into the provided image object.
-       *
-       * @param pull_free_image_cb Callback that provides an available image buffer.
-       * @param img_out Captured KMS image returned to the streaming pipeline.
-       * @param timeout Maximum time to wait for the operation.
-       * @param cursor Cursor image or visibility state to composite.
-       * @return Capture status reported to the streaming pipeline.
-       */
       capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
         file_t fb_fd[4];
 
@@ -1663,11 +1377,6 @@ namespace platf {
         return capture_e::ok;
       }
 
-      /**
-       * @brief Allocate an image buffer compatible with this display backend.
-       *
-       * @return Allocated img object, or null when unavailable.
-       */
       std::shared_ptr<img_t> alloc_img() override {
         auto img = std::make_shared<kms_img_t>();
         img->width = width;
@@ -1679,41 +1388,21 @@ namespace platf {
         return img;
       }
 
-      /**
-       * @brief Populate a fallback image when real capture data is unavailable.
-       *
-       * @param img Image or frame object to read from or populate.
-       * @return Capture status reported to the streaming pipeline.
-       */
       int dummy_img(platf::img_t *img) override {
         return 0;
       }
 
-      gbm::gbm_t gbm;  ///< GBM device used for buffer allocation.
-      egl::display_t display;  ///< EGL display created from the GBM device.
-      egl::ctx_t ctx;  ///< EGL context used to copy KMS frames into RAM.
+      gbm::gbm_t gbm;
+      egl::display_t display;
+      egl::ctx_t ctx;
     };
 
-    /**
-     * @brief KMS capture backend that exports frames as GPU resources.
-     */
     class display_vram_t: public display_t {
     public:
-      /**
-       * @brief Initialize a KMS display backend that exports frames as GPU resources.
-       *
-       * @param mem_type Mem type.
-       */
       display_vram_t(mem_type_e mem_type):
           display_t(mem_type) {
       }
 
-      /**
-       * @brief Create AVCodec encode device.
-       *
-       * @param pix_fmt Sunshine pixel format to convert or allocate for.
-       * @return Constructed AVCodec encode device object.
-       */
       std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi) {
@@ -1737,11 +1426,6 @@ namespace platf {
         return nullptr;
       }
 
-      /**
-       * @brief Allocate an image buffer compatible with this display backend.
-       *
-       * @return Allocated img object, or null when unavailable.
-       */
       std::shared_ptr<img_t> alloc_img() override {
         auto img = std::make_shared<egl::img_descriptor_t>();
 
@@ -1757,12 +1441,6 @@ namespace platf {
         return img;
       }
 
-      /**
-       * @brief Populate a fallback image when real capture data is unavailable.
-       *
-       * @param img Image or frame object to read from or populate.
-       * @return Capture status reported to the streaming pipeline.
-       */
       int dummy_img(platf::img_t *img) override {
         // Empty images are recognized as dummies by the zero sequence number
         return 0;
@@ -1813,14 +1491,6 @@ namespace platf {
         return capture_e::ok;
       }
 
-      /**
-       * @brief Capture a display frame into the provided image object.
-       *
-       * @param pull_free_image_cb Pull free image cb.
-       * @param img_out Captured KMS image descriptor returned to the streaming pipeline.
-       * @param cursor Cursor image or visibility state to composite.
-       * @return Capture status reported to the streaming pipeline.
-       */
       capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds /* timeout */, bool cursor) {
         file_t fb_fd[4];
 
@@ -1863,13 +1533,6 @@ namespace platf {
         return capture_e::ok;
       }
 
-      /**
-       * @brief Initialize KMS capture that exports frames as GPU resources.
-       *
-       * @param display_name Display name.
-       * @param config Configuration values to apply.
-       * @return 0 on success; nonzero or negative platform status on failure.
-       */
       int init(const std::string &display_name, const ::video::config_t &config) {
         if (display_t::init(display_name, config)) {
           return -1;
@@ -1892,19 +1555,11 @@ namespace platf {
         return 0;
       }
 
-      std::uint64_t sequence {};  ///< Monotonic capture sequence assigned to KMS frames.
+      std::uint64_t sequence {};
     };
 
   }  // namespace kms
 
-  /**
-   * @brief Create a KMS display capture backend.
-   *
-   * @param hwdevice_type Hardware device type requested for capture or encode.
-   * @param display_name Display name.
-   * @param config Configuration values to apply.
-   * @return KMS display backend, or nullptr when initialization fails.
-   */
   std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
     if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda || hwdevice_type == mem_type_e::vulkan) {
       auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
@@ -1934,7 +1589,6 @@ namespace platf {
    * But, it's necessary for absolute mouse coordinates to work.
    *
    * This is an ugly hack :(
-   * @param cds Capture display state used by the KMS backend.
    */
   void correlate_to_wayland(std::vector<kms::card_descriptor_t> &cds) {
     auto monitors = wl::monitors();
@@ -1961,6 +1615,8 @@ namespace platf {
       for (auto &card_descriptor : cds) {
         for (auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
           if (monitor_descriptor.index == index && monitor_descriptor.type == type) {
+            monitor_descriptor.viewport.width = monitor->viewport.width;
+            monitor_descriptor.viewport.height = monitor->viewport.height;
             monitor_descriptor.viewport.offset_x = monitor->viewport.offset_x;
             monitor_descriptor.viewport.offset_y = monitor->viewport.offset_y;
             monitor_descriptor.viewport.logical_width = monitor->viewport.logical_width;
@@ -1991,13 +1647,61 @@ namespace platf {
     BOOST_LOG(info) << "--------- End of KMS monitor list ---------"sv;
   }
 
-  // A list of names of displays accepted as display_name
   /**
-   * @brief Enumerate display names accepted by the KMS backend.
+   * @brief Resolve the desktop size from sysfs connector mode files.
    *
-   * @param hwdevice_type Hardware device type requested for capture or encode.
-   * @return KMS display names, or an empty list when KMS capture is unavailable.
+   * When KMS plane enumeration yields no viewport data (e.g. the Wayland
+   * correlation step was skipped and no CRTC planes were active), the
+   * physical connector modes exposed under @p drm_class_path (typically
+   * `/sys/class/drm`) are scanned for the single largest mode by area.
+   *
+   * @param drm_class_path Path to the sysfs drm class directory.
+   * @param out_w Output: width of the largest connector mode found.
+   * @param out_h Output: height of the largest connector mode found.
+   * @return `true` if at least one valid connector mode was parsed.
    */
+  bool resolve_sysfs_desktop_size(const fs::path &drm_class_path, int &out_w, int &out_h) {
+    int best_w = 0, best_h = 0;
+
+    if (!fs::exists(drm_class_path)) {
+      return false;
+    }
+
+    for (auto &entry : fs::directory_iterator {drm_class_path}) {
+      auto path = entry.path();
+      auto filename = path.filename().generic_string();
+      // Only look at cardN-CONNECTOR entries (not cardN, renderD*, etc.)
+      if (filename.find("card") != 0 || filename.find('-') == std::string::npos) {
+        continue;
+      }
+      auto mode_file = path / "modes";
+      if (!fs::exists(mode_file)) continue;
+
+      std::ifstream f(mode_file);
+      std::string first_line;
+      if (std::getline(f, first_line)) {
+        int w = 0, h = 0;
+        if (sscanf(first_line.c_str(), "%dx%d", &w, &h) == 2 && w > 0 && h > 0) {
+          // Pick the single largest connector mode (by area) rather than
+          // mixing width and height from different connectors.
+          if (w * h > best_w * best_h) {
+            best_w = w;
+            best_h = h;
+          }
+          BOOST_LOG(info) << "  "sv << filename << " mode: "sv << w << 'x' << h;
+        }
+      }
+    }
+
+    if (best_w > 0 && best_h > 0) {
+      out_w = best_w;
+      out_h = best_h;
+      return true;
+    }
+    return false;
+  }
+
+  // A list of names of displays accepted as display_name
   std::vector<std::string> kms_display_names(mem_type_e hwdevice_type) {
     int count = 0;
 
@@ -2110,7 +1814,12 @@ namespace platf {
     }
 
     if (!wl::init()) {
-      correlate_to_wayland(cds);
+      auto &sf = config::solarflare;
+      if (!sf.skip_wayland_correlation) {
+        correlate_to_wayland(cds);
+      } else {
+        BOOST_LOG(info) << "Skipping Wayland monitor correlation (skip_wayland_correlation = true)"sv;
+      }
     }
 
     // Deduce the full virtual desktop size
@@ -2131,6 +1840,20 @@ namespace platf {
 
         kms::env_logical_height = std::max(kms::env_logical_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.logical_height));
         kms::env_logical_width = std::max(kms::env_logical_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.logical_width));
+      }
+    }
+
+    // Fallback: when all monitor viewports are zero (Wayland correlation skipped
+    // and no active KMS planes), read connector modes from sysfs.
+    if (kms::env_width == 0) {
+      BOOST_LOG(info) << "No monitor viewport data, reading connector modes from sysfs"sv;
+      int sysfs_w = 0, sysfs_h = 0;
+      if (resolve_sysfs_desktop_size("/sys/class/drm"sv, sysfs_w, sysfs_h)) {
+        kms::env_width = sysfs_w;
+        kms::env_height = sysfs_h;
+        kms::env_logical_width = sysfs_w;
+        kms::env_logical_height = sysfs_h;
+        BOOST_LOG(info) << "Desktop resolution from sysfs: "sv << kms::env_width << 'x' << kms::env_height;
       }
     }
 

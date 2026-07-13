@@ -25,17 +25,14 @@ using namespace std::literals;
 
 namespace upnp {
 
-  /**
-   * @brief UPnP port mapping description and lease state.
-   */
   struct mapping_t {
     struct {
       std::string wan;
       std::string lan;
       std::string proto;
-    } port;  ///< WAN/LAN/protocol tuple for the mapped port.
+    } port;
 
-    std::string description;  ///< Human-readable UPnP lease description advertised to the gateway.
+    std::string description;
   };
 
   static std::string_view status_string(int status) {
@@ -65,9 +62,6 @@ namespace upnp {
 #endif
   }
 
-  /**
-   * @brief RAII helper that runs shutdown cleanup when destroyed.
-   */
   class deinit_t: public platf::deinit_t {
   public:
     deinit_t() {
@@ -94,12 +88,9 @@ namespace upnp {
       }
 
       // Start the mapping thread
-      upnp_thread = std::jthread {&deinit_t::upnp_thread_proc, this};
+      upnp_thread = std::thread {&deinit_t::upnp_thread_proc, this};
     }
 
-    /**
-     * @brief Destroy the UPnP deinitializer.
-     */
     ~deinit_t() {
       upnp_thread.join();
     }
@@ -372,13 +363,10 @@ namespace upnp {
       }
     }
 
-    std::vector<mapping_t> mappings;  ///< Port mappings Sunshine should keep registered with the gateway.
-    std::jthread upnp_thread;  ///< Worker thread that refreshes mappings until shutdown.
+    std::vector<mapping_t> mappings;
+    std::thread upnp_thread;
   };
 
-  /**
-   * @brief Start UPnP port mapping and return its shutdown guard.
-   */
   std::unique_ptr<platf::deinit_t> start() {
     if (!config::sunshine.flags[config::flag::UPNP]) {
       return nullptr;

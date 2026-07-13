@@ -25,8 +25,6 @@ namespace platf::keyboard {
    * ex: ['👱'] = "1F471" // see UTF encoding at https://www.compart.com/en/unicode/U+1F471
    *
    * adapted from: https://stackoverflow.com/a/7639754
-   * @param str UTF-8 text to encode as hexadecimal.
-   * @return Value converted to hex.
    */
   std::string to_hex(const std::basic_string<char32_t> &str) {
     std::stringstream ss;
@@ -162,9 +160,6 @@ namespace platf::keyboard {
     {KEY_102ND, 0xE2}
   };
 
-  /**
-   * @brief Apply the supplied state update to the platform backend.
-   */
   void update(input_raw_t *raw, uint16_t modcode, bool release, uint8_t flags) {
     if (raw->keyboard) {
       if (release) {
@@ -175,9 +170,6 @@ namespace platf::keyboard {
     }
   }
 
-  /**
-   * @brief Submit UTF-8 text input to the keyboard backend.
-   */
   void unicode(input_raw_t *raw, char *utf8, int size) {
     if (raw->keyboard) {
       /* Reading input text as UTF-8 */

@@ -794,169 +794,87 @@
     --navbar-text-muted: rgba(255, 255, 255, 0.9);
 }
 
-/* Alucard Theme - https://draculatheme.com */
-[data-theme="alucard"] {
-    --color-primary: #644AC9;
-    --color-primary-hover: #5239B0;
-    --color-primary-light: #E0DAF6;
-    --color-accent: #A34D14;
-    --color-accent-hover: #874010;
-    --color-accent-light: #F0E1D4;
-    --color-success: #14710A;
-    --color-success-hover: #0F5A07;
-    --color-success-light: #D5E6D2;
-    --color-danger: #CB3A2A;
-    --color-danger-hover: #B02E20;
-    --color-danger-light: #F4DAD6;
-    --color-warning: #846E15;
-    --color-warning-hover: #6B5910;
-    --color-warning-light: #EAE5CE;
-    --color-info: #036A96;
-    --color-info-hover: #02597D;
-    --color-info-light: #D2E4EC;
+/* SolarFlare Dark - brand identity, deep slate with solar-flare accents */
+[data-theme="solarflare"] {
+    --color-primary: #F59E0B;
+    --color-primary-hover: #FBBF24;
+    --color-primary-light: #422006;
+    --color-accent: #FB923C;
+    --color-accent-hover: #FDBA74;
+    --color-accent-light: #431407;
+    --color-success: #34D399;
+    --color-success-hover: #6EE7B7;
+    --color-success-light: #052E1B;
+    --color-danger: #F87171;
+    --color-danger-hover: #FCA5A5;
+    --color-danger-light: #450A0A;
+    --color-warning: #FBBF24;
+    --color-warning-hover: #FCD34D;
+    --color-warning-light: #451A03;
+    --color-info: #60A5FA;
+    --color-info-hover: #93C5FD;
+    --color-info-light: #0C1F3F;
 
-    --color-on-warning: #fff;
+    --color-bg-base: #0B0F1A;
+    --color-bg-subtle: #111827;
+    --color-bg-muted: #1F2937;
+    --color-surface: #111827;
+    --color-surface-raised: #1F2937;
+
+    --color-border: #1F2937;
+    --color-border-strong: #374151;
+
+    --color-text-base: #F8FAFC;
+    --color-text-muted: #CBD5E1;
+    --color-text-subtle: #94A3B8;
+
+    --navbar-bg: linear-gradient(135deg, #111827 0%, #1F2937 60%, #422006 100%);
+    --navbar-text: #FBBF24;
+    --navbar-text-muted: rgba(251, 191, 36, 0.75);
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+}
+
+/* SolarFlare Light - daytime variant of the brand identity */
+[data-theme="solarflare-light"] {
+    --color-primary: #D97706;
+    --color-primary-hover: #B45309;
+    --color-primary-light: #FEF3C7;
+    --color-accent: #F97316;
+    --color-accent-hover: #EA580C;
+    --color-accent-light: #FFEDD5;
+    --color-success: #059669;
+    --color-success-hover: #047857;
+    --color-success-light: #D1FAE5;
+    --color-danger: #DC2626;
+    --color-danger-hover: #B91C1C;
+    --color-danger-light: #FEE2E2;
+    --color-warning: #D97706;
+    --color-warning-hover: #B45309;
+    --color-warning-light: #FEF3C7;
+    --color-info: #2563EB;
+    --color-info-hover: #1D4ED8;
+    --color-info-light: #DBEAFE;
 
     --color-bg-base: #FFFBEB;
-    --color-bg-subtle: #ECE9DF;
-    --color-bg-muted: #DEDCCF;
-    --color-surface: #EFEDDC;
-    --color-surface-raised: #EFEDDC;
+    --color-bg-subtle: #FEF3C7;
+    --color-bg-muted: #FDE68A;
+    --color-surface: #FFFFFF;
+    --color-surface-raised: #FFFBEB;
 
-    --color-border: #CFCFDE;
-    --color-border-strong: #6C664B;
+    --color-border: #FDE68A;
+    --color-border-strong: #FCD34D;
 
-    --color-text-base: #1F1F1F;
-    --color-text-muted: #6C664B;
-    --color-text-subtle: #6C664B;
+    --color-text-base: #451A03;
+    --color-text-muted: #78350F;
+    --color-text-subtle: #92400E;
 
-    --navbar-bg: linear-gradient(135deg, #6A5AA8 0%, #8A4F77 100%);
-    --navbar-text: #ffffff;
-    --navbar-text-muted: rgba(255, 255, 255, 0.85);
-}
-
-/* Catppuccin Latte - https://github.com/catppuccin/catppuccin */
-[data-theme="latte"] {
-    --color-primary: #8839ef;
-    --color-primary-hover: #7430cb;
-    --color-primary-light: #ede1fd;
-    --color-accent: #ea76cb;
-    --color-accent-hover: #ce68b3;
-    --color-accent-light: #fbe4f5;
-    --color-success: #40a02b;
-    --color-success-hover: #368825;
-    --color-success-light: #dcefd5;
-    --color-danger: #d20f39;
-    --color-danger-hover: #b30d30;
-    --color-danger-light: #f7d6dd;
-    --color-warning: #df8e1d;
-    --color-warning-hover: #be7919;
-    --color-warning-light: #f8ecd3;
-    --color-info: #1e66f5;
-    --color-info-hover: #1a57d0;
-    --color-info-light: #d7e2fd;
-
-    --color-on-success: #1a1a1a;
-
-    --color-bg-base: #e6e9ef;
-    --color-bg-subtle: #dce0e8;
-    --color-bg-muted: #ccd0da;
-    --color-surface: #eff1f5;
-    --color-surface-raised: #eff1f5;
-
-    --color-border: #ccd0da;
-    --color-border-strong: #acb0be;
-
-    --color-text-base: #4c4f69;
-    --color-text-muted: #6c6f85;
-    --color-text-subtle: #8c8fa1;
-
-    --navbar-bg: linear-gradient(135deg, #7b47d0 0%, #4257c2 100%);
-    --navbar-text: #ffffff;
-    --navbar-text-muted: rgba(255, 255, 255, 0.85);
-}
-
-/* Ember Light Theme - https://github.com/ember-theme/ember */
-[data-theme="ember-light"] {
-    --color-primary: #B84C30;
-    --color-primary-hover: #993F28;
-    --color-primary-light: #F1DDD5;
-    --color-accent: #946030;
-    --color-accent-hover: #7B5028;
-    --color-accent-light: #ECE0D1;
-    --color-success: #4A6830;
-    --color-success-hover: #3D5628;
-    --color-success-light: #DDE5D3;
-    --color-danger: #905050;
-    --color-danger-hover: #784242;
-    --color-danger-light: #ECDCDC;
-    --color-warning: #7A6820;
-    --color-warning-hover: #65561B;
-    --color-warning-light: #EBE5D0;
-    --color-info: #3A6080;
-    --color-info-hover: #30506A;
-    --color-info-light: #D8E0E8;
-
-    --color-on-warning: #fff;
-
-    --color-bg-base: #E6DAC4;
-    --color-bg-subtle: #DCCFB6;
-    --color-bg-muted: #CEBF9F;
-    --color-surface: #F2EAD9;
-    --color-surface-raised: #F2EAD9;
-
-    --color-border: #CABD9C;
-    --color-border-strong: #A89C7A;
-
-    --color-text-base: #282418;
-    --color-text-muted: #6C664B;
-    --color-text-subtle: #8A8264;
-
-    --navbar-bg: linear-gradient(135deg, #B84C30 0%, #A5562C 50%, #946030 100%);
+    --navbar-bg: linear-gradient(135deg, #F59E0B 0%, #FB923C 50%, #FBBF24 100%);
     --navbar-text: #FFFFFF;
-    --navbar-text-muted: rgba(255, 255, 255, 0.85);
-}
-
-/* Rosé Pine Dawn Theme - https://rosepinetheme.com */
-[data-theme="rose-pine-dawn"] {
-    --color-primary: #907aa9;
-    --color-primary-hover: #7d6795;
-    --color-primary-light: #ece5f0;
-    --color-accent: #d7827e;
-    --color-accent-hover: #c66f6b;
-    --color-accent-light: #f7e6e4;
-    --color-success: #286983;
-    --color-success-hover: #20586e;
-    --color-success-light: #d6e4e9;
-    --color-danger: #b4637a;
-    --color-danger-hover: #9d5269;
-    --color-danger-light: #f1dde2;
-    --color-warning: #ea9d34;
-    --color-warning-hover: #d18a26;
-    --color-warning-light: #fbedd4;
-    --color-info: #56949f;
-    --color-info-hover: #487e88;
-    --color-info-light: #ddeaec;
-
-    --color-on-primary: #191724;
-    --color-on-info: #191724;
-
-    --color-bg-base: #faf4ed;
-    --color-bg-subtle: #f2e9e1;
-    --color-bg-muted: #e9ded3;
-    --color-surface: #fffaf3;
-    --color-surface-raised: #fffaf3;
-
-    --color-border: #dfdad9;
-    --color-border-strong: #cecacd;
-
-    --color-text-base: #575279;
-    --color-text-muted: #797593;
-    --color-text-subtle: #9893a5;
-
-    --navbar-bg: linear-gradient(135deg, #907aa9 0%, #d7827e 100%);
-    --navbar-text: #ffffff;
-    --navbar-text-muted: rgba(255, 255, 255, 0.85);
+    --navbar-text-muted: rgba(255, 255, 255, 0.9);
 }
 
 /* ==========================================================================
@@ -2589,4 +2507,252 @@ p {
     .screenshot-counter {
         bottom: var(--spacing-sm);
     }
+}
+
+/* ==========================================================================
+   SolarFlare UI additions
+   ========================================================================== */
+
+/* The SVG logo filter (drop-shadow) is set inline by .solarflare-logo; this
+   picks up the navbar version.  Subtle, not loud. */
+.solarflare-logo {
+    vertical-align: middle;
+}
+
+/* Slow pulse on the hero logo so the dashboard feels alive */
+@keyframes solarflare-pulse {
+    0%, 100% { filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.35)); }
+    50%      { filter: drop-shadow(0 0 14px rgba(251, 191, 36, 0.65)); }
+}
+.solarflare-pulse {
+    animation: solarflare-pulse 3.5s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .solarflare-pulse { animation: none; }
+}
+
+/* Hero card on the home page */
+.solarflare-hero {
+    background: linear-gradient(135deg, var(--color-bg-subtle) 0%, var(--color-surface-raised) 100%);
+    border-left: 4px solid var(--color-primary) !important;
+    overflow: hidden;
+    position: relative;
+}
+.solarflare-hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 60%;
+    height: 200%;
+    background: radial-gradient(ellipse, rgba(251, 191, 36, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+}
+.solarflare-hero-mark {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+}
+.solarflare-hero-text {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+}
+.solarflare-hero-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: linear-gradient(90deg, #FCD34D 0%, #FB923C 60%, #FDBA74 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    margin: 0;
+}
+.solarflare-hero-tagline {
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+}
+.solarflare-hero-version {
+    margin-left: 0.5rem;
+    padding: 0.1em 0.5em;
+    background: var(--color-bg-muted);
+    border-radius: var(--radius-sm);
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.85em;
+    color: var(--color-text-subtle);
+}
+
+/* Status dot in the hero */
+.solarflare-hero-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    background: var(--color-bg-muted);
+    border: 1px solid var(--color-border);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-text-base);
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+}
+.solarflare-status-dot {
+    display: inline-block;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--color-text-subtle);
+    box-shadow: 0 0 0 0 currentColor;
+}
+.solarflare-status-ok    { background: #10B981; animation: solarflare-dot-pulse 2s ease-in-out infinite; color: #10B981; }
+.solarflare-status-warn  { background: #F59E0B; color: #F59E0B; }
+.solarflare-status-error { background: #EF4444; color: #EF4444; }
+.solarflare-status-unknown { background: #6B7280; color: #6B7280; }
+@keyframes solarflare-dot-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+    50%      { box-shadow: 0 0 0 4px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .solarflare-status-ok { animation: none; }
+}
+
+/* Subtle card hover lift on the home page cards */
+.card {
+    transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* SolarFlare brand watermark in the page footer */
+.solarflare-footer {
+    text-align: center;
+    padding: var(--spacing-2xl) 0 var(--spacing-lg);
+    color: var(--color-text-subtle);
+    font-size: 0.85rem;
+}
+.solarflare-footer a {
+    color: var(--color-text-muted);
+    text-decoration: none;
+    background: linear-gradient(90deg, #FCD34D 0%, #FB923C 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    font-weight: 600;
+}
+.solarflare-footer a:hover {
+    text-decoration: underline;
+}
+
+/* SolarFlare fork: scary-red update banner.
+ * Shown on the home page when the installed version is older than the
+ * latest GitHub release. Intentionally loud: the user is on a streaming
+ * server that hasn't been updated, which historically means security
+ * fixes, latency fixes, and bug fixes they're missing. */
+.solarflare-update-banner {
+    border: 2px solid var(--bs-danger, #dc3545);
+    border-left-width: 6px;
+    background: linear-gradient(180deg, rgba(220, 53, 69, 0.12) 0%, rgba(220, 53, 69, 0.04) 100%);
+    box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.15), 0 8px 24px rgba(220, 53, 69, 0.12);
+    animation: solarflare-update-pulse 3s ease-in-out infinite;
+}
+
+@keyframes solarflare-update-pulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.15), 0 8px 24px rgba(220, 53, 69, 0.12); }
+    50%      { box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.30), 0 8px 28px rgba(220, 53, 69, 0.22); }
+}
+
+.solarflare-update-icon {
+    color: var(--bs-danger, #dc3545);
+    animation: solarflare-update-shake 1.6s ease-in-out infinite;
+}
+
+@keyframes solarflare-update-shake {
+    0%, 100% { transform: rotate(0deg); }
+    20%      { transform: rotate(-6deg); }
+    40%      { transform: rotate(6deg); }
+    60%      { transform: rotate(-4deg); }
+    80%      { transform: rotate(4deg); }
+}
+
+.solarflare-update-eyebrow {
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--bs-danger, #dc3545);
+    text-transform: uppercase;
+    line-height: 1.2;
+}
+
+.solarflare-update-title {
+    font-weight: 700;
+    color: var(--bs-danger, #dc3545);
+    line-height: 1.2;
+}
+
+.solarflare-update-cmd {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 0.375rem;
+    padding: 0.625rem 0.75rem;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-family: var(--bs-font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.solarflare-update-cmd code {
+    color: #FCD34D;
+    background: transparent;
+    font-size: 0.875rem;
+    word-break: break-all;
+    flex: 1 1 auto;
+}
+
+.solarflare-update-summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: inherit;
+    user-select: none;
+}
+
+.solarflare-update-summary:hover {
+    text-decoration: underline;
+}
+
+/* SolarFlare fork: global update banner that sits ABOVE the navbar so
+ * it's the first thing the user sees on every page. Uses the same
+ * scary-red treatment as the in-page banner, plus a subtle pulse so
+ * the eye is drawn to it. */
+.solarflare-global-update-banner {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+    border-bottom: 2px solid var(--bs-danger, #dc3545);
+    padding: 0.625rem 1rem;
+    margin-bottom: 0 !important;
+    animation: solarflare-global-banner-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes solarflare-global-banner-pulse {
+    0%, 100% { background-color: rgba(220, 53, 69, 0.95); }
+    50%      { background-color: rgba(220, 53, 69, 1.00); }
+}
+
+.solarflare-global-update-banner .solarflare-update-title {
+    font-size: 0.95rem;
+    color: #fff;
+    line-height: 1.25;
+}
+
+.solarflare-global-update-banner .solarflare-update-eyebrow {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.65rem;
 }

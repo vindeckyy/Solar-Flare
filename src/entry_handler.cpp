@@ -67,8 +67,8 @@ namespace args {
 }  // namespace args
 
 namespace lifetime {
-  char **argv;  ///< Command-line argument vector.
-  std::atomic_int desired_exit_code;  ///< Desired exit code.
+  char **argv;
+  std::atomic_int desired_exit_code;
 
   void exit_sunshine(int exit_code, bool async) {
     // Store the exit code of the first exit_sunshine() call
@@ -102,6 +102,9 @@ void log_publisher_data() {
   BOOST_LOG(info) << "Package Publisher: "sv << SUNSHINE_PUBLISHER_NAME;
   BOOST_LOG(info) << "Publisher Website: "sv << SUNSHINE_PUBLISHER_WEBSITE;
   BOOST_LOG(info) << "Get support: "sv << SUNSHINE_PUBLISHER_ISSUE_URL;
+#ifdef SOLARFLARE_FORK
+  BOOST_LOG(info) << "Fork: "sv << SOLARFLARE_FORK_NAME << " ("sv << SOLARFLARE_FORK_REPO << ") -- see docs/CONFIGURATION.md for fork tunables."sv;
+#endif
 }
 
 #ifdef _WIN32
@@ -121,14 +124,10 @@ bool is_gamestream_enabled() {
 }
 
 namespace service_ctrl {
-  /**
-   * @brief Owns Windows service-manager handles for the Sunshine service.
-   */
   class service_controller {
   public:
     /**
-     * @brief Open the Windows service manager and Sunshine service handle.
-     *
+     * @brief Constructor for service_controller class.
      * @param service_desired_access SERVICE_* desired access flags.
      */
     service_controller(DWORD service_desired_access) {
@@ -159,8 +158,6 @@ namespace service_ctrl {
 
     /**
      * @brief Asynchronously starts the Sunshine service.
-     *
-     * @return True when the Windows service API call succeeds.
      */
     bool start_service() {
       if (!service_handle) {
@@ -181,8 +178,6 @@ namespace service_ctrl {
     /**
      * @brief Query the service status.
      * @param status The SERVICE_STATUS struct to populate.
-     *
-     * @return True when the Windows service API call succeeds.
      */
     bool query_service_status(SERVICE_STATUS &status) {
       if (!service_handle) {

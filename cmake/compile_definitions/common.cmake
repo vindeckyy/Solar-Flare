@@ -7,6 +7,159 @@ list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-sign-compare)
 # Wno-maybe-uninitialized/Wno-uninitialized - disable warnings for maybe uninitialized variables
 # Wno-sign-compare - disable warnings for signed/unsigned comparisons
 # Wno-restrict - disable warnings for memory overlap
+
+# ----------------------------------------------------------------------------
+# CachyOS / Linux local-LAN fast-path build flags.
+#
+# When SUNSHINE_CACHYOS_NATIVE is ON (the default on Linux), we:
+#   - march on Zen 2 (znver2) so AVX2/BMI2/FMA paths get picked up
+#   - march on Zen 3 (znver3) or Zen 4 (znver4) when the host supports it
+#   - enable -O3 -flto so the encoder/color-conversion hot loops get
+#     vectorised and dead-store eliminated across translation units
+#   - drop frame pointers and PLT indirections (small but free win)
+#
+# Disable by passing -DSUNSHINE_CACHYOS_NATIVE=OFF if you ship a generic
+# Linux binary or run on a different microarch.
+# ----------------------------------------------------------------------------
+if(UNIX AND NOT APPLE AND NOT DEFINED SUNSHINE_CACHYOS_NATIVE)
+    set(SUNSHINE_CACHYOS_NATIVE ON CACHE BOOL
+        "Optimise for the build host's microarchitecture (CachyOS-style).")
+endif()
+
+if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
+    set(_sunshine_native_march "")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "(amd64|AMD64|x86_64|X86_64)")
+        # Detect the build host's microarch. We try four sources in order of
+        # reliability, then fall back to x86-64-v3 (the CachyOS kernel/userspace
+        # baseline, safe on every CachyOS-supported CPU since the original
+        # Ryzen).
+        #
+        # 1. `gcc -march=native -E -v - </dev/null` -- GCC's own detection.
+        #    Most accurate, but GCC's output format varies between versions.
+        # 2. `lscpu` -- clean text output with "Model name:".
+        # 3. /proc/cpuinfo "model name" line (multi-line, requires us to
+        #    search the whole file).
+        # 4. /proc/cpuinfo "cpu family" / "model" fields (numeric).
+        #
+        # The model name on Ryzen parts in /proc/cpuinfo is typically
+        # "AMD Ryzen 5 4600H with Radeon Graphics" -- which does NOT
+        # contain the word "zen", so a naive regex on "model name" misses
+        # Zen 2/3/4 entirely and falls through to the wrong generation.
+        # Hence the multi-source approach below.
+
+        # 1. Try `gcc -march=native`.
+        execute_process(
+            COMMAND gcc -march=native -E -v -x c /dev/null
+            OUTPUT_VARIABLE _sunshine_gcc_v
+            ERROR_VARIABLE _sunshine_gcc_e
+            ERROR_QUIET)
+        if(_sunshine_gcc_e MATCHES "march[ =]+(znver[0-9]+|x86-64-v[0-4])")
+            set(_sunshine_native_march "${CMAKE_MATCH_1}")
+        endif()
+
+        # 2. Try `lscpu Model name`.
+        if(NOT _sunshine_native_march)
+            find_program(_sunshine_lscpu lscpu)
+            if(_sunshine_lscpu)
+                execute_process(
+                    COMMAND ${_sunshine_lscpu}
+                    OUTPUT_VARIABLE _sunshine_lscpu_out
+                    ERROR_QUIET)
+                # Match "Zen 5" but not "Ryzen 5". We require the character
+                # immediately before "Zen" to be a non-letter (start of line,
+                # whitespace, or punctuation). Ryzen contains "zen" as a
+                # suffix which would otherwise be a false match.
+                if(_sunshine_lscpu_out MATCHES "(^|[^A-Za-z])([Zz]en[ -]?[0-9]+)([^A-Za-z]|$)")
+                    set(_zen_match "${CMAKE_MATCH_2}")
+                    string(TOLOWER "${_zen_match}" _zen_match_lower)
+                    string(STRIP "${_zen_match_lower}" _zen_match_lower)
+                    if(_zen_match_lower MATCHES "zen[ -]?5")
+                        set(_sunshine_native_march "znver5")
+                    elseif(_zen_match_lower MATCHES "zen[ -]?4")
+                        set(_sunshine_native_march "znver4")
+                    elseif(_zen_match_lower MATCHES "zen[ -]?3")
+                        set(_sunshine_native_march "znver3")
+                    elseif(_zen_match_lower MATCHES "zen[ -]?2")
+                        set(_sunshine_native_march "znver2")
+                    elseif(_zen_match_lower MATCHES "zen[ -]?1")
+                        set(_sunshine_native_march "znver1")
+                    else()
+                        set(_sunshine_native_march "x86-64-v3")
+                    endif()
+                endif()
+            endif()
+        endif()
+
+        # 3. /proc/cpuinfo: model name doesn't say "zen" on Ryzen parts, but
+        #    the "cpu family" + "model" fields do encode the microarch.
+        #    Family 23 = Zen 1/1+, Family 25 = Zen 2/3/5, Family 26 = Zen 4/5.
+        #    Within those, model numbers split the generations. Use them as a
+        #    third source before falling through to x86-64-v3.
+        if(NOT _sunshine_native_march)
+            set(_sunshine_cpuinfo_file "/proc/cpuinfo")
+            if(EXISTS ${_sunshine_cpuinfo_file})
+                file(READ ${_sunshine_cpuinfo_file} _sunshine_cpuinfo)
+                # AMD CPU family encoding:
+                #   Family 23 = Zen, Zen+, Zen 2 (kernels lump these together)
+                #   Family 25 = Zen 3
+                #   Family 26 = Zen 4
+                # We can't reliably split Zen 1 vs Zen 2 from family alone,
+                # so default to znver2 for family 23 (most common on CachyOS
+                # systems and forward-compatible with Zen 1). For Zen 5
+                # desktop parts (Granite Ridge, Strix) which some kernels
+                # report as family 26 with high model numbers, prefer znver5.
+                if(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 26" AND _sunshine_cpuinfo MATCHES "model[ \t]*: ([0-9]+)")
+                    set(_model "${CMAKE_MATCH_1}")
+                    if(_model GREATER 63)
+                        # Family 26 + model >= 64 includes Strix Point,
+                        # Strix Halo, Granite Ridge -- these are Zen 5.
+                        set(_sunshine_native_march "znver5")
+                    else()
+                        # Family 26 + model < 64 = Zen 4 (Phoenix, Genoa).
+                        set(_sunshine_native_march "znver4")
+                    endif()
+                elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 26")
+                    set(_sunshine_native_march "znver4")
+                # Family 25 = Zen 3 (family 25 is Zen 3 only; Zen 5 desktop parts
+                # use family 26, not family 25).
+                elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 25")
+                    set(_sunshine_native_march "znver3")
+                # Family 23 = Zen, Zen+, Zen 2. Default to znver2; forward-compatible.
+                elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 23")
+                    set(_sunshine_native_march "znver2")
+                endif()
+            endif()
+        endif()
+        if(NOT _sunshine_native_march)
+            # CachyOS kernels/tools and Steam Deck's steamrt are typically
+            # built with x86-64-v3. v3 = AVX2 + BMI2 + FMA, safe on every
+            # CachyOS-supported CPU since the original Ryzen launch.
+            # We only use it for -march; GCC's -mtune doesn't understand
+            # microarch levels, so we fall back to -mtune=generic.
+            set(_sunshine_native_march "x86-64-v3")
+            set(_sunshine_native_mtune "generic")
+        endif()
+        # znver2/znver3/znver4 are valid for both -march and -mtune on GCC.
+        # x86-64-v3 is only valid for -march; -mtune has to be generic.
+        if("${_sunshine_native_march}" STREQUAL "x86-64-v3")
+            set(_sunshine_native_mtune "generic")
+        else()
+            set(_sunshine_native_mtune "${_sunshine_native_march}")
+        endif()
+        message(STATUS "CachyOS native build: -march=${_sunshine_native_march} -mtune=${_sunshine_native_mtune}")
+        list(APPEND SUNSHINE_COMPILE_OPTIONS
+            "-march=${_sunshine_native_march}"
+            "-mtune=${_sunshine_native_mtune}"
+            "-O3"
+            "-fno-plt"
+            "-fomit-frame-pointer")
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            # LTO only at Release; Debug builds stay debuggable.
+            list(APPEND SUNSHINE_COMPILE_OPTIONS "-flto=auto")
+        endif()
+    endif()
+endif()
+
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC specific compile options
 
@@ -25,17 +178,11 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15)
         list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
     endif()
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "^(Apple)?Clang$")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # Clang specific compile options
 
     # Clang doesn't actually complain about this this, so disabling for now
     # list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
-
-    # Some libc++ versions on Apple and FreeBSD guard std::jthread behind this flag.
-    if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-        list(APPEND SUNSHINE_COMPILE_OPTIONS -fexperimental-library)
-        list(APPEND SUNSHINE_LINK_OPTIONS -fexperimental-library)
-    endif()
 endif()
 if(BUILD_WERROR)
     list(APPEND SUNSHINE_COMPILE_OPTIONS -Werror)
@@ -68,9 +215,6 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Rtsp.h"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/RtspParser.c"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Video.h"
-        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/nanors/deps/obl/oblas_common.c"
-        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/nanors/deps/obl/oblas_lite.c"
-        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/nanors/rs.c"
         "${CMAKE_SOURCE_DIR}/src/upnp.cpp"
         "${CMAKE_SOURCE_DIR}/src/upnp.h"
         "${CMAKE_SOURCE_DIR}/src/cbs.cpp"
@@ -82,6 +226,8 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/display_device.cpp"
         "${CMAKE_SOURCE_DIR}/src/entry_handler.cpp"
         "${CMAKE_SOURCE_DIR}/src/entry_handler.h"
+        "${CMAKE_SOURCE_DIR}/src/game_scanner.cpp"
+        "${CMAKE_SOURCE_DIR}/src/game_scanner.h"
         "${CMAKE_SOURCE_DIR}/src/file_handler.cpp"
         "${CMAKE_SOURCE_DIR}/src/file_handler.h"
         "${CMAKE_SOURCE_DIR}/src/globals.cpp"
@@ -108,8 +254,12 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/video_colorspace.h"
         "${CMAKE_SOURCE_DIR}/src/input.cpp"
         "${CMAKE_SOURCE_DIR}/src/input.h"
+        "${CMAKE_SOURCE_DIR}/src/adaptive_bitrate.cpp"
+        "${CMAKE_SOURCE_DIR}/src/adaptive_bitrate.h"
         "${CMAKE_SOURCE_DIR}/src/audio.cpp"
         "${CMAKE_SOURCE_DIR}/src/audio.h"
+        "${CMAKE_SOURCE_DIR}/src/audio_fx.cpp"
+        "${CMAKE_SOURCE_DIR}/src/audio_fx.h"
         "${CMAKE_SOURCE_DIR}/src/platform/common.h"
         "${CMAKE_SOURCE_DIR}/src/process.cpp"
         "${CMAKE_SOURCE_DIR}/src/process.h"
@@ -123,8 +273,12 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/thread_safe.h"
         "${CMAKE_SOURCE_DIR}/src/sync.h"
         "${CMAKE_SOURCE_DIR}/src/round_robin.h"
+        "${CMAKE_SOURCE_DIR}/src/error.h"
+        "${CMAKE_SOURCE_DIR}/src/error.cpp"
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.h"
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.cpp"
+        "${CMAKE_SOURCE_DIR}/src/rswrapper.h"
+        "${CMAKE_SOURCE_DIR}/src/rswrapper.c"
         ${PLATFORM_TARGET_FILES})
 
 if(NOT SUNSHINE_ASSETS_DIR_DEF)
@@ -144,8 +298,8 @@ include_directories(
         SYSTEM
         "${CMAKE_SOURCE_DIR}/third-party"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet/include"
-        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/nanors"
-        "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/nanors/deps/obl"
+        "${CMAKE_SOURCE_DIR}/third-party/nanors"
+        "${CMAKE_SOURCE_DIR}/third-party/nanors/deps/obl"
         ${OPENSSL_INCLUDE_DIR}
         ${Opus_INCLUDE_DIR}
         ${FFMPEG_INCLUDE_DIRS}
@@ -157,7 +311,6 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${CMAKE_THREAD_LIBS_INIT}
         enet
         libdisplaydevice::display_device
-        lizardbyte::common
         nlohmann_json::nlohmann_json
         ${Opus_LIBRARY}
         ${FFMPEG_LIBRARIES}

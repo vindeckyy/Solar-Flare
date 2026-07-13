@@ -6,40 +6,6 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
-
-## 2026-07-16 — v2026.708.4-solarflare
-
-Release notes TBD. Run `git log v<prev>..HEAD --oneline` to enumerate.
-
-## 2026-07-12
-
-### Security sweep
-
-Seven fixes from a one-shot pentest of the network-reachable surfaces (HTTPS server, RTSP control stream, web UI auth, outbound fetches). All paired with tests except those guarded by the single-threaded HTTPS server, which would need an asio fixture to test in isolation.
-
-- `src/stream.cpp` — bound the length-prefixed parse in `IDX_INPUT_DATA` and `IDX_LOSS_STATS` handlers so a paired client can't construct a `string_view` past the actual buffer (M-1, paired-client OOB-read / OOB-write).
-- `src/crypto.cpp` — `PEM_read_bio_X509` / `PEM_read_bio_PrivateKey` return values now checked; malformed client certs during pairing produce a null smart pointer instead of an unwritten `X509`/`PKEY` (M-2, root-cause fix; all callers route through).
-- `src/nvhttp.cpp` — cap concurrent TLS handshakes at 64 on the HTTPS server so a slow/abusive client can't stall the single-threaded io_context and DoS the whole `origin_web_ui_allowed` scope (M-3).
-- `src/httpcommon.cpp` + `src/confighttp.cpp` — reject passwords shorter than 12 chars at write time; add per-IP token bucket (10 fails / 30s) before doing any hash work, reset on successful auth (M-4).
-- `src/confighttp.cpp` — reject `/`, `..`, NUL in cover-upload key (L-1, path-traversal guard, admin-only endpoint).
-- `src/confighttp.cpp` — strip CR/LF from API token name before logging to prevent log injection (L-2, admin-only; JSON response is auto-escaped).
-- `src/httpcommon.cpp` — `download_file` now requires TLS verify, HTTPS-only via `CURLOPT_PROTOCOLS_STR`, and 10s/5s timeouts (L-3, admin-only belt-and-suspenders for the upstream host check).
-
-### setcap on local builds
-
-Local `cmake --install build` no longer ships a `sunshine` binary with no permitted capabilities. Added an `install(CODE)` hook in `cmake/packaging/linux.cmake` that runs `setcap cap_sys_admin,cap_sys_nice+p` on the installed binary, gated on non-AppImage/non-Flatpak installs so the package paths keep their existing behaviour. RPM/DEB still use the `%caps` spec.
-
-- `68b0f26` feat(install): apply setcap on local cmake --install for cap_sys_admin,cap_sys_nice
-
-### Binary release asset
-
-First release to ship a binary. `v2026.708.3-solarflare` carries `sunshine-x86_64` (26 MB stripped ELF) at `releases/latest/download/`. The `latest/download` URL is version-independent, so README only needs to point at the alias. README quick-start now lists the binary path alongside the source build.
-
-- `fc94c5e` docs(readme): add binary-download option to quick start
-- `783b6e2` docs(readme): link to version-independent binary name
-
----
-
 ## 2026-07-11
 
 ### Morning sweep (Jul 11)
@@ -375,32 +341,6 @@ The CachyOS-only COPR integration workflow had no secrets on the fork, failed on
 
 - `a957ed1` chore(ci): delete ci-copr.yml, the source of release-time failure emails
 
-
----
-
-## 2026-07-13/14
-
-### Morning sweep (Jul 13–14)
-
-General cleanup batch post-release: fixed the CONFIGURATION.md drift caught by the docs-drift agent (tunable count, `virtual_display_resolution` claim, stale file refs), added a `release.sh` script as the single source of truth for version bumps, fixed an RTSP OOB-read in the frame parser (fuzzer find), and patched a GVariant-interned string double-free in the heap path. Also probed for ccache/mold/lld during cmake, added GPL license headers, released capture resources on teardown, and documented the linux resource cleanup.
-
-- `c45af00` fix(ci): pin action SHAs in release.yml for supply-chain security
-- `7819d10` docs: add doxygen briefs for AdaptiveBitrate::config_t, ctor, reset(), and adaptive_bitrate_net_stats mail
-- `75c83f9` fix(heap): double-free on GVariant-interned strings from g_autofree
-- `af2dfea` fix(build): probe for ccache and mold/lld; fall back when missing
-- `fa67cdf` fix(docs): correct CONFIGURATION.md drift (virtual_display_resolution, key count, file refs)
-- `8b62aab` fix(ci): pin actions/checkout@v4 to SHA in release.yml
-- `1bbcff3` chore(gitignore): cover editor backups, .env*, and broader *.log
-- `f38f9d4` fix(headless): detect KDE when XDG_CURRENT_DESKTOP=plasma
-- `8e52adf` fix(license): add GPL headers to project sources
-- `b5c1525` docs(linux): document resource cleanup
-- `c799f07` fix(rtsp): reject unterminated frames before parser (closes fuzzer OOB)
-- `3c11889` fix(linux): release capture resources
-- `8e3e1fd` feat(scripts): add release.sh — single source of truth for version bumps
-- `1cdcf52` fix(docs): align README version badge with latest release
-- `9c97ec9` fix(tests): resolve src/file_handler CWD leak + add doxygen briefs
-- `8ff492c` docs(readme): sync version badge with CMakeLists.txt 2026.999.2
-- `73b592f` docs: scrub stale info; catch cmake scratch in .gitignore
 
 ---
 

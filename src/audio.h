@@ -12,9 +12,6 @@
 #include <bitset>
 
 namespace audio {
-  /**
-   * @brief Supported Opus channel layouts advertised to Moonlight clients.
-   */
   enum stream_config_e : int {
     STEREO,  ///< Stereo
     HIGH_STEREO,  ///< High stereo
@@ -25,37 +22,25 @@ namespace audio {
     MAX_STREAM_CONFIG  ///< Maximum audio stream configuration
   };
 
-  /**
-   * @brief Static Opus encoder layout for one advertised audio mode.
-   */
   struct opus_stream_config_t {
-    std::int32_t sampleRate;  ///< Opus sample rate in hertz.
-    int channelCount;  ///< Number of audio channels in the Opus layout.
-    int streams;  ///< Number of Opus streams in the layout.
-    int coupledStreams;  ///< Number of stereo-coupled Opus streams.
-    const std::uint8_t *mapping;  ///< Channel mapping table passed to the Opus encoder.
-    int bitrate;  ///< Target bitrate in bits per second.
+    std::int32_t sampleRate;
+    int channelCount;
+    int streams;
+    int coupledStreams;
+    const std::uint8_t *mapping;
+    int bitrate;
   };
 
-  /**
-   * @brief Custom Opus channel layout supplied by configuration.
-   */
   struct stream_params_t {
-    int channelCount;  ///< Number of audio channels in the Opus layout.
-    int streams;  ///< Number of Opus streams in the custom layout.
-    int coupledStreams;  ///< Number of stereo-coupled Opus streams.
-    std::uint8_t mapping[8];  ///< Channel mapping table for up to eight speakers.
+    int channelCount;
+    int streams;
+    int coupledStreams;
+    std::uint8_t mapping[8];
   };
 
   extern opus_stream_config_t stream_configs[MAX_STREAM_CONFIG];
 
-  /**
-   * @brief Audio capture and encoder settings for a stream.
-   */
   struct config_t {
-    /**
-     * @brief Boolean audio feature flags.
-     */
     enum flags_e : int {
       HIGH_QUALITY,  ///< High quality audio
       HOST_AUDIO,  ///< Host audio
@@ -64,49 +49,71 @@ namespace audio {
       MAX_FLAGS  ///< Maximum number of flags
     };
 
-    int packetDuration;  ///< Packet duration in milliseconds requested by the client.
-    int channels;  ///< Number of audio channels requested by the client.
-    int mask;  ///< Speaker mask describing the requested channel layout.
+    int packetDuration;
+    int channels;
+    int mask;
 
-    stream_params_t customStreamParams;  ///< Custom Opus layout used when CUSTOM_SURROUND_PARAMS is enabled.
+    stream_params_t customStreamParams;
 
-    std::bitset<MAX_FLAGS> flags;  ///< Enabled audio feature flags.
+    std::bitset<MAX_FLAGS> flags;
   };
 
-  /**
-   * @brief Shared audio device state used while streams are active.
-   */
   struct audio_ctx_t {
     // We want to change the sink for the first stream only
-    std::unique_ptr<std::atomic_bool> sink_flag;  ///< Tracks whether the capture sink was already switched.
+    std::unique_ptr<std::atomic_bool> sink_flag;
 
-    std::unique_ptr<platf::audio_control_t> control;  ///< Platform audio-control implementation.
+    std::unique_ptr<platf::audio_control_t> control;
 
-    bool restore_sink;  ///< Whether Sunshine should restore the original sink when capture ends.
-    platf::sink_t sink;  ///< Original sink captured before Sunshine switched devices.
+    bool restore_sink;
+    platf::sink_t sink;
   };
 
   /**
-   * @brief Byte buffer used for encoded audio packet payloads.
+   * @brief Opus encoder tuning (per-stream).
+   *
+   * Selected at encode-thread start based on the @c config_t for the stream.
+   * Defaults preserve the historical Sunshine behaviour (RESTRICTED_LOWDELAY,
+   * CBR).
    */
+  struct opus_tuning_t {
+    enum class application_e : int {
+      LOWDELAY = 0,  ///< @c OPUS_APPLICATION_RESTRICTED_LOWDELAY (default).
+      VOIP = 1,  ///< @c OPUS_APPLICATION_VOIP — better for speech.
+      AUDIO = 2,  ///< @c OPUS_APPLICATION_AUDIO — best for music/SFX.
+    };
+
+    enum class vbr_e : int {
+      OFF = 0,  ///< Hard CBR (legacy behaviour).
+      CONSTRAINED = 1,  ///< Constrained VBR (recommended).
+      FULL = 2,  ///< Full VBR (variable packet size).
+    };
+
+    /// Opus application mode (default: LOWDELAY).
+    application_e application = application_e::LOWDELAY;
+    /// VBR mode (default: OFF = CBR).
+    vbr_e vbr = vbr_e::OFF;
+    /// Expected packet-loss percentage hint for PLC (0–100). 0 disables.
+    int expected_packet_loss_pct = 0;
+    /// Enable in-band FEC (forward error correction).
+    bool enable_fec = true;
+    /// Complexity (0–10; higher = more CPU, better quality). Default: 10.
+    int complexity = 10;
+    /// Use Opus bandwidth extension for speech. Default: true.
+    bool enable_bandwidth_extension = true;
+  };
+
   using buffer_t = util::buffer_t<std::uint8_t>;
-  /**
-   * @brief Encoded audio packet paired with platform channel metadata.
-   */
   using packet_t = std::pair<void *, buffer_t>;
-  /**
-   * @brief Shared mailbox reference to the global audio context.
-   */
   using audio_ctx_ref_t = safe::shared_t<audio_ctx_t>::ptr_t;
 
-  /**
-   * @brief Capture, encode, and publish audio packets for a stream.
-   *
-   * @param mail Mailbox used to publish encoded audio packets.
-   * @param config Audio capture and encoder settings.
-   * @param channel_data Platform-specific capture channel pointer.
-   */
   void capture(safe::mail_t mail, config_t config, void *channel_data);
+
+  /**
+   * @brief Access the active Opus tuning for a session.
+   * @return Reference to the global tuning struct (modifiable by tests and
+   *         by the config loader before capture() is invoked).
+   */
+  opus_tuning_t &opus_tuning() noexcept;
 
   /**
    * @brief Get the reference to the audio context.
@@ -133,7 +140,6 @@ namespace audio {
    * }
    * return false;
    * @examples_end
-   * @param ctx Native context object used by the operation or callback.
    */
   bool is_audio_ctx_sink_available(const audio_ctx_t &ctx);
 }  // namespace audio

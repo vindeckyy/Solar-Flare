@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <array>
 #include <bitset>
 #include <chrono>
 #include <optional>
@@ -17,55 +18,47 @@
 
 namespace config {
   // Valid range for the packetsize limit
-  constexpr int PACKETSIZE_MIN = 200;  ///< Lowest accepted configured packet size in bytes.
-  constexpr int PACKETSIZE_MAX = 65535;  ///< Highest accepted configured packet size in bytes.
-  constexpr int PACKETSIZE_SMALL = 500;  ///< Conservative packet size used for low-MTU links.
-  constexpr int PACKETSIZE_LARGE = 1456;  ///< Default large packet size that avoids common MTU fragmentation.
+  constexpr int PACKETSIZE_MIN = 200;
+  constexpr int PACKETSIZE_MAX = 65535;
+  constexpr int PACKETSIZE_SMALL = 500;
+  constexpr int PACKETSIZE_LARGE = 1456;
 
   // track modified config options
-  inline std::unordered_map<std::string, std::string> modified_config_settings;  ///< Configuration keys changed during the current parse or UI update.
+  inline std::unordered_map<std::string, std::string> modified_config_settings;
 
   // sensitive values that should be redacted from logging
-  /**
-   * @brief Configuration keys whose values must be hidden in logs.
-   */
   inline constexpr std::array redacted_config = {
     "csrf_allowed_origins"
   };
 
-  /**
-   * @brief Log configuration entries and optionally mark them for persistence.
-   *
-   * @param vars Parsed configuration entries to log.
-   * @param save Whether modified configuration values should be written back to disk.
-   */
   void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save);
 
-  /**
-   * @brief Video encoder, capture, and color settings loaded from configuration.
-   */
   struct video_t {
     // ffmpeg params
-    /**
-     * @brief Quantization parameter used by encoders where higher values trade quality for compression.
-     */
     int qp;  // higher == more compression and less quality
 
-    int hevc_mode;  ///< HEVC support mode advertised to clients.
-    int av1_mode;  ///< AV1 support mode advertised to clients.
+    int hevc_mode;
+    int av1_mode;
 
-    int min_threads;  ///< Minimum number of threads or slices for CPU encoding.
+    int min_threads;  // Minimum number of threads/slices for CPU encoding
 
     struct {
       std::string sw_preset;
       std::string sw_tune;
       std::optional<int> svtav1_preset;
-    } sw;  ///< Software encoder options.
+    } sw;
 
-    nvenc::nvenc_config nv;  ///< NVIDIA NVENC encoder settings.
-    bool nv_realtime_hags;  ///< Enable the NVIDIA realtime HAGS workaround.
-    bool nv_opengl_vulkan_on_dxgi;  ///< Prefer NVIDIA OpenGL/Vulkan-on-DXGI interop.
-    bool nv_sunshine_high_power_mode;  ///< Request NVIDIA high-power mode for Sunshine.
+    nvenc::nvenc_config nv;
+    bool nv_realtime_hags;
+    bool nv_opengl_vulkan_on_dxgi;
+    bool nv_sunshine_high_power_mode;
+
+    // NVENC tuning preset. -1 = manual (don't touch anything); 0 = latency-
+    // optimised (P1, bframes=0, zerolatency=true, lookahead=0); 1 =
+    // balanced (P4, bframes=2, lookahead=20); 2 = quality-optimised
+    // (P7, bframes=4, lookahead=40, twopass=full). Manual lets every
+    // other nvenc_* key take effect; the presets override them.
+    int nv_preset = -1;
 
     struct {
       int preset;
@@ -73,13 +66,13 @@ namespace config {
       int h264_coder;
       int aq;
       int vbv_percentage_increase;
-    } nv_legacy;  ///< Legacy NVIDIA encoder options kept for config compatibility.
+    } nv_legacy;
 
     struct {
       std::optional<int> qsv_preset;
       std::optional<int> qsv_cavlc;
       bool qsv_slow_hevc;
-    } qsv;  ///< Intel Quick Sync encoder options.
+    } qsv;
 
     struct {
       std::optional<int> amd_usage_h264;
@@ -95,47 +88,36 @@ namespace config {
       std::optional<int> amd_preanalysis;
       std::optional<int> amd_vbaq;
       int amd_coder;
-    } amd;  ///< AMD AMF encoder options.
+    } amd;
 
     struct {
       int vt_allow_sw;
       int vt_require_sw;
       int vt_realtime;
       int vt_coder;
-    } vt;  ///< VideoToolbox encoder options.
+    } vt;
 
     struct {
-      std::optional<int> blbrc;
-      std::optional<int> vaapi_quality;
-      std::optional<int> vaapi_rc;
-      std::string vaapi_rc_str;
       bool strict_rc_buffer;
-    } vaapi;  ///< VA-API encoder options.
+    } vaapi;
 
     struct {
       int tune;  // 0=default, 1=hq, 2=ll, 3=ull, 4=lossless
       int rc_mode;  // 0=driver, 1=cqp, 2=cbr, 4=vbr
-    } vk;  ///< Vulkan encoder options.
+      int min_qp;  // 0 = unset (use codec default). Bounds QP from below to flatten encode-time variance.
+      int max_qp;  // 0 = unset (use codec default). Bounds QP from above to flatten encode-time variance.
+    } vk;
 
-    std::string capture;  ///< Capture backend name selected by configuration.
-    std::string encoder;  ///< Encoder backend name selected by configuration.
-    std::string adapter_name;  ///< Display adapter name selected in configuration.
-    std::string output_name;  ///< Display output name selected in configuration.
+    std::string capture;
+    std::string encoder;
+    std::string adapter_name;
+    std::string output_name;
 
-    /**
-     * @brief Display-device integration settings.
-     */
     struct dd_t {
-      /**
-       * @brief Compatibility workarounds for display-device control.
-       */
       struct workarounds_t {
         std::chrono::milliseconds hdr_toggle_delay;  ///< Specify whether to apply HDR high-contrast color workaround and what delay to use.
       };
 
-      /**
-       * @brief Selects how Sunshine prepares the active display before streaming.
-       */
       enum class config_option_e {
         disabled,  ///< Disable the configuration for the device.
         verify_only,  ///< @seealso{display_device::SingleDisplayConfiguration::DevicePreparation}
@@ -144,70 +126,68 @@ namespace config {
         ensure_only_display  ///< @seealso{display_device::SingleDisplayConfiguration::DevicePreparation}
       };
 
-      /**
-       * @brief Selects how Sunshine chooses the stream display resolution.
-       */
       enum class resolution_option_e {
         disabled,  ///< Do not change resolution.
         automatic,  ///< Change resolution and use the one received from Moonlight.
         manual  ///< Change resolution and use the manually provided one.
       };
 
-      /**
-       * @brief Selects how Sunshine chooses the stream display refresh rate.
-       */
       enum class refresh_rate_option_e {
         disabled,  ///< Do not change refresh rate.
         automatic,  ///< Change refresh rate and use the one received from Moonlight.
         manual  ///< Change refresh rate and use the manually provided one.
       };
 
-      /**
-       * @brief Selects how Sunshine handles HDR state for the stream display.
-       */
       enum class hdr_option_e {
         disabled,  ///< Do not change HDR settings.
         automatic  ///< Change HDR settings and use the state requested by Moonlight.
       };
 
-      /**
-       * @brief Single display mode remapping rule from configuration.
-       */
       struct mode_remapping_entry_t {
-        std::string requested_resolution;  ///< Resolution string requested by the client.
-        std::string requested_fps;  ///< Refresh-rate string requested by the client.
-        std::string final_resolution;  ///< Resolution string to apply after remapping.
-        std::string final_refresh_rate;  ///< Refresh-rate string to apply after remapping.
+        std::string requested_resolution;
+        std::string requested_fps;
+        std::string final_resolution;
+        std::string final_refresh_rate;
       };
 
-      /**
-       * @brief Collection of display mode remapping rules.
-       */
       struct mode_remapping_t {
         std::vector<mode_remapping_entry_t> mixed;  ///< To be used when `resolution_option` and `refresh_rate_option` is set to `automatic`.
         std::vector<mode_remapping_entry_t> resolution_only;  ///< To be use when only `resolution_option` is set to `automatic`.
         std::vector<mode_remapping_entry_t> refresh_rate_only;  ///< To be use when only `refresh_rate_option` is set to `automatic`.
       };
 
-      config_option_e configuration_option;  ///< Display-preparation mode selected by configuration.
-      resolution_option_e resolution_option;  ///< Resolution-selection mode selected by configuration.
+      config_option_e configuration_option;
+      resolution_option_e resolution_option;
       std::string manual_resolution;  ///< Manual resolution in case `resolution_option == resolution_option_e::manual`.
-      refresh_rate_option_e refresh_rate_option;  ///< Refresh-rate selection mode selected by configuration.
+      refresh_rate_option_e refresh_rate_option;
       std::string manual_refresh_rate;  ///< Manual refresh rate in case `refresh_rate_option == refresh_rate_option_e::manual`.
-      hdr_option_e hdr_option;  ///< HDR-selection mode selected by configuration.
+      hdr_option_e hdr_option;
       std::chrono::milliseconds config_revert_delay;  ///< Time to wait until settings are reverted (after stream ends/app exists).
       bool config_revert_on_disconnect;  ///< Specify whether to revert display configuration on client disconnect.
-      mode_remapping_t mode_remapping;  ///< Display mode remapping rules grouped by automatic selection mode.
-      workarounds_t wa;  ///< Display-device compatibility workarounds.
-    } dd;  ///< Display-device integration settings.
+      mode_remapping_t mode_remapping;
+      workarounds_t wa;
+    } dd;
 
-    int max_bitrate;  ///< Maximum bitrate ceiling in kbps for bitrate requested from the client.
+    int max_bitrate;  // Maximum bitrate, sets ceiling in kbps for bitrate requested from client
     double minimum_fps_target;  ///< Lowest framerate that will be used when streaming. Range 0-1000, 0 = half of client's requested framerate.
+
+    bool adaptive_bitrate_enabled;  ///< Enable EWMA-based adaptive bitrate control.
+    int adaptive_bitrate_min;  ///< Minimum bitrate floor in kbps.
+    int adaptive_bitrate_max;  ///< Maximum bitrate ceiling in kbps.
+
+    /**
+     * @brief Linux headless compositor configuration.
+     * @details Controls whether games are launched into a private nested
+     *          Wayland compositor (labwc) instead of the user's desktop.
+     */
+    struct linux_display_t {
+      bool headless_mode = false;  ///< Master switch for private compositor streaming
+      bool use_cage_compositor = false;  ///< Route games into labwc nested compositor
+      bool prefer_gpu_native_capture = false;  ///< Prefer DMA-BUF even if windowed labwc needed
+      std::string compositor_backend = "auto";  ///< Headless backend: "auto", "labwc", or "krfb"
+    } linux_display;
   };
 
-  /**
-   * @brief Audio capture and encoder settings loaded from configuration.
-   */
   struct audio_t {
     std::string sink;  ///< Audio output device/sink to use for audio capture
     std::string virtual_sink;  ///< Virtual audio sink for audio routing
@@ -215,86 +195,150 @@ namespace config {
     bool install_steam_drivers;  ///< Install Steam audio drivers for enhanced compatibility
   };
 
-  /**
-   * @brief Encryption policy that always sends unencrypted video.
-   */
   constexpr int ENCRYPTION_MODE_NEVER = 0;  // Never use video encryption, even if the client supports it
-  /**
-   * @brief Encryption policy that uses encrypted video only when the client supports it.
-   */
   constexpr int ENCRYPTION_MODE_OPPORTUNISTIC = 1;  // Use video encryption if available, but stream without it if not supported
-  /**
-   * @brief Encryption policy that rejects clients without video encryption support.
-   */
   constexpr int ENCRYPTION_MODE_MANDATORY = 2;  // Always use video encryption and refuse clients that can't encrypt
 
-  /**
-   * @brief Network stream settings shared by audio, video, and control channels.
-   */
   struct stream_t {
-    std::chrono::milliseconds ping_timeout;  ///< Timeout used when waiting for client ping responses.
+    std::chrono::milliseconds ping_timeout;
 
-    std::string file_apps;  ///< Path to the configured applications file.
+    std::string file_apps;
 
-    int fec_percentage;  ///< Percentage of forward-error-correction packets to add to the stream.
+    int fec_percentage;
 
     // Video encryption settings for LAN and WAN streams
-    int lan_encryption_mode;  ///< Video encryption policy for LAN clients.
-    int wan_encryption_mode;  ///< Video encryption policy for WAN clients.
+    int lan_encryption_mode;
+    int wan_encryption_mode;
 
     // Limit the packetsize to avoid fragmentation on a low MTU link
-    int packetsize;  ///< Maximum payload size for network packets.
+    int packetsize;
   };
 
   /**
-   * @brief HTTP and HTTPS settings used by the GameStream pairing server.
+   * @brief One named API scope. Scopes are matched by string (`"config:get"`,
+   * `"apps:launch"`, etc.). The full set is enumerated in @c api_scope_t.
+   *
+   * Scope format is `<resource>:<action>`. Resources: `config`, `apps`,
+   * `clients`, `logs`, `display`. Actions: `get`, `set`, `launch`, `close`,
+   * `pair`, `unpair`, `restart`, `update`. The wildcard `*` matches every
+   * scope (used by the admin token / Basic Auth path).
    */
+  enum class api_scope_t {
+    CONFIG_GET,     ///< Read /api/config.
+    CONFIG_SET,     ///< Write /api/config.
+    APPS_GET,       ///< List apps via /api/apps.
+    APPS_LAUNCH,    ///< Launch an app via POST /api/apps.
+    APPS_CLOSE,     ///< Stop a running app via POST /api/apps/close.
+    CLIENTS_LIST,   ///< List paired clients via /api/clients/list.
+    CLIENTS_PAIR,   ///< Pair a new client.
+    CLIENTS_UNPAIR, ///< Unpair one or all clients.
+    LOGS_GET,       ///< Read the log file via /api/logs.
+    DISPLAY_RESET,  ///< Reset display-device persistence.
+    TOKENS_MANAGE,  ///< Manage API tokens (CRUD via /api/tokens).
+    STAR,  ///< Sentinel — matches every scope. Not user-configurable.
+  };
+
+  /**
+   * @brief String form of @c api_scope_t.
+   */
+  const std::string &to_string(api_scope_t scope);
+
+  /**
+   * @brief Parse a scope string like `"config:get"` into the enum.
+   * @param s Scope string in the form `<resource>:<action>` or the wildcard `*`.
+   * @return The matching scope, or `std::nullopt` if the string is unknown.
+   */
+  std::optional<api_scope_t> api_scope_from_string(const std::string &s);
+
+  /**
+   * @brief A scoped API token entry as stored in sunshine.conf.
+   *
+   * `token_hash` is SHA-256 of `<plaintext_token>:<salt>`, hex-encoded.
+   * Salt is per-token, generated at creation. We do not store the plaintext.
+   */
+  struct api_token_t {
+    std::string name;        ///< Human-readable label shown in logs and the WebUI.
+    std::string token_hash;  ///< Hex SHA-256 of `token:salt`.
+    std::string salt;        ///< Per-token random salt, hex-encoded.
+    std::vector<api_scope_t> scopes;  ///< Granted scopes.
+  };
+
   struct nvhttp_t {
     // Could be any of the following values:
     // pc|lan|wan
-    std::string origin_web_ui_allowed;  ///< Origin policy used for Web UI access checks.
+    std::string origin_web_ui_allowed;
 
-    std::string pkey;  ///< Private key PEM string or path.
-    std::string cert;  ///< Certificate PEM string or path.
+    std::string pkey;
+    std::string cert;
 
-    std::string sunshine_name;  ///< Host name advertised to Moonlight clients.
+    std::string sunshine_name;
 
-    std::string file_state;  ///< Path to the persisted Sunshine state file.
+    std::string file_state;
 
-    std::string external_ip;  ///< External address advertised to clients when configured.
+    std::string external_ip;
+
+    /**
+     * @brief Comma-separated CIDR ranges for trusted subnet auto-pairing.
+     * @details Clients connecting from these subnets will be auto-paired
+     *          without PIN verification when @c trusted_subnet_auto_pairing
+     *          is enabled. Example: "10.0.0.0/24,192.168.1.0/24,fc00::/7".
+     */
+    std::string trusted_subnets;
+
+    /**
+     * @brief Auto-accept pairing from clients whose IP falls within
+     *        a trusted subnet.
+     * @details When enabled, clients matching @c trusted_subnets are paired
+     *          automatically without requiring the user to enter a PIN.
+     */
+    bool trusted_subnet_auto_pairing;
+
+    /**
+     * @brief API tokens for scoped external automation.
+     *
+     * Each token grants a fixed set of HTTP scopes (see @c api_scope_t) without
+     * requiring the admin username/password. Tokens authenticate via
+     * `Authorization: Bearer <token>` and are checked in @c api_tokens::authenticate
+     * before each protected endpoint runs.
+     *
+     * Tokens are populated by parsing `api_tokens` from sunshine.conf. Each entry
+     * is an object: `api_tokens = [ { name = "ci-bot", token_hash = "...", salt = "...",
+     * scopes = ["config:get", "apps:launch"] } ]`. Tokens are stored hashed (SHA-256
+     * of token+salt) — the plaintext token is shown to the user exactly once at
+     * creation via the /api/tokens endpoint.
+     *
+     * Empty by default. Scripts that just want full admin should keep using Basic
+     * Auth; tokens are for the case where you want to give a script *less* than
+     * full power (e.g. only `config:get`).
+     */
+    std::vector<api_token_t> api_tokens;
   };
 
-  /**
-   * @brief Input emulation settings loaded from configuration.
-   */
   struct input_t {
-    std::unordered_map<int, int> keybindings;  ///< Client keycode to platform keycode bindings.
+    std::unordered_map<int, int> keybindings;
 
-    std::chrono::milliseconds back_button_timeout;  ///< Hold duration that turns a controller Back button into a special action.
-    std::chrono::milliseconds key_repeat_delay;  ///< Delay before repeating a held keyboard key.
-    std::chrono::duration<double> key_repeat_period;  ///< Interval between repeated keyboard key events.
+    std::chrono::milliseconds back_button_timeout;
+    std::chrono::milliseconds key_repeat_delay;
+    std::chrono::duration<double> key_repeat_period;
 
-    std::string gamepad;  ///< Virtual controller backend selected by configuration.
-    bool ds4_back_as_touchpad_click;  ///< Map the DS4 Back button to a touchpad click.
-    bool motion_as_ds4;  ///< Expose motion controls through the DS4 protocol.
-    bool touchpad_as_ds4;  ///< Expose touchpad input through the DS4 protocol.
-    bool ds5_inputtino_randomize_mac;  ///< Randomize the inputtino DualSense MAC address.
+    std::string gamepad;
+    bool ds4_back_as_touchpad_click;
+    bool motion_as_ds4;
+    bool touchpad_as_ds4;
+    bool ds5_inputtino_randomize_mac;
 
-    bool keyboard;  ///< Enable keyboard input from clients.
-    bool key_rightalt_to_key_win;  ///< Map the client Right Alt key to the Windows key.
-    bool mouse;  ///< Enable mouse input from clients.
-    bool controller;  ///< Enable controller input from clients.
+    bool keyboard;
+    bool key_rightalt_to_key_win;
+    bool mouse;
+    bool controller;
 
-    bool always_send_scancodes;  ///< Always send keyboard scancodes when available.
+    bool always_send_scancodes;
 
-    bool high_resolution_scrolling;  ///< Enable high-resolution mouse-wheel events.
-    bool native_pen_touch;  ///< Enable native pen and touch injection.
+    bool high_resolution_scrolling;
+    bool native_pen_touch;
   };
 
   namespace flag {
-    /**
-     * @brief Enumerates supported flag options.
-     */
     enum flag_e : std::size_t {
       PIN_STDIN = 0,  ///< Read PIN from stdin instead of http
       FRESH_STATE,  ///< Do not load or save state
@@ -305,76 +349,212 @@ namespace config {
     };
   }  // namespace flag
 
-  /**
-   * @brief External preparation command plus its privilege requirement.
-   */
   struct prep_cmd_t {
-    /**
-     * @brief Build a preparation command entry from parsed configuration data.
-     *
-     * @param do_cmd Command to run before the application starts.
-     * @param undo_cmd Command to run after the application exits.
-     * @param elevated Whether the command should run with elevated privileges.
-     */
     prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated):
         do_cmd(std::move(do_cmd)),
         undo_cmd(std::move(undo_cmd)),
         elevated(std::move(elevated)) {
     }
 
-    /**
-     * @brief Build a preparation command entry from parsed configuration data.
-     *
-     * @param do_cmd Command to run before the application starts.
-     * @param elevated Whether the command should run with elevated privileges.
-     */
     explicit prep_cmd_t(std::string &&do_cmd, bool &&elevated):
         do_cmd(std::move(do_cmd)),
         elevated(std::move(elevated)) {
     }
 
-    std::string do_cmd;  ///< Command to run before the application starts.
-    std::string undo_cmd;  ///< Command to run after the application exits.
-    bool elevated;  ///< Whether the process should be launched elevated.
+    std::string do_cmd;
+    std::string undo_cmd;
+    bool elevated;
   };
 
-  /**
-   * @brief Top-level Sunshine configuration and credential state.
-   */
   struct sunshine_t {
-    std::string locale;  ///< Locale selected for Sunshine UI and log messages.
-    int min_log_level;  ///< Minimum severity level written to the configured log sink.
-    std::bitset<flag::FLAG_SIZE> flags;  ///< Runtime flags parsed from command-line options.
-    std::string credentials_file;  ///< Path to the stored pairing credentials file.
+    std::string locale;
+    int min_log_level;
+    std::bitset<flag::FLAG_SIZE> flags;
+    std::string credentials_file;
 
-    std::string username;  ///< Username for the local Web UI account.
-    std::string password;  ///< Password hash or secret for the local Web UI account.
-    std::string salt;  ///< Salt used when hashing the Web UI password.
+    std::string username;
+    std::string password;
+    std::string salt;
 
-    std::string config_file;  ///< Path to the active Sunshine configuration file.
+    std::string config_file;
 
-    /**
-     * @brief Command-line options parsed before configuration loading.
-     */
     struct cmd_t {
-      std::string name;  ///< Executable name from the command line.
-      int argc;  ///< Number of command-line arguments.
-      char **argv;  ///< Command-line argument vector.
-    } cmd;  ///< Command line used to launch the application.
+      std::string name;
+      int argc;
+      char **argv;
+    } cmd;
 
-    std::uint16_t port;  ///< TCP port used by Sunshine services.
-    std::string address_family;  ///< Address family requested for listening sockets.
-    std::string bind_address;  ///< Local address Sunshine should bind to.
+    std::uint16_t port;
+    std::string address_family;
+    std::string bind_address;
 
-    std::string log_file;  ///< Path to the configured log file.
-    bool notify_pre_releases;  ///< Notify users about pre-release updates.
-    bool system_tray;  ///< Enable the system tray integration.
-    std::vector<prep_cmd_t> prep_cmds;  ///< Preparation commands executed around application launch.
+    std::string log_file;
+    bool notify_pre_releases;
+    bool system_tray;
+    std::vector<prep_cmd_t> prep_cmds;
 
     // List of allowed origins for CSRF protection (e.g., "https://example.com,https://app.example.com")
     // Comma-separated list of additional origins. Default includes localhost variants and web UI port.
-    std::vector<std::string> csrf_allowed_origins;  ///< Additional origins allowed by CSRF validation.
+    std::vector<std::string> csrf_allowed_origins;
   };
+
+  // ----------------------------------------------------------------------
+  // SolarFlare fork tunables (Linux local-LAN fast path).
+  //
+  // These are the knobs the README promises exist. Every default here
+  // matches the previous hardcoded value, so a vanilla install behaves
+  // identically to the pre-config-fork build. Set any value to its
+  // "fall back to upstream" choice to disable the SolarFlare tuning
+  // for that subsystem without rebuilding.
+  // ----------------------------------------------------------------------
+  struct solarflare_t {
+    // SO_BUSY_POLL on the ENet socket, in microseconds. 0 disables
+    // busy polling entirely. 50 is a good middle ground for 1-2.5 GbE;
+    // 0-200 is the practical range (kernel cap is 10000 = 10 ms).
+    int busy_poll_us = 50;
+
+    // Percent of the negotiated link speed used as the rate-control
+    // pacer in src/stream.cpp. Valid range 50-95. The previous
+    // hardcoded value was 80.
+    int rate_cap_pct = 80;
+
+    // Grow ENet send/recv buffers to 4 MiB on Linux so a 4K60 stream
+    // never blocks on sendmsg(). Set false to use the kernel default.
+    bool enet_4mib_buffer = true;
+
+    // PW_KEY_NODE_LATENCY hint (ms) passed to the compositor. Mutter
+    // and most other compositors honour the hint, cutting 1-2 frames
+    // of pre-encoder buffering. Range 1-40; values below 4 may cause
+    // pipewire to drop frames under load.
+    int pipewire_latency_ms = 8;
+
+    // On Linux, when adjust_thread_priority(critical) is called we also
+    // push onto SCHED_RR prio 10 and pin to a non-IRQ, non-SMT core.
+    // Set false to fall back to upstream's nice-only behaviour.
+    bool cpu_pinning = true;
+
+    /**
+     * @brief SolarFlare audio_fx pre-processor and Opus tuning.
+     *
+     * All values default to "disabled / upstream-compatible". When @c
+     * opus_application / @c opus_vbr / @c opus_complexity / @c opus_fec /
+     * @c opus_expected_loss_pct are left at their defaults, the encoder
+     * behaves identically to upstream Sunshine. Turning on the FX stages
+     * (@c enable_agc, @c enable_vad, etc.) adds a small CPU cost in
+     * exchange for smoother loudness, intelligibility, and noise
+     * suppression.
+     */
+    struct audio_fx_t {
+      // --- Pre-encoder audio FX (all off by default) ---
+      /// Apply automatic gain control before encoding.
+      bool enable_agc = false;
+      /// Run voice activity detection (used by the ducker).
+      bool enable_vad = false;
+      /// Apply ducking when voice is active.
+      bool enable_ducking = false;
+      /// Apply a noise gate (suppress signal below @c noise_gate_threshold_db).
+      bool enable_noise_gate = false;
+      /// Noise-gate threshold (dBFS). Signal below this is attenuated.
+      float noise_gate_threshold_db = -55.0f;
+
+      // --- AGC tunables ---
+      float agc_target_rms_db = -20.0f;
+      float agc_max_gain_db = 12.0f;
+      float agc_min_gain_db = -12.0f;
+      float agc_attack_ms = 10.0f;
+      float agc_hold_ms = 200.0f;
+      float agc_release_ms = 100.0f;
+
+      // --- VAD tunables ---
+      float vad_threshold_db = -45.0f;
+      float vad_hysteresis_db = 6.0f;
+      float vad_min_speech_ms = 100.0f;
+      float vad_min_silence_ms = 200.0f;
+
+      // --- Ducker tunables ---
+      float ducker_target_attenuation_db = -12.0f;
+      float ducker_attack_ms = 50.0f;
+      float ducker_release_ms = 500.0f;
+
+      // --- Opus encoder tunables ---
+      /// Opus application mode: 0 = LOWDELAY (default), 1 = VOIP, 2 = AUDIO.
+      int opus_application = 0;
+      /// Opus VBR mode: 0 = OFF (CBR), 1 = CONSTRAINED, 2 = FULL.
+      int opus_vbr = 0;
+      /// Opus complexity (0-10). Default 10 (max quality).
+      int opus_complexity = 10;
+      /// Enable Opus in-band FEC. Default true.
+      bool opus_fec = true;
+      /// Expected packet loss percentage (0-100). 0 disables the hint.
+      int opus_expected_loss_pct = 0;
+      /// Enable Opus bandwidth extension (super-wideband / fullband).
+      bool opus_bandwidth_extension = true;
+    } audio_fx {};
+
+    /// Enable DSCP QoS tagging (IPTOS_LOWDELAY | IPTOS_THROUGHPUT) on the
+    /// ENet streaming socket. Routers honour this to prioritize the stream
+    /// over bulk traffic. Linux-only; no-op elsewhere.
+    /// ponytail: one setsockopt, measurable on congested LANs.
+    bool dscp_qos = true;
+
+    /// Auto-set GPU to performance power profile during stream (via sysfs on
+    /// AMD, nvidia-smi on NVIDIA), restore to auto on disconnect. Linux-only.
+    /// ponytail: two sysfs writes, ~0.3ms of latency saved at high FPS.
+    bool gpu_governor = true;
+
+    /// Create a virtual DRM display if no physical outputs are detected, so
+    /// the headless server can stream. Linux-only; uses xrandr dummy output.
+    /// ponytail: one xrandr --auto call, no kernel params needed.
+    bool headless_virtual_display = false;
+
+    /// Skip Wayland monitor correlation during KMS display enumeration.
+    /// When enabled, absolute mouse coordinates won't work but KMS capture
+    /// won't hang if the compositor doesn't respond to output queries.
+    /// ponytail: skips wl::monitors() call, avoids KWin roundtrip hang.
+    bool skip_wayland_correlation = false;
+  };
+
+  /// Backwards-compatible alias so the audio encode helper (declared below)
+  /// can take a single-word type name.
+  using solarflare_audio_fx_t = solarflare_t::audio_fx_t;
+
+  /**
+   * @brief Apply the NVENC tuning preset to nv_* fields.
+   *
+   * Call after changing @c video.nv_preset at runtime (e.g. per-game override).
+   * ponytail: small helper so the big switch lives in one place.
+   */
+  void apply_nvenc_tuning_preset();
+
+  /**
+   * @brief Start watching sunshine.conf for changes and reload solarflare
+   *        tunables automatically. Runs a background thread that polls every
+   *        2 seconds. Call after initial config load.
+   */
+  void start_config_watcher();
+
+  /**
+   * @brief Stop the config file watcher thread. Call during shutdown.
+   */
+  void stop_config_watcher();
+
+  /**
+   * @brief Apply the parsed Opus tuning fields from
+   *        @c solarflare_t::audio_fx to the runtime Opus tuning struct used
+   *        by the audio encode thread.
+   *
+   * Only the six @c sf_opus_* fields are propagated here. The other fields
+   * on @c audio_fx (AGC / VAD / Ducker / noise-gate enable flags and
+   * tunables) are consumed directly by @c audio.cpp when the PreProcessor
+   * is built per-stream — see apply_solarflare_keys() for the parser side.
+   *
+   * Called by the config loader (initial parse + hot reload) so that editing
+   * a fork @c sf_opus_* key in sunshine.conf actually takes effect on the
+   * next session. Must NOT be called from inside the encode thread.
+   *
+   * @param af The parsed fork audio_fx sub-struct (see @c solarflare_audio_fx_t).
+   */
+  void apply_opus_tuning_runtime(const solarflare_audio_fx_t &af);
 
   extern video_t video;
   extern audio_t audio;
@@ -382,20 +562,8 @@ namespace config {
   extern nvhttp_t nvhttp;
   extern input_t input;
   extern sunshine_t sunshine;
+  extern solarflare_t solarflare;
 
-  /**
-   * @brief Parse serialized text into the corresponding runtime representation.
-   *
-   * @param argc Number of command-line arguments.
-   * @param argv Command-line argument vector.
-   * @return 0 on success; nonzero when command-line or configuration parsing fails.
-   */
   int parse(int argc, char *argv[]);
-  /**
-   * @brief Parse Sunshine configuration text into key-value entries.
-   *
-   * @param file_content Raw configuration file contents to parse.
-   * @return Parsed configuration key-value entries.
-   */
   std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
 }  // namespace config

@@ -106,30 +106,23 @@ namespace vk {
     return -1;
   }
 
-  /**
-   * @brief Vulkan shader constants used by the conversion pass.
-   */
   struct PushConstants {
-    std::array<float, 4> color_vec_y;  ///< Color vec y.
-    std::array<float, 4> color_vec_u;  ///< Color vec u.
-    std::array<float, 4> color_vec_v;  ///< Color vec v.
-    std::array<float, 2> range_y;  ///< Range y.
-    std::array<float, 2> range_uv;  ///< Range uv.
-    std::array<int32_t, 2> src_offset;  ///< Src offset.
-    std::array<int32_t, 2> src_size;  ///< Src size.
-    std::array<int32_t, 2> dst_offset;  ///< Dst offset.
-    std::array<int32_t, 2> dst_size;  ///< Dst size.
-    std::array<int32_t, 2> dst_full_size;  ///< Dst full size.
-    std::array<int32_t, 2> cursor_pos;  ///< Cursor pos.
-    std::array<int32_t, 2> cursor_size;  ///< Cursor size.
-    int32_t y_invert;  ///< Y invert.
+    std::array<float, 4> color_vec_y;
+    std::array<float, 4> color_vec_u;
+    std::array<float, 4> color_vec_v;
+    std::array<float, 2> range_y;
+    std::array<float, 2> range_uv;
+    std::array<int32_t, 2> src_offset;
+    std::array<int32_t, 2> src_size;
+    std::array<int32_t, 2> dst_offset;
+    std::array<int32_t, 2> dst_size;
+    std::array<int32_t, 2> dst_full_size;
+    std::array<int32_t, 2> cursor_pos;
+    std::array<int32_t, 2> cursor_size;
+    int32_t y_invert;
   };
 
 // Helper to check VkResult
-/**
- * @def VK_CHECK(expr)
- * @brief Macro for VK CHECK.
- */
 #define VK_CHECK(expr) \
   do { \
     VkResult _r = (expr); \
@@ -138,10 +131,6 @@ namespace vk {
       return -1; \
     } \
   } while (0)
-/**
- * @def VK_CHECK_BOOL(expr)
- * @brief Macro for VK CHECK BOOL.
- */
 #define VK_CHECK_BOOL(expr) \
   do { \
     VkResult _r = (expr); \
@@ -151,24 +140,12 @@ namespace vk {
     } \
   } while (0)
 
-  /**
-   * @brief Vulkan encode device that keeps converted frames in GPU memory.
-   */
   class vk_vram_t: public platf::avcodec_encode_device_t {
   public:
     ~vk_vram_t() override {
       cleanup_pipeline();
     }
 
-    /**
-     * @brief Initialize Vulkan encode device and conversion resources.
-     *
-     * @param in_width In width.
-     * @param in_height In height.
-     * @param in_offset_x In offset x.
-     * @param in_offset_y In offset y.
-     * @return 0 on success; nonzero or negative platform status on failure.
-     */
     int init(int in_width, int in_height, int in_offset_x = 0, int in_offset_y = 0) {
       width = in_width;
       height = in_height;
@@ -178,12 +155,6 @@ namespace vk {
       return 0;
     }
 
-    /**
-     * @brief Initialize codec options.
-     *
-     * @param ctx Native context object used by the operation or callback.
-     * @param options Request options or socket options to apply.
-     */
     void init_codec_options(AVCodecContext *ctx, AVDictionary **options) override {
       // When VBR mode is selected (rc_mode=4), don't pin rc_min_rate to the target bitrate.
       // Having rc_min_rate == rc_max_rate == bit_rate in VBR mode prevents the encoder from
@@ -192,15 +163,17 @@ namespace vk {
       if (config::video.vk.rc_mode == 4) {
         ctx->rc_min_rate = 0;
       }
+
+      // Pin the CBR rate-control buffer to one frame's worth of bitrate.
+      // rc_buffer_size defaults to ~1 second of bitrate, which forces the
+      // rate controller to look ahead ~1s of frames — adds significant
+      // latency. bit_rate / fps = exactly one frame of bitrate, which
+      // matches what the encoder can actually verify per-frame.
+      if (ctx->bit_rate > 0 && ctx->framerate.num > 0) {
+        ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
+      }
     }
 
-    /**
-     * @brief Attach frame resources used by the next conversion or encode operation.
-     *
-     * @param new_frame Frame to attach.
-     * @param hw_frames_ctx_buf Hardware frames context buffer.
-     * @return Status from updating frame.
-     */
     int set_frame(AVFrame *new_frame, AVBufferRef *hw_frames_ctx_buf) override {
       this->hwframe.reset(new_frame);
       this->frame = new_frame;
@@ -248,9 +221,6 @@ namespace vk {
       return 0;
     }
 
-    /**
-     * @brief Apply the configured colorspace metadata to the active frame.
-     */
     void apply_colorspace() override {
       auto *colors = video::color_vectors_from_colorspace(colorspace, true);
       if (colors) {
@@ -262,11 +232,6 @@ namespace vk {
       }
     }
 
-    /**
-     * @brief Configure FFmpeg Vulkan hardware frames for video encode input.
-     *
-     * @param frames FFmpeg hardware frames context to initialize.
-     */
     void init_hwframes(AVHWFramesContext *frames) override {
       frames->initial_pool_size = 4;
       auto *vk_frames = (AVVulkanFramesContext *) frames->hwctx;
@@ -277,12 +242,6 @@ namespace vk {
                                                  VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR);
     }
 
-    /**
-     * @brief Convert a captured frame into a Vulkan hardware frame.
-     *
-     * @param img Image or frame object to read from or populate.
-     * @return Conversion status.
-     */
     int convert(platf::img_t &img) override {
       auto &descriptor = (egl::img_descriptor_t &) img;
 
@@ -772,10 +731,9 @@ namespace vk {
         num_imgs++;
       }
 
-      // Rotate to next command buffer. With CMD_RING_SIZE slots, the buffer
-      // we're about to reuse was submitted CMD_RING_SIZE frames ago.
-      // At 60fps that's ~50ms for a <1ms compute dispatch — always complete.
-      // No fences, no semaphore waits, no CPU blocking.
+      // 1-slot ring: reuse the only command buffer (already complete -
+      // the encoder consumed it last frame). No fences, no semaphore
+      // waits, no CPU blocking.
       auto cmd_buf = cmd.ring[cmd.ring_idx];
       cmd.ring_idx = (cmd.ring_idx + 1) % CMD_RING_SIZE;
 
@@ -1020,7 +978,10 @@ namespace vk {
 
     // Command submission — ring of buffers to avoid reuse while in-flight.
     // No CPU waits: by the time we wrap around, the old submission is long done.
-    static constexpr int CMD_RING_SIZE = 3;
+    // 1-slot ring: the compute dispatch is sub-millisecond, so 3 frames
+    // in flight adds ~33ms of fixed pipeline latency at 60fps for no
+    // real benefit. Bump to 2 if a target GPU shows compute >1 frame time.
+    static constexpr int CMD_RING_SIZE = 1;
 
     struct cmd_submission_t {
       VkCommandPool pool = VK_NULL_HANDLE;

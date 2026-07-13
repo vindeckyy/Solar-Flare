@@ -6,6 +6,8 @@
 #pragma once
 
 // standard includes
+#include <cstddef>
+#include <optional>
 #include <string>
 
 // lib includes
@@ -59,17 +61,8 @@ namespace nvhttp {
    */
   void setup(const std::string &pkey, const std::string &cert);
 
-  /**
-   * @brief Simple-Web-Server HTTPS backend configured for Sunshine certificate handling.
-   */
   class SunshineHTTPS: public SimpleWeb::HTTPS {
   public:
-    /**
-     * @brief Construct an HTTPS connection using Sunshine's TLS context.
-     *
-     * @param io_context Boost.Asio context used for network operations.
-     * @param ctx TLS context configured with Sunshine's certificate and key.
-     */
     SunshineHTTPS(boost::asio::io_context &io_context, boost::asio::ssl::context &ctx):
         SimpleWeb::HTTPS(io_context, ctx) {
     }
@@ -81,9 +74,6 @@ namespace nvhttp {
     }
   };
 
-  /**
-   * @brief Enumerates supported pAIR PHASE options.
-   */
   enum class PAIR_PHASE {
     NONE,  ///< Sunshine is not in a pairing phase
     GETSERVERCERT,  ///< Sunshine is in the get server certificate phase
@@ -92,21 +82,18 @@ namespace nvhttp {
     CLIENTPAIRINGSECRET  ///< Sunshine is in the client pairing secret phase
   };
 
-  /**
-   * @brief Pairing handshake state exchanged with a Moonlight client.
-   */
   struct pair_session_t {
     struct {
       std::string uniqueID = {};
       std::string cert = {};
       std::string name = {};
-    } client;  ///< Client object or client certificate data owned by this state..
+    } client;
 
-    std::unique_ptr<crypto::aes_t> cipher_key = {};  ///< Cipher key.
-    std::vector<uint8_t> clienthash = {};  ///< Client certificate hash used during pairing.
+    std::unique_ptr<crypto::aes_t> cipher_key = {};
+    std::vector<uint8_t> clienthash = {};
 
-    std::string serversecret = {};  ///< Server pairing secret.
-    std::string serverchallenge = {};  ///< Server challenge sent during pairing.
+    std::string serversecret = {};
+    std::string serverchallenge = {};
 
     struct {
       util::Either<
@@ -114,7 +101,7 @@ namespace nvhttp {
         std::shared_ptr<typename SimpleWeb::ServerBase<SunshineHTTPS>::Response>>
         response;
       std::string salt = {};
-    } async_insert_pin;  ///< Async insert pin.
+    } async_insert_pin;
 
     /**
      * @brief used as a security measure to prevent out of order calls
@@ -137,9 +124,6 @@ namespace nvhttp {
    * in order to be used to decrypt_symmetric in the next phases.
    *
    * At this stage we only have to send back our public certificate.
-   * @param sess Pairing session that owns the request state.
-   * @param tree XML property tree used for the response body.
-   * @param pin PIN supplied by the client during pairing.
    */
   void getservercert(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &pin);
 
@@ -154,9 +138,6 @@ namespace nvhttp {
    *  - Server secret: a randomly generated secret
    *
    * The hash + server_challenge will then be AES encrypted and sent as the `challengeresponse` in the returned XML
-   * @param sess Pairing session that owns the request state.
-   * @param tree XML property tree used for the response body.
-   * @param challenge Client challenge bytes from the pairing request.
    */
   void clientchallenge(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &challenge);
 
@@ -166,9 +147,6 @@ namespace nvhttp {
    * Moonlight will send back a `serverchallengeresp`: an AES encrypted client hash,
    * we have to send back the `pairingsecret`:
    * using our private key we have to sign the certificate_signature + server_secret (generated in phase 2)
-   * @param sess Pairing session that owns the request state.
-   * @param tree XML property tree used for the response body.
-   * @param encrypted_response Encrypted response.
    */
   void serverchallengeresp(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &encrypted_response);
 
@@ -185,10 +163,6 @@ namespace nvhttp {
    *
    * Then using the client certificate public key we should be able to verify that
    * the client secret has been signed by Moonlight
-   * @param sess Pairing session that owns the request state.
-   * @param add_cert Add cert.
-   * @param tree XML property tree used for the response body.
-   * @param client_pairing_secret Client pairing secret.
    */
   void clientpairingsecret(pair_session_t &sess, std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, boost::property_tree::ptree &tree, const std::string &client_pairing_secret);
 
@@ -209,8 +183,6 @@ namespace nvhttp {
    * @examples
    * nvhttp::unpair_client("4D7BB2DD-5704-A405-B41C-891A022932E1");
    * @examples_end
-   *
-   * @return True when the client entry was found and removed.
    */
   bool unpair_client(std::string_view uuid);
 
@@ -221,12 +193,6 @@ namespace nvhttp {
    * @return true if the client was found and updated.
    */
   bool set_client_enabled(std::string_view uuid, bool enabled);
-  /**
-   * @brief Get cert by UUID.
-   *
-   * @param uuid Client UUID being looked up or removed.
-   * @return PEM certificate for the paired client, or an empty string when unknown.
-   */
   std::string get_cert_by_uuid(std::string_view uuid);
 
   /**
@@ -245,4 +211,58 @@ namespace nvhttp {
    * @examples_end
    */
   void erase_all_clients();
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Test-only helpers for inspecting internal pairing state.
+   *
+   * These exist only when the test binary is being built (i.e. when
+   * `SUNSHINE_TESTS` is defined). They are not part of the public API.
+   */
+  namespace test_access {
+    /**
+     * @brief Test-only: insert a pairing session directly into the
+     *        internal map. The session is keyed by its `client.uniqueID`.
+     * @param sess The session to insert.
+     */
+    void add_pair_session(pair_session_t sess);
+
+    /**
+     * @brief Test-only: clear all pairing sessions from the internal map.
+     */
+    void clear_pair_sessions();
+
+    /**
+     * @brief Test-only: number of sessions currently held in the internal
+     *        map. Used by tests that need to confirm a session was either
+     *        kept or removed by a public API call.
+     */
+    std::size_t pair_session_count();
+
+    /**
+     * @brief Snapshot of the held async response captured by the pin
+     *        observer right before `pin()` releases the response.
+     */
+    struct PinResponseSnapshot {
+      bool close_connection_after_response = false;  ///< Flag at capture time.
+      std::size_t body_size = 0;  ///< Bytes written to the response's stream buffer.
+    };
+
+    /**
+     * @brief Test-only: register a callback that fires from inside
+     *        `pin()` immediately after the held async response is written
+     *        to, but before it is released. The callback receives a
+     *        snapshot of the response's state (close flag + body size) so
+     *        tests can verify the fix without depending on the response
+     *        outliving `pin()`.
+     *
+     * @details
+     * The callback is consumed by a single `pin()` invocation. Register
+     * again before each call you want to observe. Pass `nullptr` to
+     * clear.
+     */
+    using PinObserver = void (*)(const PinResponseSnapshot &);
+    void set_pin_observer(PinObserver obs);
+  }  // namespace test_access
+#endif  // SUNSHINE_TESTS
 }  // namespace nvhttp

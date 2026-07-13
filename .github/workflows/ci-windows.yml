@@ -179,7 +179,7 @@ jobs:
           dotnet-version: '10.x'
 
       - name: Setup NodeJS
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
         with:
           node-version: 'lts/*'
 
@@ -204,7 +204,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990  # v8.3.2
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
         with:
           enable-cache: true
 
@@ -318,12 +318,14 @@ jobs:
           cd build
 
           # package
+          cpack -G NSIS
           cpack -G WIX
           cpack -G ZIP
 
           # move
+          mv ./cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-${{ matrix.name }}-installer.exe
           mv ./cpack_artifacts/Sunshine.msi ../artifacts/Sunshine-${{ matrix.name }}-installer.msi
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-lite.zip
+          mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-portable.zip
 
       - name: Sign Windows installers
         # ARM64 is not currently supported, see https://github.com/Azure/artifact-signing-action/issues/92
@@ -336,9 +338,14 @@ jobs:
           certificate-profile-name: ${{ inputs.azure_signing_cert_profile }}
           endpoint: ${{ inputs.azure_signing_endpoint }}
           files-folder: artifacts
-          files-folder-filter: msi
+          files-folder-filter: exe,msi
           files-folder-recurse: false
           signing-account-name: ${{ inputs.azure_signing_account }}
+
+      - name: Debug nsis
+        if: always()
+        shell: msys2 {0}
+        run: cat ./build/cpack_artifacts/_CPack_Packages/win64/NSIS/NSISOutput.log || true
 
       - name: Debug wix
         if: always()

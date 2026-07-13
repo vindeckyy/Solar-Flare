@@ -13,8 +13,7 @@ const props = defineProps([
 
 const defaultMoonlightPort = 47989
 
-const config = ref(props.config)
-const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort)
+const effectivePort = computed(() => +props.config?.port ?? defaultMoonlightPort)
 </script>
 
 <template>
@@ -178,6 +177,21 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
       <label for="packetsize" class="form-label">{{ $t('config.packetsize') }}</label>
       <input type="number" min="0" max="65535" class="form-control" id="packetsize" placeholder="0" v-model="config.packetsize" />
       <div class="form-text">{{ $t('config.packetsize_desc') }}</div>
+    </div>
+
+    <!-- Trusted Subnet Auto-Pairing -->
+    <Checkbox class="mb-3"
+              id="trusted_subnet_auto_pairing"
+              locale-prefix="config"
+              v-model="config.trusted_subnet_auto_pairing"
+              default="false"
+    ></Checkbox>
+
+    <!-- Trusted Subnets -->
+    <div class="mb-3" v-if="config.trusted_subnet_auto_pairing === true">
+      <label for="trusted_subnets" class="form-label">{{ $t('config.trusted_subnets') }}</label>
+      <input type="text" class="form-control" id="trusted_subnets" v-model="config.trusted_subnets" />
+      <div class="form-text">{{ $t('config.trusted_subnets_desc') }}</div>
     </div>
 
   </div>

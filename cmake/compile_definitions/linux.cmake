@@ -97,6 +97,12 @@ if(LIBDRM_FOUND)
                 "${CMAKE_SOURCE_DIR}/src/platform/linux/kmsgrab.cpp")
         list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
     endif()
+    # Hermes-KMS: DRM/KMS virtual display driver (github.com/MrOz59/Hermes-KMS, GPL-2.0+).
+    # Always compiled in. At runtime, probe_hermes_kms() detects whether the
+    # kernel module is loaded and fails cleanly if not.
+    add_compile_definitions(SUNSHINE_BUILD_HERMES_KMS)
+    list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/hermes_kms.cpp")
 endif()
 
 # Capabilities
@@ -220,6 +226,7 @@ if(WAYLAND_FOUND)
     include_directories(
             SYSTEM
             ${WAYLAND_INCLUDE_DIRS}
+            ${CMAKE_BINARY_DIR}/generated-src
     )
 
     list(APPEND PLATFORM_LIBRARIES ${WAYLAND_LIBRARIES} gbm)
@@ -323,16 +330,15 @@ if (${SUNSHINE_BUILD_FLATPAK})
     list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_BUILD_FLATPAK=1)
 endif ()
 
-include_directories(SYSTEM
-        ${CMAKE_BINARY_DIR}/generated-src)
-
 list(APPEND PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/linux/publish.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/graphics.h"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/graphics.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/misc.h"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/misc.cpp"
-        "${CMAKE_SOURCE_DIR}/src/platform/linux/audio.cpp")
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/audio.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/headless_compositor.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/headless_compositor.cpp")
 
 list(APPEND PLATFORM_LIBRARIES
         dl

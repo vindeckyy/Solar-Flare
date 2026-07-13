@@ -52,18 +52,14 @@ jobs:
     steps:
       - name: More space
         if: runner.os == 'Linux'
-        uses: LizardByte/actions/actions/more_space@a46850981292c4bbc0c41715f286ad95adaaaf4a  # v2026.625.20301
+        uses: LizardByte/actions/actions/more_space@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
         with:
           analyze-space-savings: true
           clean-all: true
           safe-packages: brew
 
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-
-      - name: Select Xcode 16.2
-        if: matrix.os_name == 'macos' && matrix.os_version == '14'
-        run: sudo xcode-select --switch /Applications/Xcode_16.2.app
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
 
       - name: Seed additional macOS TCC permissions
         if: runner.os == 'macOS'
@@ -114,7 +110,6 @@ jobs:
           MATRIX_RELEASE: ${{ matrix.release }}
           PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_DEFAULT_BRANCH: ${{ github.event.pull_request.head.repo.default_branch }}
           REPOSITORY_CLONE_URL: ${{ github.event.repository.clone_url }}
           REPOSITORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -137,7 +132,6 @@ jobs:
             echo "This is a PR event"
             clone_url=${PR_CLONE_URL}
             branch="${PR_HEAD_REF}"
-            commit="${PR_HEAD_SHA}"
             default_branch="${PR_DEFAULT_BRANCH}"
             tag="${PR_HEAD_REF}"
           fi
@@ -183,7 +177,7 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@master  # action requires too many updates to pin
+        uses: LizardByte/actions/actions/release_homebrew@200eaeb897a2b065a65cb6f16b41077432007490  # v2026.605.34721
         with:
           actionlint_config: "---\n# empty config"
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
@@ -204,7 +198,6 @@ jobs:
           name: coverage-Homebrew-${{ matrix.os_name }}-${{ matrix.os_version }}
           path: |
             ${{ steps.test.outputs.testpath }}/coverage.xml
-            ${{ steps.test.outputs.testpath }}/coverage.lcov
             ${{ steps.test.outputs.testpath }}/tests/test_results.xml
           if-no-files-found: error
 

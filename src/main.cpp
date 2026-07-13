@@ -13,9 +13,6 @@
   #include <mach-o/dyld.h>
 #endif
 
-// lib includes
-#include <rs.h>
-
 // local includes
 #include "confighttp.h"
 #include "display_device.h"
@@ -30,25 +27,18 @@
 #include "upnp.h"
 #include "video.h"
 
+extern "C" {
+#include "rswrapper.h"
+}
+
 using namespace std::literals;
 
-std::map<int, std::function<void()>> signal_handlers;  ///< Signal handlers.
+std::map<int, std::function<void()>> signal_handlers;
 
-/**
- * @brief Forward a POSIX signal to the registered Sunshine handler.
- *
- * @param sig Native signal number being handled.
- */
 void on_signal_forwarder(int sig) {
   signal_handlers.at(sig)();
 }
 
-/**
- * @brief Register the handler invoked for a POSIX signal.
- *
- * @param sig Native signal number being handled.
- * @param fn Signal handler function to install.
- */
 template<class FN>
 void on_signal(int sig, FN &&fn) {
   signal_handlers.emplace(sig, std::forward<FN>(fn));
@@ -56,9 +46,6 @@ void on_signal(int sig, FN &&fn) {
   std::signal(sig, on_signal_forwarder);
 }
 
-/**
- * @brief Cmd to func.
- */
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
   {"creds"sv, [](const char *name, int argc, char **argv) {
      return args::creds(name, argc, argv);
@@ -77,15 +64,6 @@ std::map<std::string_view, std::function<int(const char *name, int argc, char **
 };
 
 #ifdef _WIN32
-/**
- * @brief Handle Windows session-change messages for the monitor window.
- *
- * @param hwnd Window handle receiving the Windows control event.
- * @param uMsg U msg.
- * @param wParam W param.
- * @param lParam L param.
- * @return Process or platform callback exit code.
- */
 LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   switch (uMsg) {
     case WM_CLOSE:
@@ -106,12 +84,6 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
   }
 }
 
-/**
- * @brief Handle Windows console control events for shutdown.
- *
- * @param type Protocol, message, or resource type selector.
- * @return Process or platform callback exit code.
- */
 WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
   if (type == CTRL_CLOSE_EVENT) {
     BOOST_LOG(info) << "Console closed handler called";
@@ -122,16 +94,11 @@ WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
 #endif
 
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-constexpr bool tray_is_enabled = true;  ///< Compile-time flag indicating tray support is enabled.
+constexpr bool tray_is_enabled = true;
 #else
 constexpr bool tray_is_enabled = false;
 #endif
 
-/**
- * @brief Run the main event loop until Sunshine is asked to exit.
- *
- * @param shutdown_event Shutdown event.
- */
 void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) {
   bool run_loop = false;
 
@@ -155,13 +122,6 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
   BOOST_LOG(info) << "Main loop has exited"sv;
 }
 
-/**
- * @brief Run the main application or worker loop.
- *
- * @param argc The number of arguments.
- * @param argv The arguments.
- * @return Process or platform callback exit code.
- */
 int main(int argc, char *argv[]) {
 #ifdef __APPLE__
   // Bundle assets are referenced relative to the executable
@@ -215,9 +175,15 @@ int main(int argc, char *argv[]) {
   // logging can begin at this point
   // if anything is logged prior to this point, it will appear in stdout, but not in the log viewer in the UI
   // the version should be printed to the log before anything else
+
+  // Start watching sunshine.conf for changes so users can tweak
+  // SolarFlare tunables without restarting.
+  config::start_config_watcher();
   BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VERSION << " commit: " << PROJECT_VERSION_COMMIT;
 
-  // Log publisher metadata
+  // Log publisher metadata (also prints the SolarFlare fork banner when
+  // SOLARFLARE_FORK is enabled at build time -- see log_publisher_data()
+  // in src/entry_handler.cpp).
   log_publisher_data();
 
   // Log modified_config_settings
@@ -234,10 +200,20 @@ int main(int argc, char *argv[]) {
         BOOST_LOG(info) << '\t' << key;
       }
 
+      // Stop the watcher thread we started above before returning; otherwise
+      // it leaks and runs until the process exits. Same for the cmd path
+      // below -- any early return after start_config_watcher() needs to
+      // pair with a stop.
+      config::stop_config_watcher();
       return 7;
     }
 
-    return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
+    // Helper subcommands like `creds`, `version`, `help` may exit before the
+    // main loop. Mirror the unknown-command cleanup so we never leak the
+    // watcher thread on those paths either.
+    auto cmd_rc = fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
+    config::stop_config_watcher();
+    return cmd_rc;
   }
 
   // Adding guard here first as it also performs recovery after crash,
@@ -270,7 +246,7 @@ int main(int argc, char *argv[]) {
   std::promise<void> session_monitor_join_thread_promise;
   auto session_monitor_join_thread_future = session_monitor_join_thread_promise.get_future();
 
-  std::jthread session_monitor_thread([&]() {
+  std::thread session_monitor_thread([&]() {
     platf::set_thread_name("session_monitor");
     session_monitor_join_thread_promise.set_value_at_thread_exit();
 
@@ -437,9 +413,9 @@ int main(int argc, char *argv[]) {
     return lifetime::desired_exit_code;
   }
 
-  std::jthread httpThread {nvhttp::start};
-  std::jthread configThread {confighttp::start};
-  std::jthread rtspThread {rtsp_stream::start};
+  std::thread httpThread {nvhttp::start};
+  std::thread configThread {confighttp::start};
+  std::thread rtspThread {rtsp_stream::start};
 
 #ifdef _WIN32
   // If we're using the default port and GameStream is enabled, warn the user
@@ -468,6 +444,8 @@ int main(int argc, char *argv[]) {
   httpThread.join();
   configThread.join();
   rtspThread.join();
+
+  config::stop_config_watcher();
 
   task_pool.stop();
   task_pool.join();

@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Sunshine"
-version = "2026.708.4"
+version = "2026.999.2"
 description = "Python tooling for Sunshine"
 requires-python = ">=3.14"
 license = {text = "GPL-3.0-only"}
 authors = [
-    {name = "LizardByte", email = "lizardbyte@users.noreply.github.com"}
+    {name = "vindeckyy", email = "vindeckyy@users.noreply.github.com"}
 ]
 
 dependencies = [
@@ -21,6 +21,9 @@ dependencies = [
 # The platform marker limits this to Linux where the glad generator is actually used.
 glad = [
     "glad2",
+    # setuptools provides pkg_resources which glad's plugin.py imports.
+    # setuptools 82 removes pkg_resources; pin to the last series that includes it.
+    "setuptools<82",
 ]
 
 flatpak = [
@@ -29,9 +32,9 @@ flatpak = [
 ]
 
 [project.urls]
-Homepage = "https://app.lizardbyte.dev/Sunshine"
-Repository = "https://github.com/LizardByte/Sunshine"
-Issues = "https://github.com/LizardByte/Sunshine/issues"
+Homepage = "https://github.com/vindeckyy/Solar-Flare"
+Repository = "https://github.com/vindeckyy/Solar-Flare"
+Issues = "https://github.com/vindeckyy/Solar-Flare/issues"
 
 [tool.setuptools]
 py-modules = []

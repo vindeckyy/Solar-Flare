@@ -23,6 +23,7 @@ import {
   Sunrise,
   Sunset,
   TreePine,
+  Zap,
   Trees,
   Waves,
 } from '@lucide/vue'
@@ -95,6 +96,14 @@ onMounted(() => {
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="nord" aria-pressed="false">
           <Mountain :size="18" class="theme-icon icon"></Mountain>
           {{ $t('navbar.theme_nord') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="solarflare" aria-pressed="false">
+          <Zap :size="18" class="theme-icon icon"></Zap>
+          {{ $t('navbar.theme_solarflare') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="solarflare-light" aria-pressed="false">
+          <Sunrise :size="18" class="theme-icon icon"></Sunrise>
+          {{ $t('navbar.theme_solarflare_light') }}
         </button>
       </li>
       <!-- Light Themes -->

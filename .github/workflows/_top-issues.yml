@@ -1,9 +1,17 @@
 ---
-# This workflow is centrally managed in https://github.com/LizardByte/.github/
-# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
-# the above-mentioned repo.
-
-# Create a top issues dashboard
+# SolarFlare fork override for the centrally-managed _top-issues workflow.
+#
+# The upstream version (.github/workflows/_top-issues.yml in
+# LizardByte/Sunshine) calls LizardByte/.github/.github/workflows/__call-top-issues.yml@master
+# gated by `if: github.repository_owner == 'LizardByte'`. On this fork
+# the owner is 'vindeckyy', so every scheduled run hits the `if` and is
+# reported by GitHub as "skipped". That's noisy in the Actions tab and
+# confusing for anyone reviewing the fork's CI.
+#
+# We replace the file with a no-op workflow so the Actions tab stays
+# clean. If LizardByte ever publishes a fork-friendly version, this
+# override should be deleted and the upstream file restored via
+# `git checkout lizardbyte-upstream/master -- .github/workflows/_top-issues.yml`.
 
 name: Top issues
 permissions: {}
@@ -19,9 +27,11 @@ concurrency:
 
 jobs:
   top-issues:
-    name: Top issues
-    uses: LizardByte/.github/.github/workflows/__call-top-issues.yml@master
-    if: github.repository_owner == 'LizardByte'
-    permissions:
-      contents: read
-      issues: write
+    name: Top issues (no-op on fork)
+    runs-on: ubuntu-latest
+    steps:
+      - name: No-op (fork)
+        run: |
+          echo "SolarFlare fork does not run upstream's Top-issues dashboard."
+          echo "Owner: ${{ github.repository_owner }} (expected 'LizardByte')."
+          echo "This workflow is intentionally disabled. See the file's header comment."

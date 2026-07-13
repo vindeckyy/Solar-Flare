@@ -6,6 +6,10 @@
 #include <algorithm>
 #include <sstream>
 
+#ifdef __linux__
+  #include <sys/socket.h>  // SO_BUSY_POLL, SO_RCVBUFFORCE, setsockopt
+#endif
+
 // local includes
 #include "config.h"
 #include "logging.h"
@@ -17,15 +21,9 @@ using namespace std::literals;
 namespace ip = boost::asio::ip;
 
 namespace net {
-  /**
-   * @brief Pc ips v4.
-   */
   std::vector<ip::network_v4> pc_ips_v4 {
     ip::make_network_v4("127.0.0.0/8"sv),
   };
-  /**
-   * @brief Lan ips v4.
-   */
   std::vector<ip::network_v4> lan_ips_v4 {
     ip::make_network_v4("192.168.0.0/16"sv),
     ip::make_network_v4("172.16.0.0/12"sv),
@@ -34,23 +32,14 @@ namespace net {
     ip::make_network_v4("169.254.0.0/16"sv),
   };
 
-  /**
-   * @brief Pc ips v6.
-   */
   std::vector<ip::network_v6> pc_ips_v6 {
     ip::make_network_v6("::1/128"sv),
   };
-  /**
-   * @brief Lan ips v6.
-   */
   std::vector<ip::network_v6> lan_ips_v6 {
     ip::make_network_v6("fc00::/7"sv),
     ip::make_network_v6("fe80::/64"sv),
   };
 
-  /**
-   * @brief Convert configuration text to a network enum value.
-   */
   net_e from_enum_string(const std::string_view &view) {
     if (view == "wan") {
       return WAN;
@@ -62,9 +51,6 @@ namespace net {
     return PC;
   }
 
-  /**
-   * @brief Convert a Boost address family to Sunshine network enum value.
-   */
   net_e from_address(const std::string_view &view) {
     auto addr = normalize_address(ip::make_address(view));
 
@@ -97,9 +83,6 @@ namespace net {
     return WAN;
   }
 
-  /**
-   * @brief Convert a network enum value to configuration text.
-   */
   std::string_view to_enum_string(net_e net) {
     switch (net) {
       case PC:
@@ -184,9 +167,6 @@ namespace net {
     }
   }
 
-  /**
-   * @brief Create an ENet host with the requested address family.
-   */
   host_t host_create(af_e af, ENetAddress &addr, std::uint16_t port) {
     static std::once_flag enet_init_flag;
     std::call_once(enet_init_flag, []() {
@@ -200,15 +180,72 @@ namespace net {
     // Maximum of 128 clients, which should be enough for anyone
     auto host = host_t {enet_host_create(af == IPV4 ? AF_INET : AF_INET6, &addr, 128, 0, 0, 0)};
 
+    if (!host) {
+      return host;
+    }
+
     // Enable opportunistic QoS tagging (automatically disables if the network appears to drop tagged packets)
     enet_socket_set_option(host->socket, ENET_SOCKOPT_QOS, 1);
+
+#ifdef __linux__
+    // CachyOS / Linux local-LAN fast path: grow the kernel UDP socket buffers
+    // so a 4K60 HEVC stream (~25 Mbps) never blocks on send. Without this the
+    // default rmem_max/wmem_max on a fresh install is ~200KB, which is one
+    // frame of 4K60 -> the next sendmsg() blocks until the kernel drains.
+    //
+    // 4 MiB is a safe upper bound for ~25 Mbps @ 8ms = ~25KB in-flight; we
+    // pick well above that so a single retransmit storm can't make us stall.
+    // SO_RCVBUFFORCE / SO_SNDBUFFORCE let us exceed rmem_max/wmem_max without
+    // requiring sysctl changes (they require CAP_NET_ADMIN, which Sunshine
+    // doesn't run with -- so the call silently no-ops if it fails).
+    // SolarFlare fork knob: `enet_4mib_buffer = false` falls back to the
+    // kernel default UDP buffer size.
+    if (config::solarflare.enet_4mib_buffer) {
+      int bufsize = 4 * 1024 * 1024;
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_RCVBUFFORCE, &bufsize, sizeof(bufsize));
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_SNDBUFFORCE, &bufsize, sizeof(bufsize));
+      // Fallback to the rmem_max-limited path if FORCE isn't permitted.
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+      (void) setsockopt(host->socket, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+    }
+
+    // SO_BUSY_POLL: have the kernel poll the NIC for incoming packets instead
+    // of sleeping until the next interrupt. 50us is a good middle ground:
+    // it cuts the receive-side wakeup latency from ~100us-1ms down to ~50us
+    // on Wi-Fi without burning a full core. Higher values (e.g. 100us) cost
+    // noticeably more CPU for diminishing returns on a wireless link.
+    // SolarFlare fork knob: `busy_poll_us` (0-10000, default 50). 0 disables.
+    {
+      int busy_poll_us = config::solarflare.busy_poll_us;
+      if (busy_poll_us > 0) {
+        (void) setsockopt(host->socket, SOL_SOCKET, SO_BUSY_POLL, &busy_poll_us, sizeof(busy_poll_us));
+      }
+    }
+
+    // DSCP QoS: tag streaming packets so routers prioritize them over bulk
+    // traffic. IPTOS_LOWDELAY (0x10) | IPTOS_THROUGHPUT (0x08) = 0x18 = CS3.
+    // ponytail: one setsockopt, measurable on any congested LAN link.
+    if (config::solarflare.dscp_qos) {
+      // ponytail: define constants inline -- <netinet/ip.h> isn't universally
+      // available on all Linux toolchains (missing on some musl/glibc versions).
+      constexpr int kIPTOS_LOWDELAY = 0x10;
+      constexpr int kIPTOS_THROUGHPUT = 0x08;
+      const int tos = kIPTOS_LOWDELAY | kIPTOS_THROUGHPUT;  // 0x18 = CS3
+
+      // IP_TOS only takes effect on AF_INET sockets; for AF_INET6 sockets we
+      // need IPV6_TCLASS. host_create() can build either depending on @p af,
+      // so we set both: the wrong family is silently ignored by the kernel.
+      // Without IPV6_TCLASS, an "address_family = both" install streams IPv6
+      // packets with TOS=0 -- the upstream default -- so the fork's QoS
+      // promise silently breaks for dual-stack clients.
+      (void) setsockopt(host->socket, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+      (void) setsockopt(host->socket, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(tos));
+    }
+#endif
 
     return host;
   }
 
-  /**
-   * @brief Destroy an ENet host allocated by host_create().
-   */
   void free_host(ENetHost *host) {
     std::for_each(host->peers, host->peers + host->peerCount, [](ENetPeer &peer_ref) {
       ENetPeer *peer = &peer_ref;
@@ -259,5 +296,66 @@ namespace net {
     }
 
     return !instancename.empty() ? instancename : "Sunshine";
+  }
+
+  /**
+   * @brief Check whether a client IP falls within any of the given trusted subnets.
+   * @details Parses @p trusted_subnets_str as a comma-separated list of CIDR
+   *          ranges (both IPv4 and IPv6 are supported).  IPv4-mapped IPv6
+   *          addresses in @p client_ip are normalised to IPv4 before checking.
+   *          Malformed CIDR entries are silently skipped.
+   * @param client_ip The client's IP address as a string.
+   * @param trusted_subnets_str Comma-separated CIDR ranges, e.g. "10.0.0.0/24,fc00::/7".
+   * @return true if @p client_ip matches any CIDR range.
+   */
+  bool is_trusted_subnet(const std::string &client_ip, const std::string &trusted_subnets_str) {
+    if (trusted_subnets_str.empty() || client_ip.empty()) {
+      return false;
+    }
+
+    boost::system::error_code ec;
+    auto addr = ip::make_address(client_ip, ec);
+    if (ec) {
+      BOOST_LOG(warning) << "is_trusted_subnet: invalid client IP: "sv << client_ip;
+      return false;
+    }
+    addr = normalize_address(addr);
+
+    std::stringstream ss(trusted_subnets_str);
+    std::string cidr;
+    while (std::getline(ss, cidr, ',')) {
+      // Trim whitespace
+      auto start = cidr.find_first_not_of(" \t\r\n");
+      if (start == std::string::npos) continue;
+      cidr = cidr.substr(start);
+      auto end = cidr.find_last_not_of(" \t\r\n");
+      if (end != std::string::npos) {
+        cidr = cidr.substr(0, end + 1);
+      }
+
+      if (cidr.empty()) continue;
+
+      if (addr.is_v4()) {
+        auto net = ip::make_network_v4(cidr, ec);
+        if (!ec) {
+          if (net.hosts().find(addr.to_v4()) != net.hosts().end()) {
+            return true;
+          }
+        } else {
+          BOOST_LOG(warning) << "is_trusted_subnet: invalid IPv4 CIDR: "sv << cidr;
+        }
+      } else {
+        auto net = ip::make_network_v6(cidr, ec);
+        if (!ec) {
+          if (net.hosts().find(addr.to_v6()) != net.hosts().end()) {
+            return true;
+          }
+        } else {
+          BOOST_LOG(warning) << "is_trusted_subnet: invalid IPv6 CIDR: "sv << cidr;
+        }
+      }
+    }
+
+    return false;
   }
 }  // namespace net

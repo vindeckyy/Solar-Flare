@@ -32,10 +32,6 @@ extern nvprefs::nvprefs_interface nvprefs_instance;
  * @brief Handles process-wide communication.
  */
 namespace mail {
-/**
- * @def MAIL(x)
- * @brief Macro for MAIL.
- */
 #define MAIL(x) \
   constexpr auto x = std::string_view { \
     #x \
@@ -47,18 +43,19 @@ namespace mail {
   extern safe::mail_t man;
 
   // Global mail
-  MAIL(shutdown);  ///< Shutdown.
-  MAIL(broadcast_shutdown);  ///< Broadcast shutdown.
-  MAIL(video_packets);  ///< Video packets.
-  MAIL(audio_packets);  ///< Audio packets.
-  MAIL(switch_display);  ///< Switch display.
+  MAIL(shutdown);
+  MAIL(broadcast_shutdown);
+  MAIL(video_packets);
+  MAIL(audio_packets);
+  MAIL(switch_display);
 
   // Local mail
-  MAIL(touch_port);  ///< Touch port.
-  MAIL(idr);  ///< IDR.
-  MAIL(invalidate_ref_frames);  ///< Invalidate ref frames.
-  MAIL(gamepad_feedback);  ///< Gamepad feedback.
-  MAIL(hdr);  ///< HDR.
+  MAIL(touch_port);
+  MAIL(idr);
+  MAIL(invalidate_ref_frames);
+  MAIL(gamepad_feedback);
+  MAIL(hdr);
+  MAIL(adaptive_bitrate_net_stats);
 #undef MAIL
 
 }  // namespace mail

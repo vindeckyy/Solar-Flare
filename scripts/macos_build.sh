@@ -5,6 +5,10 @@ set -euo pipefail
 
 # Default value for arguments
 num_processors=$(sysctl -n hw.ncpu)
+# SolarFlare fork: macOS packagers who want the fork branding should
+# override these via --publisher-* args on the command line. Defaults
+# stay at upstream LizardByte for backwards compatibility with anyone
+# who's already using scripts/macos_build.sh on macOS.
 publisher_name="LizardByte"
 publisher_website="https://app.lizardbyte.dev"
 publisher_issue_url="https://app.lizardbyte.dev/support"

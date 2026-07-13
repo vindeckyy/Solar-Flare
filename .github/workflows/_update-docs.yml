@@ -1,35 +1,37 @@
 ---
-# This workflow is centrally managed in https://github.com/LizardByte/.github/
-# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
-# the above-mentioned repo.
+# SolarFlare fork override for the centrally-managed _update-docs.yml.
+#
+# The upstream file calls LizardByte/.github/.github/workflows/... and is
+# gated by 'if: github.repository_owner == LizardByte' (or '!= LizardByte/.github').
+# On this fork the owner is 'vindeckyy', so every scheduled run hits the
+# gate and is reported by GitHub as 'skipped'. That's noisy in the
+# Actions tab and confusing for anyone reviewing the fork's CI.
+#
+# We replace the file with a no-op workflow so the Actions tab stays
+# clean. If LizardByte ever publishes a fork-friendly version, this
+# override should be deleted and the upstream file restored via
+# `git checkout lizardbyte-upstream/master -- .github/workflows/_update-docs.yml`.
 
-# To use, add the `rtd` repository label to identify repositories that should trigger this workflow.
-# If the project slug is not the repository name, add a repository variable named `READTHEDOCS_SLUG` with the value of
-# the ReadTheDocs project slug.
-
-# Update readthedocs on release events.
-
-name: Update docs
+name: "Update docs (no-op on fork)"
 permissions: {}
 
 on:
-  release:
-    types:
-      - created
-      - edited
-      - deleted
+  schedule:
+    - cron: '0 6/12 * * *'
+  workflow_dispatch:
 
 concurrency:
-  group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
+  group: '_update-docs'
   cancel-in-progress: true
 
 jobs:
-  update-docs:
-    name: Update docs
-    uses: LizardByte/.github/.github/workflows/__call-update-docs.yml@master
-    if: github.repository_owner == 'LizardByte'
-    permissions: {}
-    with:
-      readthedocs_slug: ${{ vars.READTHEDOCS_SLUG }}
-    secrets:
-      READTHEDOCS_TOKEN: ${{ secrets.READTHEDOCS_TOKEN }}
+  noop:
+    name: "Update docs (no-op on fork)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: No-op (fork)
+        run: |
+          echo "SolarFlare fork does not run this upstream workflow."
+          echo "Reason: Regenerates the upstream Doxygen + Sphinx documentation. The fork keeps the same Doxyfile; a re-run on a vindeckyy/Solar-Flare PR would just push identical output to a LizardByte-only gh-pages branch."
+          echo "Owner: ${{ github.repository_owner }} (expected 'LizardByte')."
+          echo "This workflow is intentionally disabled. See the file's header comment."

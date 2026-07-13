@@ -19,40 +19,26 @@ namespace wl {
   static int env_width;
   static int env_height;
 
-  /**
-   * @brief Captured frame buffer shared between capture and encode stages.
-   */
   struct img_t: public platf::img_t {
-    /**
-     * @brief Destroy the Wayland capture image.
-     */
     ~img_t() override {
       delete[] data;
       data = nullptr;
     }
   };
 
-  /**
-   * @brief Wayland screencopy capture backend shared by RAM and VRAM paths.
-   */
   class wlr_t: public platf::display_t {
   public:
-    /**
-     * @brief Initialize Wayland screencopy capture for the selected output.
-     *
-     * @param hwdevice_type Hardware device type requested for capture or encode.
-     * @param display_name Display name.
-     * @param config Configuration values to apply.
-     * @return 0 on success; nonzero or negative platform status on failure.
-     */
     int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
       // calculate frame interval we should capture at
-      delay = ::video::capture_frame_interval(config);
-      const AVRational fps = ::video::framerate_to_rational(config);
-      if (fps.den != 1) {
-        BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << fps.num << "/" << fps.den << ", approx. " << av_q2d(fps) << " fps]";
+      if (config.framerateX100 > 0) {
+        AVRational fps_strict = ::video::framerateX100_to_rational(config.framerateX100);
+        delay = std::chrono::nanoseconds(
+          (static_cast<int64_t>(fps_strict.den) * 1'000'000'000LL) / fps_strict.num
+        );
+        BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << fps_strict.num << "/" << fps_strict.den << ", approx. " << av_q2d(fps_strict) << " fps]";
       } else {
-        BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << fps.num << "fps]";
+        delay = std::chrono::nanoseconds {1s} / config.framerate;
+        BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << config.framerate << "fps]";
       }
 
       mem_type = hwdevice_type;
@@ -97,8 +83,11 @@ namespace wl {
           }
         }
         if (!matched) {
-          auto streamedMonitor = util::from_view(display_name);
-          if (streamedMonitor >= 0 && streamedMonitor < interface.monitors.size()) {
+          // parse_monitor_index returns -1 for non-numeric names so a
+          // "Virtual-Virtual-1" KWin output never accidentally selects a
+          // real monitor slot.
+          auto streamedMonitor = util::parse_monitor_index(display_name, -1);
+          if (streamedMonitor >= 0 && streamedMonitor < (std::int64_t) interface.monitors.size()) {
             monitor = interface.monitors[streamedMonitor].get();
           }
         }
@@ -138,25 +127,10 @@ namespace wl {
       return 0;
     }
 
-    /**
-     * @brief Populate a fallback image when real capture data is unavailable.
-     *
-     * @param img Image or frame object to read from or populate.
-     * @return Capture status reported to the streaming pipeline.
-     */
     int dummy_img(platf::img_t *img) override {
       return 0;
     }
 
-    /**
-     * @brief Capture a display frame into the provided image object.
-     *
-     * @param pull_free_image_cb Callback that provides an available image buffer.
-     * @param img_out Captured wlroots image returned to the streaming pipeline.
-     * @param timeout Maximum time to wait for the operation.
-     * @param cursor Cursor image or visibility state to composite.
-     * @return Capture status reported to the streaming pipeline.
-     */
     inline platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       auto to = std::chrono::steady_clock::now() + timeout;
 
@@ -182,20 +156,17 @@ namespace wl {
       return platf::capture_e::ok;
     }
 
-    platf::mem_type_e mem_type;  ///< Mem type.
+    platf::mem_type_e mem_type;
 
-    std::chrono::nanoseconds delay;  ///< Delay before the timer task becomes eligible to run.
+    std::chrono::nanoseconds delay;
 
-    wl::display_t display;  ///< Wayland display connection used for capture.
-    interface_t interface;  ///< Wayland registry interfaces required by screencopy.
-    dmabuf_t dmabuf;  ///< DMA-BUF feedback and format state advertised by the compositor.
+    wl::display_t display;
+    interface_t interface;
+    dmabuf_t dmabuf;
 
-    wl_output *output;  ///< Wayland output selected for capture.
+    wl_output *output;
   };
 
-  /**
-   * @brief Wayland screencopy backend that copies frames into system memory.
-   */
   class wlr_ram_t: public wlr_t {
   public:
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
@@ -243,15 +214,6 @@ namespace wl {
       return platf::capture_e::ok;
     }
 
-    /**
-     * @brief Capture a display frame into the provided image object.
-     *
-     * @param pull_free_image_cb Callback that provides an available image buffer.
-     * @param img_out Captured wlroots image returned to the streaming pipeline.
-     * @param timeout Maximum time to wait for the operation.
-     * @param cursor Cursor image or visibility state to composite.
-     * @return Capture status reported to the streaming pipeline.
-     */
     platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       auto status = wlr_t::snapshot(pull_free_image_cb, img_out, timeout, cursor);
       if (status != platf::capture_e::ok) {
@@ -287,14 +249,6 @@ namespace wl {
       return platf::capture_e::ok;
     }
 
-    /**
-     * @brief Initialize Wayland capture that copies frames into system memory.
-     *
-     * @param hwdevice_type Hardware device type requested for capture or encode.
-     * @param display_name Display name.
-     * @param config Configuration values to apply.
-     * @return 0 on success; nonzero or negative platform status on failure.
-     */
     int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
       if (wlr_t::init(hwdevice_type, display_name, config)) {
         return -1;
@@ -315,12 +269,6 @@ namespace wl {
       return 0;
     }
 
-    /**
-     * @brief Create AVCodec encode device.
-     *
-     * @param pix_fmt Sunshine pixel format to convert or allocate for.
-     * @return Constructed AVCodec encode device object.
-     */
     std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == platf::mem_type_e::vaapi) {
@@ -337,11 +285,6 @@ namespace wl {
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
-    /**
-     * @brief Allocate an image buffer compatible with this display backend.
-     *
-     * @return Allocated img object, or null when unavailable.
-     */
     std::shared_ptr<platf::img_t> alloc_img() override {
       auto img = std::make_shared<img_t>();
       img->width = width;
@@ -353,13 +296,10 @@ namespace wl {
       return img;
     }
 
-    egl::display_t egl_display;  ///< EGL display.
-    egl::ctx_t ctx;  ///< EGL context used for wlroots capture conversion.
+    egl::display_t egl_display;
+    egl::ctx_t ctx;
   };
 
-  /**
-   * @brief Wayland screencopy backend that exports frames as GPU resources.
-   */
   class wlr_vram_t: public wlr_t {
   public:
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
@@ -407,15 +347,6 @@ namespace wl {
       return platf::capture_e::ok;
     }
 
-    /**
-     * @brief Capture a display frame into the provided image object.
-     *
-     * @param pull_free_image_cb Callback that provides an available image buffer.
-     * @param img_out Captured wlroots image returned to the streaming pipeline.
-     * @param timeout Maximum time to wait for the operation.
-     * @param cursor Cursor image or visibility state to composite.
-     * @return Capture status reported to the streaming pipeline.
-     */
     platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       auto status = wlr_t::snapshot(pull_free_image_cb, img_out, timeout, cursor);
       if (status != platf::capture_e::ok) {
@@ -442,11 +373,6 @@ namespace wl {
       return platf::capture_e::ok;
     }
 
-    /**
-     * @brief Allocate an image buffer compatible with this display backend.
-     *
-     * @return Allocated img object, or null when unavailable.
-     */
     std::shared_ptr<platf::img_t> alloc_img() override {
       auto img = std::make_shared<egl::img_descriptor_t>();
 
@@ -462,12 +388,6 @@ namespace wl {
       return img;
     }
 
-    /**
-     * @brief Create AVCodec encode device.
-     *
-     * @param pix_fmt Sunshine pixel format to convert or allocate for.
-     * @return Constructed AVCodec encode device object.
-     */
     std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == platf::mem_type_e::vaapi) {
@@ -484,26 +404,17 @@ namespace wl {
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
-    /**
-     * @brief Populate a fallback image when real capture data is unavailable.
-     *
-     * @param img Image or frame object to read from or populate.
-     * @return Capture status reported to the streaming pipeline.
-     */
     int dummy_img(platf::img_t *img) override {
       // Empty images are recognized as dummies by the zero sequence number
       return 0;
     }
 
-    std::uint64_t sequence {};  ///< Monotonic capture sequence assigned to Wayland frames.
+    std::uint64_t sequence {};
   };
 
 }  // namespace wl
 
 namespace platf {
-  /**
-   * @brief Create a Wayland capture backend for the requested memory type.
-   */
   std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
       BOOST_LOG(error) << "[wlgrab] Could not initialize display with the given hw device type."sv;
@@ -527,9 +438,6 @@ namespace platf {
     return wlr;
   }
 
-  /**
-   * @brief Enumerate capture display names reported by the Wayland compositor.
-   */
   std::vector<std::string> wl_display_names() {
     std::vector<std::string> display_names;
 

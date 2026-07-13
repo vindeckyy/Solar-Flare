@@ -39,31 +39,8 @@
 
 # build directories
 build/
-build-*/
 cmake-*/
 docs/doxyconfig*
-docs/html/
-docs/latex/
-
-# Doxygen output in repo root (from local doxygen run)
-/html/
-/latex/
-
-# cmake scratch files in repo root
-/CMakeCache.txt
-/CMakeFiles/
-/_deps/
-/glad2-cmake/
-/gladsources/
-/generated-src/
-/Testing/
-
-# cmake --install outputs that land at repo root on Linux dev builds
-/dev.lizardbyte.app.Sunshine.desktop
-/dev.lizardbyte.app.Sunshine.kwin.desktop
-/dev.lizardbyte.app.Sunshine.metainfo.xml
-/dev.lizardbyte.app.Sunshine.terminal.desktop
-/app-dev.lizardbyte.app.Sunshine.service
 
 # npm
 node_modules/
@@ -90,16 +67,3 @@ third-party-check
 
 # Local tooling scratch files
 crush.db
-
-# Editor / shell backups (never ship)
-*~
-*.swp
-*.swo
-*.bak
-
-# Environment files (never ship secrets)
-.env
-.env.*
-
-# Broader log coverage
-*.log

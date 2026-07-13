@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-only
-
 /**
  * @file src/platform/linux/headless_compositor.cpp
  * @brief Headless Wayland compositor implementation for private game
@@ -88,8 +86,7 @@ namespace platf::headless {
     auto *xdg = std::getenv("XDG_CURRENT_DESKTOP");
     if (!xdg) return false;
     std::string_view desktop {xdg};
-    // KDE distros vary: 'KDE', 'kde-plasma', 'plasma'. Substring match covers all three.
-    return desktop.find("KDE"sv) != std::string_view::npos || desktop.find("plasma"sv) != std::string_view::npos;
+    return desktop.find("KDE"sv) != std::string_view::npos;
   }
 
   bool is_gamescope_running() {

@@ -8,7 +8,6 @@
 
 struct MouseHIDTest: PlatformTestSuite, testing::WithParamInterface<util::point_t> {
   void SetUp() override {
-    BaseTest::SetUp();
 #ifdef _WIN32
     // TODO: Windows tests are failing, `get_mouse_loc` seems broken and `platf::abs_mouse` too
     //       the alternative `platf::abs_mouse` method seem to work better during tests,
@@ -22,7 +21,6 @@ struct MouseHIDTest: PlatformTestSuite, testing::WithParamInterface<util::point_
 
   void TearDown() override {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    BaseTest::TearDown();
   }
 };
 

@@ -293,28 +293,6 @@ fi
 
 mkdir -p "$BUILD_DIR"
 say "Running cmake..."
-
-# Pick an available compiler launcher. Prefer ccache (massive rebuild speedup),
-# otherwise let cmake call gcc/g++ directly.
-_launcher=""
-if command -v ccache >/dev/null 2>&1; then
-  _launcher=ccache
-else
-  warn "ccache not found; falling back to direct compiler invocation."
-fi
-
-# Pick an available linker. Prefer mold (fast), then lld, then system ld.
-# Hard-coding -fuse-ld=mold breaks the build on distros / CI runners
-# without the mold package installed; binutils' ld is the universal fallback.
-_linker_flag=""
-if command -v mold >/dev/null 2>&1; then
-  _linker_flag="-fuse-ld=mold"
-elif command -v lld >/dev/null 2>&1; then
-  _linker_flag="-fuse-ld=lld"
-else
-  warn "neither mold nor lld found; falling back to system ld (slow link)."
-fi
-
 set +e
 cmake -B "$BUILD_DIR" -G Ninja -S "$REPO_ROOT" \
     -DCMAKE_BUILD_TYPE=Release \
@@ -324,10 +302,10 @@ cmake -B "$BUILD_DIR" -G Ninja -S "$REPO_ROOT" \
     -DSUNSHINE_ENABLE_CUDA=OFF \
     -DCUDA_FAIL_ON_MISSING=OFF \
     -DFFMPEG_PREBUILT=ON \
-    -DCMAKE_CXX_COMPILER_LAUNCHER="${_launcher}" \
-    -DCMAKE_C_COMPILER_LAUNCHER="${_launcher}" \
-    -DCMAKE_EXE_LINKER_FLAGS="${_linker_flag}" \
-    -DCMAKE_SHARED_LINKER_FLAGS="${_linker_flag}"
+    -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+    -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+    -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=mold" \
+    -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=mold"
 cmake_rc=$?
 set -u
 

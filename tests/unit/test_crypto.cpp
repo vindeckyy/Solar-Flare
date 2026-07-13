@@ -11,6 +11,16 @@
 // local imports
 #include <src/crypto.h>
 
+// ponytail: M-2 -- malformed PEM input must produce a null smart pointer,
+// not a wrapper around an unwritten X509/PKEY struct.
+TEST(CryptoTest, MalformedPemReturnsNull) {
+  auto bad_cert = crypto::x509("not a real PEM"sv);
+  ASSERT_EQ(bad_cert.get(), nullptr);
+
+  auto bad_pkey = crypto::pkey("not a real PEM"sv);
+  ASSERT_EQ(bad_pkey.get(), nullptr);
+}
+
 TEST(CryptoTest, GeneratedCredentialsExposeSubjectAndVerifySignatures) {
   constexpr std::string_view common_name = "Sunshine Test Host";
   constexpr std::string_view payload = "payload";

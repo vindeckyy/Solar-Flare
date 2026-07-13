@@ -1,33 +1,37 @@
 ---
-# This workflow is centrally managed in https://github.com/LizardByte/.github/
-# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
-# the above-mentioned repo.
+# SolarFlare fork override for the centrally-managed _update-flathub-repo.yml.
+#
+# The upstream file calls LizardByte/.github/.github/workflows/... and is
+# gated by 'if: github.repository_owner == LizardByte' (or '!= LizardByte/.github').
+# On this fork the owner is 'vindeckyy', so every scheduled run hits the
+# gate and is reported by GitHub as 'skipped'. That's noisy in the
+# Actions tab and confusing for anyone reviewing the fork's CI.
+#
+# We replace the file with a no-op workflow so the Actions tab stays
+# clean. If LizardByte ever publishes a fork-friendly version, this
+# override should be deleted and the upstream file restored via
+# `git checkout lizardbyte-upstream/master -- .github/workflows/_update-flathub-repo.yml`.
 
-# To use, add the `flathub-pkg` repository label to identify repositories that should trigger this workflow.
-
-# Update Flathub on release events.
-
-name: Update Flathub repo
+name: "Update Flathub repo (no-op on fork)"
 permissions: {}
 
 on:
-  release:
-    types:
-      - released
+  schedule:
+    - cron: '0 6/12 * * *'
+  workflow_dispatch:
 
 concurrency:
-  group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
+  group: '_update-flathub-repo'
   cancel-in-progress: true
 
 jobs:
-  update-flathub-repo:
-    name: Update Flathub Repo
-    uses: LizardByte/.github/.github/workflows/__call-update-flathub-repo.yml@master
-    if: github.repository_owner == 'LizardByte'
-    permissions:
-      contents: read
-    with:
-      gh_name: ${{ vars.GH_BOT_NAME }}
-    secrets:
-      GH_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
-      GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+  noop:
+    name: "Update Flathub repo (no-op on fork)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: No-op (fork)
+        run: |
+          echo "SolarFlare fork does not run this upstream workflow."
+          echo "Reason: Bumps the version on flathub/github.com/LizardByte/Sunshine. The fork does not ship a Flatpak build path (see docs/PORTING.md > 'What this fork IS NOT')."
+          echo "Owner: ${{ github.repository_owner }} (expected 'LizardByte')."
+          echo "This workflow is intentionally disabled. See the file's header comment."

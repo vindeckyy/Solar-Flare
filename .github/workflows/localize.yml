@@ -1,9 +1,5 @@
 ---
-# SolarFlare fork override.
-# Upstream calls LizardByte/lizardbyte-common/... which is unreachable from this fork.
-# Every push to master on the fork would fail. Disabled.
-
-name: "localize (no-op on fork)"
+name: localize
 permissions: {}
 
 on:
@@ -17,9 +13,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  noop:
-    name: "localize (no-op on fork)"
-    runs-on: ubuntu-latest
-    steps:
-      - name: No-op (fork)
-        run: echo "localize disabled on vindeckyy/Solar-Flare fork. Upstream calls LizardByte/lizardbyte-common/."
+  localize:
+    name: Update Localization
+    if: startsWith(github.repository, 'LizardByte/')
+    permissions:
+      contents: read
+    uses: LizardByte/lizardbyte-common/.github/workflows/localize.yml@master
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

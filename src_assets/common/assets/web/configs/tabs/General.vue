@@ -13,7 +13,6 @@ const props = defineProps({
   platform: String,
   config: Object
 })
-const config = ref(props.config)
 
 function addCmd() {
   let template = {
@@ -24,11 +23,11 @@ function addCmd() {
   if (props.platform === 'windows') {
     template = { ...template, elevated: false };
   }
-  config.value.global_prep_cmd.push(template);
+  props.config.global_prep_cmd.push(template);
 }
 
 function removeCmd(index) {
-  config.value.global_prep_cmd.splice(index,1)
+  props.config.global_prep_cmd.splice(index,1)
 }
 </script>
 

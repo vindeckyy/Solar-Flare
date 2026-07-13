@@ -1,9 +1,14 @@
 # Publisher Metadata
+# SolarFlare fork publisher metadata: defaults match upstream LizardByte/Sunshine
+# for the Name (so a vanilla install logs the same lines). The Website + Issue
+# URLs point at the fork's repo so anyone reading sunshine.log can find the
+# fork on GitHub. Override via -DSUNSHINE_PUBLISHER_*=... on the cmake
+# command line if you're packaging a different downstream.
 set(SUNSHINE_PUBLISHER_NAME "Third Party Publisher"
         CACHE STRING "The name of the publisher (not developer) of the application.")
-set(SUNSHINE_PUBLISHER_WEBSITE ""
+set(SUNSHINE_PUBLISHER_WEBSITE "https://github.com/vindeckyy/Solar-Flare"
         CACHE STRING "The URL of the publisher's website.")
-set(SUNSHINE_PUBLISHER_ISSUE_URL "https://app.lizardbyte.dev/support"
+set(SUNSHINE_PUBLISHER_ISSUE_URL "https://github.com/vindeckyy/Solar-Flare/issues"
         CACHE STRING "The URL of the publisher's support site or issue tracker.
         If you provide a modified version of Sunshine, we kindly request that you use your own url.")
 

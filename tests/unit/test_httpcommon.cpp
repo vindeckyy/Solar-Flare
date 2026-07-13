@@ -11,7 +11,7 @@
 // local imports
 #include <src/httpcommon.h>
 
-struct UrlEscapeTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
+struct UrlEscapeTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
 TEST_P(UrlEscapeTest, Run) {
   const auto &[input, expected] = GetParam();
@@ -28,7 +28,7 @@ INSTANTIATE_TEST_SUITE_P(
   )
 );
 
-struct UrlGetHostTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
+struct UrlGetHostTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
 TEST_P(UrlGetHostTest, Run) {
   const auto &[input, expected] = GetParam();
@@ -45,7 +45,7 @@ INSTANTIATE_TEST_SUITE_P(
   )
 );
 
-struct DownloadFileTest: BaseTest, testing::WithParamInterface<std::tuple<std::string, std::string>> {};
+struct DownloadFileTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
 TEST_P(DownloadFileTest, Run) {
   const auto &[url, filename] = GetParam();
@@ -71,3 +71,15 @@ INSTANTIATE_TEST_SUITE_P(
     std::make_tuple(URL_2, "hello-redirect.txt")
   )
 );
+
+// ponytail: M-4 -- password shorter than the floor must be rejected at write
+// time. We exercise save_user_creds directly with a scratch file so we don't
+// touch the real credentials.json on disk.
+TEST(SaveUserCredsTest, RejectsShortPassword) {
+  const std::string scratch = platf::appdata().string() + "/tests/scratch_creds.json";
+  std::error_code ec;
+  std::filesystem::remove(scratch, ec);
+
+  ASSERT_EQ(http::save_user_creds(scratch, "alice", "tooshort"), -1);
+  ASSERT_FALSE(std::filesystem::exists(scratch));
+}
