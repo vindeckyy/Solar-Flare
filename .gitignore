@@ -42,6 +42,22 @@ build/
 cmake-*/
 docs/doxyconfig*
 
+# cmake scratch files in repo root
+/CMakeCache.txt
+/CMakeFiles/
+/_deps/
+/glad2-cmake/
+/gladsources/
+/generated-src/
+/Testing/
+
+# cmake --install outputs that land at repo root on Linux dev builds
+/dev.lizardbyte.app.Sunshine.desktop
+/dev.lizardbyte.app.Sunshine.kwin.desktop
+/dev.lizardbyte.app.Sunshine.metainfo.xml
+/dev.lizardbyte.app.Sunshine.terminal.desktop
+/app-dev.lizardbyte.app.Sunshine.service
+
 # npm
 node_modules/
 
