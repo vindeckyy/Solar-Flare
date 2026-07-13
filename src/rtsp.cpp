@@ -86,6 +86,46 @@ namespace rtsp_stream {
   void cmd_not_found(tcp::socket &sock, launch_session_t &, msg_t &&req);
   void respond(tcp::socket &sock, launch_session_t &session, POPTION_ITEM options, int statuscode, const char *status_msg, int seqn, const std::string_view &payload);
 
+  /**
+   * @brief Parse an RTSP message with a guard for the upstream RtspParser.c
+   *        end-of-message probe.
+   *
+   * The vendored moonlight-common-c RtspParser inspects the byte just past
+   * the last token via startsWith() and reads one or two trailing bytes
+   * without bounds checking when the option content is the final token in
+   * the buffer. Rejecting buffers that lack the CRLFCRLF terminator before
+   * parsing keeps us off that path; the parser itself still returns
+   * RTSP_ERROR_MALFORMED on a bad frame, this just prevents the OOB read
+   * that precedes the malformed-return decision.
+   *
+   * @param req Output message struct.
+   * @param data Pointer to the RTSP frame buffer.
+   * @param length Number of bytes available in @p data.
+   * @return RTSP_ERROR_SUCCESS on parse, RTSP_ERROR_MALFORMED on a missing
+   *         terminator, or whatever parseRtspMessage returns otherwise.
+   */
+  static int parse_rtsp_message_safe(PRTSP_MESSAGE req, const char *data, int length) {
+    if (length < 4) {
+      return RTSP_ERROR_MALFORMED;
+    }
+    // Require the standard CRLFCRLF terminator before handing the buffer to
+    // the parser. The parser detects end-of-message by probing the byte just
+    // past the final option-content token; without the terminator present in
+    // the buffer that probe reads past the malloc'd region.
+    const char *end = data + length - 4;
+    bool terminated = false;
+    for (const char *p = end; p >= data; --p) {
+      if (p[0] == '\r' && p[1] == '\n' && p[2] == '\r' && p[3] == '\n') {
+        terminated = true;
+        break;
+      }
+    }
+    if (!terminated) {
+      return RTSP_ERROR_MALFORMED;
+    }
+    return parseRtspMessage(req, const_cast<char *>(data), length);
+  }
+
   class socket_t: public std::enable_shared_from_this<socket_t> {
   public:
     socket_t(boost::asio::io_context &io_context, std::function<void(tcp::socket &sock, launch_session_t &, msg_t &&)> &&handle_data_fn):
@@ -224,7 +264,7 @@ namespace rtsp_stream {
       }
 
       msg_t req {new msg_t::element_type {}};
-      if (auto status = parseRtspMessage(req.get(), (char *) plaintext.data(), (int) plaintext.size())) {
+      if (auto status = parse_rtsp_message_safe(req.get(), (const char *) plaintext.data(), (int) plaintext.size())) {
         BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
@@ -290,7 +330,7 @@ namespace rtsp_stream {
 
       auto end = socket->begin + bytes;
       msg_t req {new msg_t::element_type {}};
-      if (auto status = parseRtspMessage(req.get(), socket->msg_buf.data(), (int) (end - socket->msg_buf.data()))) {
+      if (auto status = parse_rtsp_message_safe(req.get(), socket->msg_buf.data(), (int) (end - socket->msg_buf.data()))) {
         BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
