@@ -380,7 +380,7 @@ namespace platf {
     GDBusConnection *conn = g_bus_get_sync(G_BUS_TYPE_SYSTEM, nullptr, &err);
 
     if (conn) {
-      g_dbus_connection_call_sync(
+      g_autoptr(GVariant) priority_response = g_dbus_connection_call_sync(
         conn,
         "org.freedesktop.RealtimeKit1",
         "/org/freedesktop/RealtimeKit1",
