@@ -71,3 +71,15 @@ INSTANTIATE_TEST_SUITE_P(
     std::make_tuple(URL_2, "hello-redirect.txt")
   )
 );
+
+// ponytail: M-4 -- password shorter than the floor must be rejected at write
+// time. We exercise save_user_creds directly with a scratch file so we don't
+// touch the real credentials.json on disk.
+TEST(SaveUserCredsTest, RejectsShortPassword) {
+  const std::string scratch = platf::appdata().string() + "/tests/scratch_creds.json";
+  std::error_code ec;
+  std::filesystem::remove(scratch, ec);
+
+  ASSERT_EQ(http::save_user_creds(scratch, "alice", "tooshort"), -1);
+  ASSERT_FALSE(std::filesystem::exists(scratch));
+}

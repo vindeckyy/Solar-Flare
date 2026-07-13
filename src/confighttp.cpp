@@ -8,10 +8,13 @@
 
 // standard includes
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <mutex>
 #include <string_view>
+#include <unordered_map>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -138,6 +141,46 @@ namespace confighttp {
     response->write(code, tree.dump(), headers);
   }
 
+  // ponytail: M-4 brute-force defense. Token bucket keyed by source IP.
+  // 10 failures refills in 30s; success resets. Single global mutex is fine
+  // at single-digit req/s per IP; switch to a per-IP LRU if memory matters.
+  // Success path bypasses entirely (no entry is added).
+  struct rate_bucket_t {
+    std::chrono::steady_clock::time_point window_start {std::chrono::steady_clock::now()};
+    int failures {0};
+  };
+  static std::mutex g_rate_mutex;
+  static std::unordered_map<std::string, rate_bucket_t> g_login_failures;
+  static constexpr int LOGIN_FAIL_LIMIT = 10;
+  static constexpr std::chrono::seconds LOGIN_FAIL_WINDOW {30};
+
+  bool rate_limit_allow(const std::string &ip) {
+    auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(g_rate_mutex);
+    auto &b = g_login_failures[ip];
+    if (now - b.window_start > LOGIN_FAIL_WINDOW) {
+      b.window_start = now;
+      b.failures = 0;
+    }
+    return b.failures < LOGIN_FAIL_LIMIT;
+  }
+
+  void rate_limit_record_failure(const std::string &ip) {
+    auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(g_rate_mutex);
+    auto &b = g_login_failures[ip];
+    if (now - b.window_start > LOGIN_FAIL_WINDOW) {
+      b.window_start = now;
+      b.failures = 0;
+    }
+    ++b.failures;
+  }
+
+  void rate_limit_reset(const std::string &ip) {
+    std::lock_guard<std::mutex> lock(g_rate_mutex);
+    g_login_failures.erase(ip);
+  }
+
   /**
    * @brief Send a redirect response.
    * @param response The HTTP response object.
@@ -211,6 +254,13 @@ namespace confighttp {
       return auth_result_t{};
     }
 
+    // ponytail: M-4 rate-limit gate before doing any hash work.
+    if (!rate_limit_allow(address)) {
+      BOOST_LOG(warning) << "Web UI: ["sv << address << "] -- rate limited"sv;
+      response->write(SimpleWeb::StatusCode::client_error_too_many_requests);
+      return auth_result_t{};
+    }
+
     // If credentials are shown, redirect the user to a /welcome page
     if (config::sunshine.username.empty()) {
       send_redirect(response, request, "/welcome");
@@ -218,12 +268,14 @@ namespace confighttp {
     }
 
     auto fg = util::fail_guard([&]() {
+      rate_limit_record_failure(address);
       send_unauthorized(response, request);
     });
 
     // Try Bearer token first.
     auto bearer_result = authenticate_bearer(request);
     if (bearer_result.authenticated) {
+      rate_limit_reset(address);
       fg.disable();
       return bearer_result;
     }
@@ -249,6 +301,7 @@ namespace confighttp {
       return auth_result_t{};
     }
 
+    rate_limit_reset(address);
     fg.disable();
     auth_result_t result;
     result.authenticated = true;
@@ -1395,8 +1448,8 @@ namespace confighttp {
       nlohmann::json input_tree = nlohmann::json::parse(ss);
 
       std::string key = input_tree.value("key", "");
-      if (key.empty()) {
-        bad_request(response, request, "Cover key is required");
+      if (key.empty() || key.find('/') != std::string::npos || key.find("..") != std::string::npos || key.find('\0') != std::string::npos) {  // ponytail: L-1 path traversal guard
+        bad_request(response, request, "Invalid cover key");
         return;
       }
       std::string url = input_tree.value("url", "");
@@ -1699,7 +1752,14 @@ namespace confighttp {
       if (i > 0) cfg_entry += ",";
       cfg_entry += config::to_string(scopes[i]);
     }
-    BOOST_LOG(info) << "API token '" << name << "' minted. Add this line to sunshine.conf:\n"
+    // ponytail: L-2 log injection guard -- strip CR/LF from admin-supplied name
+    // before logging. JSON output is auto-escaped by nlohmann::json, but the
+    // log line isn't.
+    auto safe_name = name;
+    for (auto &c : safe_name) {
+      if (c == '\n' || c == '\r') c = ' ';
+    }
+    BOOST_LOG(info) << "API token '" << safe_name << "' minted. Add this line to sunshine.conf:\n"
                     << "  api_tokens += \"" << cfg_entry << "\"";
 
     nlohmann::json tree;

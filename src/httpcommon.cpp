@@ -138,6 +138,13 @@ namespace http {
   }
 
   int save_user_creds(const std::string &file, const std::string &username, const std::string &password, bool run_our_mouth) {
+    // ponytail: M-4 minimum password length. Cheap reject at the write side;
+    // bcrypt-style hashing would be the stronger answer but ships a new dep.
+    constexpr std::size_t MIN_PASSWORD_LEN = 12;
+    if (password.size() < MIN_PASSWORD_LEN) {
+      BOOST_LOG(error) << "Password must be at least "sv << MIN_PASSWORD_LEN << " characters"sv;
+      return -1;
+    }
     pt::ptree outputTree;
 
     if (fs::exists(file)) {
@@ -269,6 +276,14 @@ namespace http {
     }
 
     curl_easy_setopt(curl, CURLOPT_SSLVERSION, ssl_version);  // NOSONAR
+    // ponytail: L-3 -- require TLS verification, HTTPS-only, and a hard timeout
+    // for outbound fetches. Admin endpoint, but host check happens upstream
+    // so we belt-and-suspenders here.
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);

@@ -350,7 +350,9 @@ namespace crypto {
     BIO_write(io.get(), x.data(), (int) x.size());
 
     x509_t p;
-    PEM_read_bio_X509(io.get(), &p, nullptr, nullptr);
+    if (PEM_read_bio_X509(io.get(), &p, nullptr, nullptr) == nullptr) {
+      return nullptr;
+    }
 
     return p;
   }
@@ -361,7 +363,9 @@ namespace crypto {
     BIO_write(io.get(), k.data(), (int) k.size());
 
     pkey_t p = nullptr;
-    PEM_read_bio_PrivateKey(io.get(), &p, nullptr, nullptr);
+    if (PEM_read_bio_PrivateKey(io.get(), &p, nullptr, nullptr) == nullptr) {
+      return nullptr;
+    }
 
     return p;
   }

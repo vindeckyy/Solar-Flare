@@ -48,6 +48,13 @@ namespace nvhttp {
 
   crypto::cert_chain_t cert_chain;
 
+  // ponytail: cap concurrent TLS handshakes so a slow/abusive client can't
+  // stall the single-threaded HTTPS server. M-3. Soft cap; new handshakes
+  // over the cap are closed immediately. Upgrade to per-IP rate limit if
+  // a single IP can still tie up the cap.
+  static constexpr std::uint32_t MAX_CONCURRENT_HANDSHAKES = 64;
+  static std::atomic<std::uint32_t> g_inflight_handshakes {0};
+
   class SunshineHTTPSServer: public SimpleWeb::ServerBase<SunshineHTTPS> {
   public:
     SunshineHTTPSServer(const std::string &certification_file, const std::string &private_key_file):
@@ -90,12 +97,21 @@ namespace nvhttp {
         auto session = std::make_shared<Session>(config.max_request_streambuf_size, connection);
 
         if (!ec) {
+          // ponytail: handshake cap (see M-3). Increment after we know the
+          // socket is live, decrement when the handshake finishes or fails.
+          if (g_inflight_handshakes.fetch_add(1, std::memory_order_acq_rel) >= MAX_CONCURRENT_HANDSHAKES) {
+            g_inflight_handshakes.fetch_sub(1, std::memory_order_acq_rel);
+            boost::system::error_code close_ec;
+            session->connection->socket->lowest_layer().close(close_ec);
+            return;
+          }
           boost::asio::ip::tcp::no_delay option(true);
           SimpleWeb::error_code ec;
           session->connection->socket->lowest_layer().set_option(option, ec);
 
           session->connection->set_timeout(config.timeout_request);
           session->connection->socket->async_handshake(boost::asio::ssl::stream_base::server, [this, session](const SimpleWeb::error_code &ec) {
+            g_inflight_handshakes.fetch_sub(1, std::memory_order_acq_rel);
             session->connection->cancel_timeout();
             auto lock = session->connection->handler_runner->continue_lock();
             if (!lock) {
