@@ -717,6 +717,9 @@ namespace pipewire {
    */
   class pipewire_display_t: public platf::display_t {
   public:
+    /**
+     * @brief Release cached DMA-BUF modifier arrays.
+     */
     ~pipewire_display_t() override {
       for (int i = 0; i < n_dmabuf_infos; ++i) {
         g_free(dmabuf_infos[i].modifiers);
