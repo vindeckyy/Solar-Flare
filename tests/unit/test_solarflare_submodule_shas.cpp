@@ -13,9 +13,12 @@
 
 namespace {
 
-  // Walk up the directory tree to find the source root (the dir
-  // containing .gitmodules). Starts from "." (test CWD is
-  // build/tests/).
+  /**
+   * @brief Walk up from CWD to find the dir containing .gitmodules.
+   *
+   * @return Absolute-or-relative source root path, or empty string if
+   *         not found within 10 hops.
+   */
   std::string find_source_root() {
     std::string path = ".";
     for (int i = 0; i < 10; ++i) {
@@ -23,10 +26,13 @@ namespace {
       if (std::filesystem::exists(path + "/.gitmodules", ec)) {
         return path;
       }
-      if (path == ".") { path = ".."; continue; }
-      auto slash = path.find_last_of('/');
-      if (slash == std::string::npos || slash == 0) return "";
-      path = path.substr(0, slash);
+      // Append ".." once we've moved past "." so we walk up from there.
+      // ponytail: handles "." → ".." → "../.." instead of the npos bailout.
+      if (path == ".") {
+        path = "..";
+        continue;
+      }
+      path += "/..";
     }
     return "";
   }
@@ -35,11 +41,16 @@ namespace {
   std::string run_git_submodule_status(const std::string &source_root) {
     std::unique_ptr<FILE, int (*)(FILE *)> pipe(
       popen(("cd " + source_root + " && git submodule status").c_str(), "r"),
-      pclose);
-    if (!pipe) return "";
+      pclose
+    );
+    if (!pipe) {
+      return "";
+    }
     std::string out;
     char buf[512];
-    while (fgets(buf, sizeof(buf), pipe.get())) out += buf;
+    while (fgets(buf, sizeof(buf), pipe.get())) {
+      out += buf;
+    }
     return out;
   }
 
@@ -48,10 +59,11 @@ namespace {
     const char *path;
     const char *round6_sha_prefix;
   };
+
   constexpr std::array<SubmodulePointer, 3> kSubmodules = {{
-    {"lizardbyte-common",   "third-party/lizardbyte-common",   "8d7dcc9"},
-    {"moonlight-common-c",  "third-party/moonlight-common-c",  "47b4d33"},
-    {"nvapi",               "third-party/nvapi",               "cd6918f"},
+    {"lizardbyte-common", "third-party/lizardbyte-common", "8d7dcc9"},
+    {"moonlight-common-c", "third-party/moonlight-common-c", "47b4d33"},
+    {"nvapi", "third-party/nvapi", "cd6918f"},
   }};
 
 }  // namespace
@@ -92,6 +104,6 @@ TEST(SolarflareSubmoduleShas, OnDiskShasAreRound6Bumped) {
       << "Submodule " << sm.name << " SHA '" << sha
       << "' does not start with expected round-6 prefix '"
       << sm.round6_sha_prefix << "'. The pointer has been reverted. "
-         "Re-apply the round-6 cherry-pick.";
+                                 "Re-apply the round-6 cherry-pick.";
   }
 }

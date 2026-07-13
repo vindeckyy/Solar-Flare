@@ -22,14 +22,13 @@
  * can't accidentally regress to the peek-then-pop pattern.
  */
 #include "../tests_common.h"
+#include "src/thread_safe.h"
+#include "src/utility.h"
 
 #include <atomic>
 #include <chrono>
 #include <thread>
 #include <vector>
-
-#include "src/thread_safe.h"
-#include "src/utility.h"
 
 // =============================================================================
 // Single-threaded correctness tests.
@@ -99,8 +98,9 @@ TEST(SafeEventTryPop, TryPopIsNonBlocking) {
   auto t0 = std::chrono::steady_clock::now();
   auto val = ev.try_pop();
   auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                       std::chrono::steady_clock::now() - t0)
-                       .count();
+                      std::chrono::steady_clock::now() - t0
+  )
+                      .count();
 
   ASSERT_TRUE(val);
   EXPECT_EQ(*val, 1);
@@ -120,18 +120,16 @@ TEST(SafeEventTryPop, VideoCppUsesTryPopForDrain) {
   // re-init site. If a future commit removes the try_pop() and
   // puts back a peek()+pop() pair, the bug comes back and this
   // test fails to remind the maintainer.
-  const std::string content = file_handler::read_file("src/video.cpp");
+  const std::string content = test_utils::read_repo_file("src/video.cpp");
   // Find the drain site near the capture_ctx->images comment.
-  EXPECT_NE(content.find("capture_ctx->images->try_pop()"),
-            std::string::npos)
+  EXPECT_NE(content.find("capture_ctx->images->try_pop()"), std::string::npos)
     << "src/video.cpp no longer drains capture_ctx->images via "
        "try_pop(); the e40d355f video-freeze fix has been reverted. "
        "Use `while (capture_ctx->images->try_pop()) {}` to drain the "
        "queue atomically. Reverting to peek()+pop() races on "
        "capture re-init and causes the video stream to freeze.";
   // And the bad pattern is NOT present.
-  EXPECT_EQ(content.find("capture_ctx->images->peek()"),
-            std::string::npos)
+  EXPECT_EQ(content.find("capture_ctx->images->peek()"), std::string::npos)
     << "src/video.cpp contains the old peek()+pop() drain pattern "
        "that e40d355f replaced; this race-conditions on capture "
        "re-init (e.g. pipewire display switch) and freezes the video "

@@ -32,7 +32,6 @@
  *    and `[data-theme="solarflare-light"]`.
  */
 #include "../tests_common.h"
-
 #include "src/file_handler.h"
 
 #include <string>
@@ -44,7 +43,7 @@ namespace {
   // the CMake-injected CWD (we set the working dir in tests/CMakeLists.txt
   // to the source tree root via configure_file copies).
   std::string read_file(const std::string &path) {
-    return file_handler::read_file(path.c_str());
+    return test_utils::read_repo_file(path);
   }
 
   bool contains(const std::string &haystack, const std::string &needle) {

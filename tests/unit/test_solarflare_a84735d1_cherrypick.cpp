@@ -27,16 +27,11 @@
  * src/config.cpp half.
  */
 #include "../tests_common.h"
-
 #include "src/file_handler.h"
 
 #include <string>
 
 namespace {
-
-  std::string read_file(const std::string &path) {
-    return file_handler::read_file(path.c_str());
-  }
 
   bool contains(const std::string &haystack, const std::string &needle) {
     return haystack.find(needle) != std::string::npos;
@@ -52,7 +47,7 @@ namespace {
 // =============================================================================
 
 TEST(SolarflareWebUIFixCherryPick, LaunchUiCallRemovedFromShortcutAdmin) {
-  const auto content = read_file("src/config.cpp");
+  const auto content = test_utils::read_repo_file("src/config.cpp");
   ASSERT_FALSE(content.empty())
     << "Could not read src/config.cpp. The test build is "
        "misconfigured.";
@@ -83,7 +78,7 @@ TEST(SolarflareWebUIFixCherryPick, LaunchUiCallRemovedFromShortcutAdmin) {
 // =============================================================================
 
 TEST(SolarflareWebUIFixCherryPick, WaitForUiReadyStillPresent) {
-  const auto content = read_file("src/config.cpp");
+  const auto content = test_utils::read_repo_file("src/config.cpp");
   ASSERT_FALSE(content.empty())
     << "Could not read src/config.cpp.";
 
@@ -108,7 +103,7 @@ TEST(SolarflareWebUIFixCherryPick, WaitForUiReadyStillPresent) {
 // =============================================================================
 
 TEST(SolarflareWebUIFixCherryPick, ShortcutAdminReturn1StillPresent) {
-  const auto content = read_file("src/config.cpp");
+  const auto content = test_utils::read_repo_file("src/config.cpp");
   ASSERT_FALSE(content.empty())
     << "Could not read src/config.cpp.";
 

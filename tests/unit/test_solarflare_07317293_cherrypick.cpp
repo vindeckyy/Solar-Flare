@@ -29,7 +29,6 @@
  * a clear error message pointing at the round-4 cherry-pick.
  */
 #include "../tests_common.h"
-
 #include "src/file_handler.h"
 
 #include <string>
@@ -37,7 +36,7 @@
 namespace {
 
   std::string read_file(const std::string &path) {
-    return file_handler::read_file(path.c_str());
+    return test_utils::read_repo_file(path);
   }
 
   bool contains(const std::string &haystack, const std::string &needle) {

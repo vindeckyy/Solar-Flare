@@ -20,7 +20,6 @@
  * cherry-pick so the maintainer can re-apply the fix.
  */
 #include "../tests_common.h"
-
 #include "src/file_handler.h"
 
 #include <string>
@@ -28,7 +27,7 @@
 namespace {
 
   std::string read_file(const std::string &path) {
-    return file_handler::read_file(path.c_str());
+    return test_utils::read_repo_file(path);
   }
 
   bool contains(const std::string &haystack, const std::string &needle) {
@@ -143,8 +142,7 @@ TEST(SolarflarePipewireCherryPick, OldObjectSerialBlockRemoved) {
   // SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL runtime check. If the old
   // unconditional block was accidentally reintroduced (e.g. by a
   // revert of the cherry-pick), this test catches it.
-  EXPECT_FALSE(contains(content,
-    "#ifdef PW_KEY_TARGET_OBJECT\n        if ((object_serial & SPA_ID_INVALID)"))
+  EXPECT_FALSE(contains(content, "#ifdef PW_KEY_TARGET_OBJECT\n        if ((object_serial & SPA_ID_INVALID)"))
     << "src/platform/linux/pipewire.cpp contains the OLD "
        "unconditional PW_KEY_TARGET_OBJECT block (pre-4e6e1377). "
        "The cherry-pick moved this logic inside a "
