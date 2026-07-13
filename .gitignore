@@ -1,0 +1,69 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# JetBrains IDE
+.idea/
+
+# VSCode IDE
+.vscode/
+
+# build directories
+build/
+cmake-*/
+docs/doxyconfig*
+
+# npm
+node_modules/
+
+# Translations
+*.mo
+*.pot
+
+# Dummy macOS files
+.DS_Store
+
+# Python
+*.egg-info/
+*.pyc
+.venv/
+venv/
+
+# Test artifacts (produced by ./build/tests/test_sunshine, not for tracking)
+test_sunshine.log
+sunshine_state.json
+write_file_test_*.txt
+third-party-check
+*.deb
+
+# Local tooling scratch files
+crush.db
