@@ -11,7 +11,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License"></a>
   <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf?style=flat-square" alt="Fork"></a>
-  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-v2026.708.2--solarflare-orange?style=flat-square" alt="Version"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-v2026.708.3--solarflare-orange?style=flat-square" alt="Version"></a>
   <a href="#testing"><img src="https://img.shields.io/badge/tests-490%20passed%2C%2012%20skipped-brightgreen?style=flat-square" alt="Tests"></a>
   <a href="https://github.com/vindeckyy/Solar-Flare/releases"><img src="https://img.shields.io/github/v/release/vindeckyy/Solar-Flare?style=flat-square" alt="Release"></a>
   <a href="https://github.com/vindeckyy/Solar-Flare/stargazers"><img src="https://img.shields.io/github/stars/vindeckyy/Solar-Flare?style=flat-square" alt="Stars"></a>
@@ -61,7 +61,7 @@ git clone https://github.com/vindeckyy/Solar-Flare.git
 cd Solar-Flare
 ./scripts/cachyos-build.sh
 sudo cmake --install build
-sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
+sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 systemctl --user enable --now sunshine
 ```
 
@@ -70,7 +70,7 @@ systemctl --user enable --now sunshine
 sudo apt install -y libopus0 libva2 libdrm2 libevdev2 libgbm1 libvulkan1 libwayland-client0 libpulse0 libcurl4 libnotify4 libcap2-bin   # runtime deps on Debian/Ubuntu
 sudo curl -L -o /usr/local/bin/sunshine https://github.com/vindeckyy/Solar-Flare/releases/latest/download/sunshine-x86_64
 sudo chmod +x /usr/local/bin/sunshine
-sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
+sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 systemctl --user enable --now sunshine
 ```
 
@@ -85,7 +85,7 @@ git pull
 git submodule update --init --recursive
 ./scripts/cachyos-build.sh --clean
 sudo cmake --install build
-sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
+sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 systemctl --user restart sunshine
 ```
 </details>
@@ -416,7 +416,7 @@ git submodule update --init --recursive
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_DOCS=OFF -DBUILD_TESTS=OFF
 cmake --build build -j$(nproc)
 sudo cmake --install build
-sudo setcap 'cap_dac_override,cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
+sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 ```
 
 ---

@@ -6,6 +6,35 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+## 2026-07-12
+
+### Security sweep
+
+Seven fixes from a one-shot pentest of the network-reachable surfaces (HTTPS server, RTSP control stream, web UI auth, outbound fetches). All paired with tests except those guarded by the single-threaded HTTPS server, which would need an asio fixture to test in isolation.
+
+- `src/stream.cpp` — bound the length-prefixed parse in `IDX_INPUT_DATA` and `IDX_LOSS_STATS` handlers so a paired client can't construct a `string_view` past the actual buffer (M-1, paired-client OOB-read / OOB-write).
+- `src/crypto.cpp` — `PEM_read_bio_X509` / `PEM_read_bio_PrivateKey` return values now checked; malformed client certs during pairing produce a null smart pointer instead of an unwritten `X509`/`PKEY` (M-2, root-cause fix; all callers route through).
+- `src/nvhttp.cpp` — cap concurrent TLS handshakes at 64 on the HTTPS server so a slow/abusive client can't stall the single-threaded io_context and DoS the whole `origin_web_ui_allowed` scope (M-3).
+- `src/httpcommon.cpp` + `src/confighttp.cpp` — reject passwords shorter than 12 chars at write time; add per-IP token bucket (10 fails / 30s) before doing any hash work, reset on successful auth (M-4).
+- `src/confighttp.cpp` — reject `/`, `..`, NUL in cover-upload key (L-1, path-traversal guard, admin-only endpoint).
+- `src/confighttp.cpp` — strip CR/LF from API token name before logging to prevent log injection (L-2, admin-only; JSON response is auto-escaped).
+- `src/httpcommon.cpp` — `download_file` now requires TLS verify, HTTPS-only via `CURLOPT_PROTOCOLS_STR`, and 10s/5s timeouts (L-3, admin-only belt-and-suspenders for the upstream host check).
+
+### setcap on local builds
+
+Local `cmake --install build` no longer ships a `sunshine` binary with no permitted capabilities. Added an `install(CODE)` hook in `cmake/packaging/linux.cmake` that runs `setcap cap_sys_admin,cap_sys_nice+p` on the installed binary, gated on non-AppImage/non-Flatpak installs so the package paths keep their existing behaviour. RPM/DEB still use the `%caps` spec.
+
+- `68b0f26` feat(install): apply setcap on local cmake --install for cap_sys_admin,cap_sys_nice
+
+### Binary release asset
+
+First release to ship a binary. `v2026.708.3-solarflare` carries `sunshine-x86_64` (26 MB stripped ELF) at `releases/latest/download/`. The `latest/download` URL is version-independent, so README only needs to point at the alias. README quick-start now lists the binary path alongside the source build.
+
+- `fc94c5e` docs(readme): add binary-download option to quick start
+- `783b6e2` docs(readme): link to version-independent binary name
+
+---
+
 ## 2026-07-11
 
 ### Morning sweep (Jul 11)
