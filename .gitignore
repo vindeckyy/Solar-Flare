@@ -83,3 +83,16 @@ third-party-check
 
 # Local tooling scratch files
 crush.db
+
+# Editor / shell backups (never ship)
+*~
+*.swp
+*.swo
+*.bak
+
+# Environment files (never ship secrets)
+.env
+.env.*
+
+# Broader log coverage
+*.log
