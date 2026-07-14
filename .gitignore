@@ -73,3 +73,26 @@ node_modules/
 *.pyc
 .venv/
 venv/
+
+# Test artifacts (produced by ./build/tests/test_sunshine, not for tracking)
+test_sunshine.log
+sunshine_state.json
+write_file_test_*.txt
+third-party-check
+*.deb
+
+# Local tooling scratch files
+crush.db
+
+# Editor / shell backups (never ship)
+*~
+*.swp
+*.swo
+*.bak
+
+# Environment files (never ship secrets)
+.env
+.env.*
+
+# Broader log coverage
+*.log
