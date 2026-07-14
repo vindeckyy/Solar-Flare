@@ -27,7 +27,7 @@ still supported.
 | `skip_wayland_correlation` | bool | false | -    | Skip Wayland monitor correlation during KMS display enumeration. Avoids KWin roundtrip hang at the cost of absolute mouse coordinates. |
 
 Audio pre-processor and Opus encoder tunables are documented in the
-[Audio FX](#audio-fx-pre-encoder-processing) section below. All 21
+[Audio FX](#audio-fx-pre-encoder-processing) section below. All 24
 `sf_audio_*` / `sf_opus_*` keys default to upstream-compatible values.
 
 Each one is opt-out — setting it back to its "fall back to upstream"
@@ -172,9 +172,11 @@ creating a virtual display via `xrandr --setprovideroutputsource` and
 `xrandr --auto` so the capture backend has something to grab.
 
 Designed for headless servers (no monitor plugged in) that still want to
-stream a desktop. The virtual output is typically 1920x1080@60; if you need
-a different resolution, pass `virtual_display_resolution` in sunshine.conf
-(for details see the upstream [configuration.md](configuration.md)).
+stream a desktop. The virtual output is the `VIRTUAL1` provider driven by
+`xrandr --auto`, which reports a 1920x1080@60 mode; resolution is not
+currently user-tunable from the SolarFlare config (see the upstream
+[configuration.md](configuration.md) for the `output` resolution knobs
+that `xrandr` honours).
 
 - **true**: create virtual display if no physical outputs are found.
 - **false** (default): no virtual display; the capture backend will report
@@ -312,9 +314,9 @@ that, so a vanilla install is unchanged.
 | `enet_4mib_buffer`   | `src/network.cpp` |
 | `pipewire_latency_ms`| `src/platform/linux/pipewire.cpp` |
 | `cpu_pinning`        | `src/platform/linux/misc.cpp` |
-| `dscp_qos`           | `src/platform/linux/misc.cpp`, `src/network.cpp` |
-| `gpu_governor`       | `src/platform/linux/misc.cpp` |
-| `headless_virtual_display` | `src/platform/linux/misc.cpp` |
+| `dscp_qos`           | `src/network.cpp` |
+| `gpu_governor`       | `src/video.cpp` |
+| `headless_virtual_display` | `src/video.cpp` |
 | `skip_wayland_correlation` | `src/platform/linux/kmsgrab.cpp` |
 | `sf_audio_*`         | `src/audio.cpp`, `src/config.cpp` |
 | `sf_opus_*`          | `src/audio.cpp`, `src/config.cpp` |
