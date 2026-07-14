@@ -88,7 +88,8 @@ namespace platf::headless {
     auto *xdg = std::getenv("XDG_CURRENT_DESKTOP");
     if (!xdg) return false;
     std::string_view desktop {xdg};
-    return desktop.find("KDE"sv) != std::string_view::npos;
+    // KDE distros vary: 'KDE', 'kde-plasma', 'plasma'. Substring match covers all three.
+    return desktop.find("KDE"sv) != std::string_view::npos || desktop.find("plasma"sv) != std::string_view::npos;
   }
 
   bool is_gamescope_running() {
