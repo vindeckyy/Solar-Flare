@@ -17,12 +17,20 @@ namespace video {
    */
   class AdaptiveBitrate {
   public:
+    /**
+     * @brief Runtime configuration for the adaptive bitrate controller.
+     */
     struct config_t {
+      /// Enable adaptive bitrate control. When disabled, all methods are no-ops.
       bool enabled = false;
       int min_bitrate = 2000;  ///< kbps, floor
       int max_bitrate = 100000;  ///< kbps, ceiling
     };
 
+    /**
+     * @brief Construct an AdaptiveBitrate controller.
+     * @param cfg Runtime configuration (enabled, min/max bounds).
+     */
     explicit AdaptiveBitrate(const config_t &cfg);
 
     /**
@@ -47,6 +55,12 @@ namespace video {
      */
     int get_target_bitrate(int base_bitrate);
 
+    /**
+     * @brief Reset all internal state (EWMA, scale, recovery).
+     *
+     * Clears the EWMA accumulators, the current scale factor, and the recovery
+     * timer. After this call the controller behaves as if constructed fresh.
+     */
     void reset();
 
   private:

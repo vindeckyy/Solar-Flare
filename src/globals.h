@@ -57,6 +57,7 @@ namespace mail {
   MAIL(invalidate_ref_frames);
   MAIL(gamepad_feedback);
   MAIL(hdr);
+  /// Push network stats (packet loss %, RTT ms) from client report to AdaptiveBitrate.
   MAIL(adaptive_bitrate_net_stats);
 #undef MAIL
 
