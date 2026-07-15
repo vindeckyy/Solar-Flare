@@ -20,13 +20,21 @@
 <br>
 
 <div align="center">
-  <img
-    src="sunshine.svg"
-    alt="Sunshine icon"
-    width="256"
-/>
-  <h1 align="center">Sunshine</h1>
-  <h4 align="center">Self-hosted game stream host for Moonlight.</h4>
+  <table>
+    <tr>
+      <td align="center"><strong>End-to-end latency</strong><br><sub>button press to screen update</sub></td>
+      <td align="center"><strong>Network polling</strong><br><sub>socket wake-up delay</sub></td>
+      <td align="center"><strong>Audio sync</strong><br><sub>audio buffer offset</sub></td>
+      <td align="center"><strong>Worst-case burst</strong><br><sub>network scheduling jitter</sub></td>
+    </tr>
+    <tr>
+      <td align="center"><b>5.5–12 ms</b><br><sub><s>18–65 ms</s></sub></td>
+      <td align="center"><b>15 µs</b><br><sub><s>80 µs</s></sub></td>
+      <td align="center"><b>4–8 ms</b><br><sub><s>~20 ms</s></sub></td>
+      <td align="center"><b>&lt;2 ms</b><br><sub><s>47 ms</s></sub></td>
+    </tr>
+  </table>
+  <sub><i>Ryzen 5 4600H · RTX 3060 · Wi-Fi 6 · 1080p · Wayland</i></sub>
 </div>
 
 <br>
@@ -35,17 +43,17 @@
 
 ## Why SolarFlare?
 
-If you've ever tried streaming games with Moonlight + Sunshine, you know it works great — until your network gets busy or your CPU has to think about other things. Regular Sunshine is built to run on every platform (Windows, Mac, Linux, Intel, AMD, ARM), which means it can't use any of the tricks that only work on Linux.
+Moonlight + Sunshine works fine until your network gets busy or your CPU has something else to do. Regular Sunshine targets every platform (Windows, Mac, Linux, Intel, AMD, ARM), so it can't use the Linux-only tricks.
 
-SolarFlare is built for one thing: **low-latency game streaming on Linux**. It does the same job as Sunshine — same Moonlight app, same web interface, same config files — but it talks to your hardware directly in ways that upstream Sunshine can't. The result is 3 to 5 times less delay on the same PC.
+SolarFlare does one thing: low latency game streaming on Linux. Same Moonlight app, same web interface, same config files. It just talks to your hardware directly in ways upstream Sunshine can't. The result is 3 to 5 times less delay on the same PC.
 
-Here's what that means in practice: with regular Sunshine, there's a noticeable gap between when you press a key and when you see the result — like watching a YouTube video of your game. With SolarFlare, that gap shrinks to the point where it feels like you're sitting at your computer.
+What that means: with regular Sunshine there's a noticeable gap between pressing a key and seeing the result. Like watching a YouTube video of your game. With SolarFlare, that gap shrinks to the point where it feels like you're sitting at the computer.
 
 ---
 
 ## Quick start
 
-Either build from source, or grab the prebuilt binary from the latest release:
+Build from source or grab the prebuilt binary:
 
 ```bash
 # Option A: build from source
@@ -88,197 +96,169 @@ systemctl --user restart sunshine
 
 ### 1. Smarter network speed detection
 
-Regular Sunshine assumes every internet connection is 1 Gbps. If your PC has a 2.5 GbE port or a fast Wi-Fi card, Sunshine won't know the difference — it treats everything the same, causing unnecessary delays because it's pacing your stream way below what your network can handle.
+Regular Sunshine assumes every connection is 1 Gbps. If your PC has 2.5 GbE or fast Wi-Fi, Sunshine treats it the same and paces your stream way below what the network can handle.
 
-SolarFlare reads your actual network card speed and uses that number to pace your stream. On a fast Wi-Fi 6 connection, this cuts average delay by 45 milliseconds and worst-case spikes by 98 milliseconds.
-
-**What this means for you:** If you have a modern router or a wired connection faster than 1 Gbps, your stream will be noticeably snappier without changing any settings.
+SolarFlare reads your actual network card speed and uses that number. On a fast Wi-Fi 6 connection, this cuts average delay by 45 ms and worst-case spikes by 98 ms.
 
 *Config: `rate_cap_pct` (default: 80, range: 50–95)*
 
 ### 2. Instant network responsiveness
 
-When your PC sends or receives network data, the normal way is: the network card sends an interrupt, the CPU stops what it's doing, handles the data, and goes back to work. That interrupt takes about 1 millisecond — which doesn't sound like much until you're trying to stream 60 frames per second and every frame needs multiple network exchanges.
+Normally, the network card sends an interrupt, the CPU stops what it's doing, handles data, and goes back to work. That interrupt takes about 1 ms. Fine for most things, but at 60 fps every frame needs multiple network exchanges.
 
-SolarFlare uses a different approach: instead of waiting for interrupts, the CPU checks for new network data every 50 microseconds. This is like a cashier checking if the next customer is ready instead of waiting for them to ring a bell. The delay drops from 1 millisecond to about 50 microseconds.
-
-**What this means for you:** Your game stream responds faster to your inputs, especially over Wi-Fi where the network is less predictable.
+SolarFlare checks for new network data every 50 microseconds instead of waiting for interrupts. Like a cashier checking if the next customer is ready rather than waiting for a bell. The delay drops from 1 ms to about 50 µs.
 
 *Config: `busy_poll_us` (default: 50, range: 0–10000)*
 
 ### 3. Tighter audio sync
 
-Audio has always been a weak point in game streaming. The audio system (PipeWire on modern Linux) keeps a buffer of sound data before sending it to the encoder — usually 20 to 40 milliseconds worth. That means what you hear is always slightly behind what you see.
+PipeWire keeps a buffer of sound data before sending it to the encoder. Usually 20 to 40 ms worth. That means what you hear is always slightly behind what you see.
 
-SolarFlare tells the audio system to use a much smaller buffer: 8 milliseconds instead of 20–40. This cuts the audio delay by 1 to 2 frames without introducing crackling or dropouts on normal hardware.
+SolarFlare tells the audio system to use an 8 ms buffer instead of 20–40. This cuts audio delay by 1 to 2 frames. No crackling or dropouts on normal hardware.
 
-**What this means for you:** The audio stays in sync with what's happening on screen. Gunshots, footsteps, and dialogue arrive at the same time as the video showing them.
+Gunshots, footsteps, and dialogue arrive at the same time as the video showing them.
 
 *Config: `pipewire_latency_ms` (default: 8, range: 1–40)*
 
 ### 4. Dedicated CPU cores for streaming
 
-Here's a problem that nobody talks about: when you're gaming and streaming at the same time, your CPU has to split its attention between running the game, capturing the screen, encoding the video, handling network traffic, and processing audio. If the game's thread and the encoder's thread end up on the same CPU core, they fight for time — and both of them stutter.
+When you're gaming and streaming at the same time, the CPU splits attention between the game, capture, encoding, network, and audio. If the game thread and encoder thread land on the same core, they fight for time. Both stutter.
 
-SolarFlare solves this by giving the encoder, capture, and audio threads their own dedicated CPU cores that nothing else can use. It also puts those threads on a priority system so the kernel knows they need to run immediately, not "whenever there's free time." It carefully avoids core 0 (which handles most other system interrupts) and avoids sharing a physical core with hyperthreading.
+SolarFlare gives the encoder, capture, and audio threads their own dedicated CPU cores that nothing else can use. It also puts those threads on a priority system so the kernel runs them immediately. It avoids core 0 (which handles most system interrupts) and avoids sharing a physical core with hyperthreading.
 
-**What this means for you:** No more micro-stutters when the encoder and the game compete for CPU time. On a 6-core CPU or better, you won't even notice the two cores being reserved — your game has plenty of cores left, and the stream runs smoothly.
+On a 6-core CPU or better, you won't notice the two reserved cores. Plenty left for the game, and the stream runs smooth.
 
 *Config: `cpu_pinning` (default: on)*
 
 ### 5. Bigger network buffers for 4K
 
-When you're streaming at 4K resolution, each encoded frame can be surprisingly large — sometimes up to 200 KB. The default network buffer in Linux is also about 200 KB. If one frame fills the entire buffer, the next frame has to wait until the buffer drains before it can even start sending. This causes visible hitches.
+At 4K, each encoded frame can be 200 KB. The default Linux network buffer is also about 200 KB. One frame fills the entire buffer, and the next frame waits until it drains. Visible hitches.
 
-SolarFlare grows those buffers to 4 MB — 20 times the default. Now the encoder can queue up several frames worth of data without ever blocking.
-
-**What this means for you:** Smoother 4K streaming. If you stream at 1080p, you probably won't notice a difference, but it won't hurt anything either.
+SolarFlare grows those buffers to 4 MB. Twenty times the default. The encoder can queue several frames without ever blocking.
 
 *Config: `enet_4mib_buffer` (default: on)*
 
 ### 6. Smarter video encoding (NVENC presets)
 
-NVENC is NVIDIA's hardware video encoder — a dedicated chip on your GPU that handles video compression so your CPU doesn't have to. The problem is that NVENC has about 10 different settings that all interact, and most people don't want to spend hours figuring out the right combination.
+NVENC is the dedicated video encoder chip on NVIDIA GPUs. It has about 10 settings that all interact, and nobody wants to spend hours tuning them.
 
 SolarFlare replaces those 10 knobs with 3 one-click presets:
 
-- **Latency mode** — Use this for competitive games (CS2, VALORANT, fighting games). It prioritizes speed over picture quality. The encoder runs at its fastest setting with zero extra frames of delay.
-- **Balanced mode** — The default. Good picture quality with low latency. Works well for most single-player games.
-- **Quality mode** — Use this for slow, beautiful games (Cyberpunk, Red Dead Redemption 2). The encoder takes more time per frame to produce the best possible image.
+- **Latency mode** for competitive games (CS2, VALORANT, fighting games). Fastest encoding, zero extra frames of delay.
+- **Balanced mode** (default). Good quality, low latency. Covers most single player games.
+- **Quality mode** for slow, gorgeous games (Cyberpunk, Red Dead 2). The encoder takes more time per frame to produce the best possible image.
 
-If you want full control, every individual NVENC setting is available in the web interface and config file.
-
-**What this means for you:** Pick the preset that matches what you're playing and never think about encoder settings again. Switch between them automatically per-game (see section 8).
+Every individual NVENC setting is still available in the web interface and config file if you want full control.
 
 ### 7. Cleaner, clearer game audio
 
-SolarFlare can process your game audio before sending it to the streaming client. Everything here is *off by default* — if you don't touch these settings, your audio sounds exactly like regular Sunshine. But if you want better audio, here's what's available:
+SolarFlare can process game audio before sending it to the client. Everything here is off by default. If you don't touch these settings, audio sounds exactly like regular Sunshine.
 
-- **Auto volume** (AGC) — Keeps loud explosions and quiet dialogue at a similar volume. If you've ever had to adjust your volume between game scenes, this smooths it out automatically.
-- **Voice detection** (VAD) — Detects when someone is speaking (voice chat, commentary) versus just game noise.
-- **Auto-ducking** — When someone speaks, the game volume automatically lowers so voices stay clear. Think of it like a radio DJ who turns down the music when talking.
-- **Background noise removal** — Mutes the audio when it drops below a threshold. Great for cutting out fan hum, keyboard clatter, or background noise.
-- **Opus encoder tuning** — Fine-tune how the audio compressor works: prioritize lowest delay (VOIP mode), highest quality (AUDIO mode), or a middle ground. Control variable bitrate, error correction for spotty Wi-Fi, and bandwidth extension for crisp high-frequency audio.
-
-**What this means for you:** Better-sounding streams, especially if you use voice chat or play games with wide dynamic range. Everything is tunable and opt-in.
+- **Auto volume** (AGC). Keeps loud explosions and quiet dialogue at a similar level.
+- **Voice detection** (VAD). Detects when someone is speaking versus game noise.
+- **Auto-ducking**. When someone speaks, game volume automatically lowers. Like a radio DJ turning down the music.
+- **Background noise removal**. Mutes audio below a threshold. Cuts fan hum, keyboard clatter, background noise.
+- **Opus encoder tuning**. Fine tune how the audio compressor works: lowest delay (VOIP mode), highest quality (AUDIO mode), or somewhere in between. Control variable bitrate, error correction for spotty Wi-Fi, and bandwidth extension for crisp high frequencies.
 
 ### 8. Per-game encoder settings
 
-Different games need different encoder settings. Counter-Strike needs the lowest possible latency. Cyberpunk needs the best possible quality. Manually switching between them is annoying, and forgetting to switch back means one of your games looks or feels worse than it should.
+Counter-Strike needs lowest possible latency. Cyberpunk needs best possible quality. Switching manually is annoying, and forgetting to switch back means one of your games looks or feels worse.
 
-SolarFlare lets you set a per-game encoder preset right in your apps config. When you launch that game through Moonlight, it automatically switches to the right preset. When the game ends, it switches back to your default.
-
-**What this means for you:** Set it once, forget it. Your competitive shooters always run at lowest latency. Your single-player games always look their best.
+SolarFlare lets you set a per-game encoder preset in your apps config. Launch that game through Moonlight and it automatically switches to the right preset. Game ends, it switches back to your default.
 
 ### 9. Network priority tagging
 
-When your network is busy — someone's streaming Netflix, downloading a Steam game, or uploading photos — your game stream competes with all that traffic for bandwidth. Without priority, your stream packets can get stuck behind a Steam download.
+When your network is busy (Netflix, Steam downloads, photo uploads), your game stream competes for bandwidth. Without priority, stream packets can get stuck behind a download.
 
-SolarFlare marks its streaming packets with a "this is important" tag that any quality-of-service (QoS) router understands. When your router sees this tag, it moves game traffic ahead of bulk traffic. It's a single checkbox in the config and adds zero overhead.
-
-**What this means for you:** Smoother streaming when your family shares the network. If your router doesn't support QoS, nothing changes — it just ignores the tag.
+SolarFlare marks its streaming packets with an "important" tag that QoS routers understand. The router moves game traffic ahead of bulk traffic. Single checkbox in the config, zero overhead.
 
 *Config: `dscp_qos` (default: on)*
 
 ### 10. GPU speed boost during streaming
 
-Your GPU normally runs at a lower speed when it's not doing much, then speeds up when needed. That speeding-up process takes a few milliseconds — and in a game stream, those few milliseconds can land right in the middle of encoding a frame, causing a visible hitch.
+Your GPU runs slower when idle, then speeds up when needed. That ramp-up takes a few milliseconds. In a game stream, those milliseconds can land in the middle of encoding a frame. Visible hitch.
 
-SolarFlare tells your GPU to run at full speed whenever a stream is active, and go back to normal when streaming stops. On AMD GPUs this is automatic. On NVIDIA it does the same thing through a different mechanism.
-
-**What this means for you:** More consistent frame timing. The GPU is already up to speed when it needs to encode a frame, so you don't get those random hitches.
+SolarFlare tells your GPU to run at full speed while streaming, then go back to normal afterward. Automatic on AMD. Same mechanism on NVIDIA.
 
 *Config: `gpu_governor` (default: on)*
 
 ### 11. Streaming without a monitor
 
-If you have a dedicated streaming PC or a server without a monitor plugged in, Sunshine normally can't capture video — there's no display to capture. SolarFlare has two solutions:
+Sunshine normally can't capture video without a monitor. SolarFlare has two solutions:
 
-**Legacy mode:** If you just need something simple, it creates a fake display using the dummy X11 driver. Works on older setups.
+**Legacy mode:** Creates a fake display using the dummy X11 driver. Works on older setups.
 
-**Modern headless mode (recommended):** SolarFlare can automatically detect what desktop environment you're using and start a private compositor for games:
+**Modern headless mode (recommended):** Auto detects your desktop environment and starts a private compositor for games:
 
-- On **KDE Plasma**: Creates a virtual monitor using KDE's built-in tools. No extra software needed.
-- On **Steam Deck**: Uses Gamescope's headless mode.
-- On **everything else**: Starts a lightweight Wayland compositor.
+- **KDE Plasma**: Creates a virtual monitor using KDE's built-in tools. No extra software.
+- **Steam Deck**: Uses Gamescope's headless mode.
+- **Everything else**: Starts a lightweight Wayland compositor.
 
-**What this means for you:** Run a headless game server in your closet. No monitor, no keyboard, no mouse needed. Stream from it like any other gaming PC.
+Run a headless game server in a closet. No monitor, keyboard, or mouse needed. Stream from it like any other gaming PC.
 
 ### 12. Automatic quality adjustment
 
-If your network gets congested — someone starts a big download, or Wi-Fi interference spikes — your stream normally either stutters or drops frames. Some streaming software handles this by reducing quality, but Sunshine doesn't.
+If your network gets congested (big download starts, Wi-Fi interference), your stream normally stutters or drops frames.
 
-SolarFlare watches your network conditions in real time. When it detects problems (packet loss, rising delay, the encoder falling behind), it automatically lowers the video quality to keep things smooth. When the network recovers, it gradually raises quality back up.
+SolarFlare watches network conditions in real time. When it detects problems (packet loss, rising delay, encoder falling behind), it lowers video quality to keep things smooth. When the network recovers, quality goes back up.
 
-**What this means for you:** Instead of a stuttery mess when your network gets busy, the stream gets a bit softer-looking — which is way better than freezing or skipping.
+A softer-looking stream beats freezing or skipping.
 
 *Config: `adaptive_bitrate_enabled` (default: off)*
 
 ### 13. Auto-pairing for home devices
 
-Normally, every new Moonlight client needs to show a PIN on screen, you type it into the web interface, and they pair. It's a minor annoyance when you're setting up a new laptop or tablet at home.
+Normally, every new Moonlight client shows a PIN, you type it into the web interface, and they pair. Minor annoyance when setting up a new laptop or tablet.
 
-SolarFlare lets you define your home network ranges (like "192.168.1.0/24" or "10.0.0.0/24"). Any Moonlight client connecting from those addresses pairs automatically — no PIN needed.
-
-**What this means for you:** Set up once. New devices connect instantly when they're on your home network.
+SolarFlare lets you define your home network ranges (like "192.168.1.0/24" or "10.0.0.0/24"). Any Moonlight client connecting from those addresses pairs automatically. No PIN.
 
 ### 14. Quick command search (Ctrl+K)
 
-The Sunshine web interface has a lot of pages and settings. SolarFlare adds a search bar that you can open from anywhere by pressing Ctrl+K (or Cmd+K on Mac). Start typing and it finds the page or setting you're looking for — like Spotlight on macOS or Ctrl+K in VS Code.
+The Sunshine web interface has a lot of pages. SolarFlare adds a search bar you can open from anywhere with Ctrl+K (Cmd+K on Mac). Start typing and it finds the page or setting. Like Spotlight on macOS or Ctrl+K in VS Code.
 
-**What this means for you:** Navigate the web UI faster. Type "4k" and the resolution picker opens. Type "bitrate" and jump straight to the bitrate settings.
+Type "4k" and the resolution picker opens. Type "bitrate" and jump to bitrate settings.
 
 ### 15. Find and import your games automatically
 
-If you use Steam, Lutris, or Heroic Games Launcher, SolarFlare can scan your game libraries and find everything you have installed. It returns the game name, launch path, and — for Steam — the cover art URL, ready to import with one click into your streaming apps list.
-
-**What this means for you:** No more manually typing the launch command for every game. Run the scan, pick the games you want to stream, and go.
+SolarFlare scans Steam, Lutris, and Heroic Games Launcher for everything you have installed. Returns game name, launch path, and (for Steam) cover art URL. Import with one click into your streaming apps list.
 
 ### 16. Safer API tokens
 
-Scripts and automation tools that talk to Sunshine usually need your admin password — which gives them full control over everything. SolarFlare lets you create limited tokens that only have the permissions you choose.
+Scripts that talk to Sunshine usually need your admin password. Full control over everything. SolarFlare lets you create limited tokens with only the permissions you choose.
 
-For example, you can create a token that can only read the current configuration and download logs, but can't change settings, pair new devices, or launch apps. Or a token that can only launch and stop apps.
+For example: a token that can read config and download logs but can't change settings, pair devices, or launch apps. Or a token that can only launch and stop apps.
 
-Tokens are shown once when created (the server doesn't store the plain text), and can be revoked at any time.
-
-**What this means for you:** Automate your streaming setup without sharing your admin password. A script that reads the current bitrate doesn't need to be able to reset your display or unpair your devices.
+Tokens are shown once when created (the server doesn't store the plain text). Revocable at any time.
 
 ### 17. System tuning for low latency
 
-SolarFlare ships three one-shot services that run once at boot and optimize your system for game streaming:
+Three one-shot services that run at boot and optimize your system for streaming:
 
-- **CPU booster:** Forces your CPU to always run at full speed instead of slowing down when idle. Prevents the "CPU wakes up too slow" problem when a stream starts.
-- **Network card optimizer:** Tunes your Ethernet or Wi-Fi card for lowest possible latency instead of highest throughput.
-- **GPU clock locker:** Locks your NVENC encoder clock to the GPU's maximum speed, preventing quality dips when the GPU thinks it can take a break.
+- **CPU booster:** Forces CPU to run at full speed instead of slowing down when idle. Prevents the "wakes up too slow" problem when a stream starts.
+- **Network card optimizer:** Tunes Ethernet or Wi-Fi for lowest latency instead of highest throughput.
+- **GPU clock locker:** Locks NVENC encoder clock to GPU maximum speed. Prevents quality dips when the GPU thinks it can rest.
 
-Run one script to install all three. They're completely optional.
-
-**What this means for you:** Every part of your system — CPU, network, GPU — is optimized for streaming without you having to tune anything manually.
+One script installs all three. Completely optional.
 
 ### 18. Custom virtual display (Hermes-KMS)
 
-For advanced users who need the absolute lowest capture latency, SolarFlare bundles a custom Linux kernel module that creates a virtual display. Unlike the other headless options (which run a full compositor), this is a bare-bones virtual monitor that uses the direct kernel display interface. Capture happens with zero CPU involvement — the GPU writes frames directly to the encoder.
+A custom Linux kernel module that creates a bare virtual monitor using the direct kernel display interface. Capture happens with zero CPU involvement. The GPU writes frames directly to the encoder.
 
-This requires installing a kernel module (the build script does this automatically), so it's not for everyone. But if you're building a dedicated streaming box and want every millisecond, this is the fastest option.
+This requires installing a kernel module (the build script handles it). Not for everyone. But if you're building a dedicated streaming box and want every millisecond, this is the fastest option.
 
-**What this means for you:** The lowest possible capture latency for headless streaming, at the cost of needing DKMS and kernel headers installed.
+### 19. Faster monitor detection (skip_wayland_correlation)
 
-### 19. Faster detection of monitors (skip_wayland_correlation)
+On startup, SolarFlare normally checks connected monitors via Wayland. On most systems this is instant. On some KDE setups it hangs for seconds or times out entirely.
 
-When SolarFlare starts, it normally checks which monitors are connected via the Wayland display protocol. On most systems this is instant, but on some KDE setups it can hang for several seconds or time out entirely. If you've ever had Sunshine take forever to start, this is why.
-
-SolarFlare lets you skip that check entirely. The tradeoff is that absolute mouse coordinates won't be as accurate across multiple monitors — but for single-monitor setups (which is most gaming rigs), you won't notice any difference, and Sunshine starts immediately.
-
-**What this means for you:** If Sunshine was slow to start on your system, enable this and it'll start instantly.
+SolarFlare lets you skip that check. The tradeoff: absolute mouse coordinates won't be as accurate across multiple monitors. For single monitor setups (most gaming rigs), you won't notice any difference.
 
 *Config: `skip_wayland_correlation` (default: off)*
 
 ### 20. Automatic CPU optimization during build
 
-When you compile SolarFlare from source, it reads your CPU model and picks the best compiler settings for your specific processor. The build script detects which Ryzen generation you have (Zen 1 through Zen 4) and enables the right instruction set extensions. Combined with aggressive optimizations, the final binary is tuned for your exact CPU.
+When you compile from source, SolarFlare reads your CPU model and picks the best compiler settings for your processor. The build script detects which Ryzen generation you have (Zen 1 through Zen 4) and enables the right instruction set extensions.
 
-**What this means for you:** The software you run is compiled specifically for your hardware. No generic "works on everything" compromise.
+The binary is tuned for your exact CPU. No generic "works everywhere" compromise.
 
 ---
 
@@ -795,7 +775,7 @@ Thank you to all the contributors who have helped make Sunshine better!
 
 ## All config settings
 
-Every setting has a sensible default — you don't need to change anything to get the speed improvements. Settings live in `~/.config/sunshine/sunshine.conf` and can be edited through the web interface at `https://localhost:47990`.
+Every setting has a sensible default. You don't need to change anything to get the speed improvements. Settings live in `~/.config/sunshine/sunshine.conf` and can be edited through the web interface at `https://localhost:47990`.
 
 ### Network and speed
 
@@ -915,12 +895,9 @@ sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 
 ## Testing
 
-490 automated tests check everything: config defaults, video presets, audio processing, capture backends, bitrate control, and regression guards.
+490 automated tests: config defaults, video presets, audio processing, capture backends, bitrate control, and regression guards.
 
-- **478 pass**, 12 skipped (hardware-dependent: some tests need NVIDIA GPUs, physical audio devices, or input hardware — none are actual problems)
-- **0 failures**
-
-To run tests:
+478 pass, 12 skipped (hardware-dependent: some tests need NVIDIA GPUs, physical audio devices, or input hardware). Zero failures.
 
 ```bash
 cmake -B build-tests -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON
@@ -933,30 +910,30 @@ cmake --build build-tests -j$(nproc)
 ## FAQ
 
 **Will this break my existing Moonlight setup?**  
-No. Same ports, same config files, same pairing. You can switch between SolarFlare and regular Sunshine freely — all your settings and paired devices carry over.
+No. Same ports, same config files, same pairing. Switch between SolarFlare and regular Sunshine freely. All your settings and paired devices carry over.
 
 **How do I go back to regular Sunshine?**  
-On Arch: `sudo pacman -S sunshine`. If you built from source, the install manifest is at `build/install_manifest.txt`. Your config folder stays intact — both versions use the same files.
+On Arch: `sudo pacman -S sunshine`. If you built from source, the install manifest is at `build/install_manifest.txt`. Your config folder stays intact. Both versions use the same files.
 
 **Does this work on Windows, Intel, or ARM?**  
-No. SolarFlare is Linux-only. Use regular Sunshine on those platforms.
+No. SolarFlare is Linux only. Use regular Sunshine on those platforms.
 
 **My game freezes during loading screens.**  
-Fixed. The capture thread no longer uses real-time priority — game threads can interrupt it when needed.
+Fixed. The capture thread no longer uses real-time priority. Game threads can interrupt it when needed.
 
 **I don't have an NVIDIA GPU. Does SolarFlare help me?**  
-Yes — the network, audio, CPU, and headless features work on any GPU. The NVENC presets are NVIDIA-only, but everything else benefits AMD and Intel GPUs too.
+Yes. The network, audio, CPU, and headless features work on any GPU. The NVENC presets are NVIDIA only, but everything else benefits AMD and Intel GPUs too.
 
 **How much CPU does SolarFlare use?**  
-About the same as regular Sunshine. The busy-poll feature uses a tiny amount of extra CPU (one core checking for data 20,000 times per second), but it's offset by the CPU pinning feature keeping streaming threads off your game's cores.
+About the same as regular Sunshine. Busy-poll uses a tiny amount of extra CPU (one core checking for data 20,000 times per second), but it's offset by CPU pinning keeping streaming threads off your game's cores.
 
 ---
 
 ## Credits
 
-SolarFlare is built on [LizardByte's Sunshine](https://github.com/LizardByte/Sunshine), based on the original Sunshine by Nathan Castle. The web interface, Moonlight protocol, and cross-platform foundation are all their work.
+SolarFlare is built on [LizardByte's Sunshine](https://github.com/LizardByte/Sunshine), based on the original Sunshine by Nathan Castle. The web interface, Moonlight protocol, and cross platform foundation are all their work.
 
-Full changelog: [docs/CHANGELOG-SolarFlare.md](docs/CHANGELOG-SolarFlare.md)
+Full changelog: docs/CHANGELOG-SolarFlare.md
 
 ---
 
@@ -966,5 +943,5 @@ Full changelog: [docs/CHANGELOG-SolarFlare.md](docs/CHANGELOG-SolarFlare.md)
   <a href="https://github.com/vindeckyy/Solar-Flare/releases"><img src="https://img.shields.io/github/v/release/vindeckyy/Solar-Flare?style=flat-square" alt="Release"></a>
   <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/changelog-SolarFlare-orange?style=flat-square" alt="Changelog"></a>
   <br><br>
-  <strong>SolarFlare — Less lag, more game.</strong>
+  <strong>SolarFlare. Less lag, more game.</strong>
 </p>
