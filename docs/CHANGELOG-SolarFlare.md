@@ -373,6 +373,32 @@ The CachyOS-only COPR integration workflow had no secrets on the fork, failed on
 
 ---
 
+## 2026-07-13/14
+
+### Morning sweep (Jul 13–14)
+
+General cleanup batch post-release: fixed the CONFIGURATION.md drift caught by the docs-drift agent (tunable count, `virtual_display_resolution` claim, stale file refs), added a `release.sh` script as the single source of truth for version bumps, fixed an RTSP OOB-read in the frame parser (fuzzer find), and patched a GVariant-interned string double-free in the heap path. Also probed for ccache/mold/lld during cmake, added GPL license headers, released capture resources on teardown, and documented the linux resource cleanup.
+
+- `c45af00` fix(ci): pin action SHAs in release.yml for supply-chain security
+- `7819d10` docs: add doxygen briefs for AdaptiveBitrate::config_t, ctor, reset(), and adaptive_bitrate_net_stats mail
+- `75c83f9` fix(heap): double-free on GVariant-interned strings from g_autofree
+- `af2dfea` fix(build): probe for ccache and mold/lld; fall back when missing
+- `fa67cdf` fix(docs): correct CONFIGURATION.md drift (virtual_display_resolution, key count, file refs)
+- `8b62aab` fix(ci): pin actions/checkout@v4 to SHA in release.yml
+- `1bbcff3` chore(gitignore): cover editor backups, .env*, and broader *.log
+- `f38f9d4` fix(headless): detect KDE when XDG_CURRENT_DESKTOP=plasma
+- `8e52adf` fix(license): add GPL headers to project sources
+- `b5c1525` docs(linux): document resource cleanup
+- `c799f07` fix(rtsp): reject unterminated frames before parser (closes fuzzer OOB)
+- `3c11889` fix(linux): release capture resources
+- `8e3e1fd` feat(scripts): add release.sh — single source of truth for version bumps
+- `1cdcf52` fix(docs): align README version badge with latest release
+- `9c97ec9` fix(tests): resolve src/file_handler CWD leak + add doxygen briefs
+- `8ff492c` docs(readme): sync version badge with CMakeLists.txt 2026.999.2
+- `73b592f` docs: scrub stale info; catch cmake scratch in .gitignore
+
+---
+
 ## See also
 
 - [docs/CONFIGURATION.md](CONFIGURATION.md) — the 9 fork-specific latency/display toggles (`busy_poll_us`, `rate_cap_pct`, `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`, `dscp_qos`, `gpu_governor`, `headless_virtual_display`, `skip_wayland_correlation`).
