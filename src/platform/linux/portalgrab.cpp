@@ -375,7 +375,7 @@ namespace portal {
         return -1;
       }
 
-      g_autofree gchar *request_path = nullptr;
+      const gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -443,7 +443,7 @@ namespace portal {
         return -1;
       }
 
-      g_autofree gchar *request_path = nullptr;
+      const gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -496,7 +496,7 @@ namespace portal {
         return -1;
       }
 
-      g_autofree gchar *request_path = nullptr;
+      const gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -544,7 +544,7 @@ namespace portal {
         return -1;
       }
 
-      g_autofree gchar *request_path = nullptr;
+      const gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -573,7 +573,7 @@ namespace portal {
         return -1;
       }
 
-      g_autofree gchar *new_token = nullptr;
+      const gchar *new_token = nullptr;
       if (g_variant_lookup(dict, "restore_token", "s", &new_token) && new_token && new_token[0] != '\0' && restore_token_t::get() != new_token) {
         restore_token_t::set(new_token);
         restore_token_t::save();
