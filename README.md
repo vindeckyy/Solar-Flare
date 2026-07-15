@@ -338,9 +338,15 @@ Every setting has a sensible default — you don't need to change anything to ge
 | `sf_audio_agc_release_ms` | 100 | How fast to return to normal |
 | `sf_audio_vad` | off | Voice activity detection |
 | `sf_audio_vad_threshold_db` | -45 | How quiet before considered silence |
+| `sf_audio_vad_hysteresis_db` | 6 | Hysteresis around the VAD threshold |
+| `sf_audio_vad_min_speech_ms` | 100 | Min duration to trigger voice detection |
+| `sf_audio_vad_min_silence_ms` | 200 | Min duration to release voice detection |
 | `sf_audio_ducking` | off | Lower game volume when voice detected |
 | `sf_audio_ducker_attenuation_db` | -12 | How much to lower volume during speech |
+| `sf_audio_ducker_attack_ms` | 50 | How fast to lower volume when speech starts |
+| `sf_audio_ducker_release_ms` | 500 | How fast to raise volume when speech ends |
 | `sf_audio_noise_gate` | off | Mute quiet background noise |
+| `sf_audio_noise_gate_db` | -55 | Noise gate threshold |
 
 ### Audio encoder (Opus)
 
