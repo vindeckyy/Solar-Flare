@@ -1142,6 +1142,10 @@ namespace stream {
     });
 
     server->map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [&](session_t *session, const std::string_view &payload) {
+      if (payload.size() < 2 * sizeof(std::int64_t)) {
+        BOOST_LOG(warning) << "IDX_INVALIDATE_REF_FRAMES runt packet: "sv << payload.size();
+        return;
+      }
       auto frames = (std::int64_t *) payload.data();
       auto firstFrame = frames[0];
       auto lastFrame = frames[1];
