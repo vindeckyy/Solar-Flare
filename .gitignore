@@ -39,8 +39,15 @@
 
 # build directories
 build/
+build-*/
 cmake-*/
 docs/doxyconfig*
+docs/html/
+docs/latex/
+
+# Doxygen output in repo root (from local doxygen run)
+/html/
+/latex/
 
 # cmake scratch files in repo root
 /CMakeCache.txt
