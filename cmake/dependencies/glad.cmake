@@ -108,7 +108,7 @@ if(NOT GLAD_SKIP_PIP_INSTALL)
     # pkg_resources is provided by setuptools, which is no longer bundled with Python 3.12+
     # on several distros (Debian Trixie, Arch Linux, COPR, FreeBSD, etc.).
     execute_process(
-            COMMAND "${Python_EXECUTABLE}" -c "import jinja2; import pkg_resources"
+            COMMAND "${Python_EXECUTABLE}" -c "import jinja2"
             RESULT_VARIABLE _glad_deps_import_result
             OUTPUT_QUIET
             ERROR_QUIET
