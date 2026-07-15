@@ -791,9 +791,98 @@ Thank you to all the contributors who have helped make Sunshine better!
 
 </div>
 
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
+---
+
+## All config settings
+
+Every setting has a sensible default — you don't need to change anything to get the speed improvements. Settings live in `~/.config/sunshine/sunshine.conf` and can be edited through the web interface at `https://localhost:47990`.
+
+### Network and speed
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `rate_cap_pct` | 80 | % of your network speed to use (50–95) |
+| `busy_poll_us` | 50 | How often to check for network data in microseconds (0 = off) |
+| `pipewire_latency_ms` | 8 | Audio buffer size in milliseconds (1–40) |
+| `cpu_pinning` | on | Give streaming threads their own CPU cores |
+| `enet_4mib_buffer` | on | Increase network buffer to 4 MB for 4K |
+| `dscp_qos` | on | Tag network packets for QoS routers |
+| `gpu_governor` | on | Keep GPU at full speed during streaming |
+| `headless_virtual_display` | off | Create virtual display for headless streaming |
+| `skip_wayland_correlation` | off | Skip monitor detection at startup |
+
+### Audio processing
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `sf_audio_agc` | off | Auto volume leveling |
+| `sf_audio_agc_target_db` | -20 | Target loudness level |
+| `sf_audio_agc_max_gain_db` | 12 | Maximum volume boost |
+| `sf_audio_agc_min_gain_db` | -12 | Maximum volume reduction |
+| `sf_audio_agc_attack_ms` | 10 | How fast volume adjusts |
+| `sf_audio_agc_hold_ms` | 200 | How long to hold before releasing |
+| `sf_audio_agc_release_ms` | 100 | How fast to return to normal |
+| `sf_audio_vad` | off | Voice activity detection |
+| `sf_audio_vad_threshold_db` | -45 | How quiet before considered silence |
+| `sf_audio_vad_hysteresis_db` | 6 | Hysteresis around the VAD threshold |
+| `sf_audio_vad_min_speech_ms` | 100 | Min duration to trigger voice detection |
+| `sf_audio_vad_min_silence_ms` | 200 | Min duration to release voice detection |
+| `sf_audio_ducking` | off | Lower game volume when voice detected |
+| `sf_audio_ducker_attenuation_db` | -12 | How much to lower volume during speech |
+| `sf_audio_ducker_attack_ms` | 50 | How fast to lower volume when speech starts |
+| `sf_audio_ducker_release_ms` | 500 | How fast to raise volume when speech ends |
+| `sf_audio_noise_gate` | off | Mute quiet background noise |
+| `sf_audio_noise_gate_db` | -55 | Noise gate threshold |
+
+### Audio encoder (Opus)
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `sf_opus_application` | 0 | 0 = low delay, 1 = voice, 2 = music |
+| `sf_opus_vbr` | 0 | 0 = constant quality, 1–2 = variable |
+| `sf_opus_complexity` | 10 | Quality vs CPU usage (0–10) |
+| `sf_opus_fec` | on | Error correction for spotty Wi-Fi |
+| `sf_opus_expected_loss_pct` | 0 | Expected packet loss % (0–100) |
+| `sf_opus_bandwidth_extension` | on | Allow higher audio frequencies |
+
+### Video encoder (NVENC)
+
+| Setting | Default | What it controls |
+|---|---|---|
+| `nvenc_tuning_preset` | -1 | -1 = manual, 0 = latency, 1 = balanced, 2 = quality |
+| `nvenc_bframes` | 0 | Extra reference frames (0–4, more = better compression) |
+| `nvenc_zerolatency` | off | Remove all encoder delay |
+| `nvenc_rc_lookahead` | 0 | How many frames to look ahead (0–31) |
+| `nvenc_aq_strength` | 8 | How hard to optimize dark/light areas (1–15) |
+| `nvenc_temporal_aq` | off | Optimize across frames, not just within one |
+| `nvenc_enable_min_qp` | off | Don't let quality go below a minimum |
+
+### Per-game profiles
+
+Add to `~/.config/sunshine/apps.json`:
+
+```json
+{
+  "name": "Counter-Strike 2",
+  "cmd": "steam steam://rungameid/730",
+  "encoder-preset": 0
+}
+```
+
+Values: `-1` = use your default, `0` = lowest latency, `1` = balanced, `2` = best quality.
+
+---
+
+## Building from source
+
+### Dependencies
+
+<details>
+<summary><b>Arch / CachyOS</b></summary>
+
+```bash
+sudo pacman -S base-devel cmake boost libcurl opus libx11 libxrandr libxfixes libxcb avahi libdrm libevdev wayland wayland-protocols pulseaudio pipewire
+```
 </details>
 
 <details>

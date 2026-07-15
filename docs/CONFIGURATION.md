@@ -382,8 +382,9 @@ After pulling a new SolarFlare build:
 1. `sunshine --version` — should still exit 0 and show
    `Sunshine version: ... commit: ...` plus the publisher metadata.
    No `FATAL` lines.
-2. `grep -c solarflare_t src/config.h` — should print `1` (the struct
-   definition) plus at least `30` field declarations across both
+2. `grep -c solarflare_t src/config.h` — should print `4` (the struct
+   definition, the `audio_fx_t` typedef, the doc reference, and the
+   `extern` declaration) with at least `30` field declarations across both
    `solarflare_t` and `audio_fx_t`. `grep -c
    config::solarflare src/network.cpp src/stream.cpp
    src/platform/linux/misc.cpp src/platform/linux/pipewire.cpp
