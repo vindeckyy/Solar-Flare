@@ -62,7 +62,7 @@ cd Solar-Flare
 ./scripts/cachyos-build.sh
 sudo cmake --install build
 sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
-systemctl --user enable --now sunshine
+systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
 ```
 
 ```bash
@@ -71,7 +71,7 @@ sudo apt install -y libopus0 libva2 libdrm2 libevdev2 libgbm1 libvulkan1 libwayl
 sudo curl -L -o /usr/local/bin/sunshine https://github.com/vindeckyy/Solar-Flare/releases/latest/download/sunshine-x86_64
 sudo chmod +x /usr/local/bin/sunshine
 sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
-systemctl --user enable --now sunshine
+systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
 ```
 
 Then install [Moonlight](https://moonlight-stream.org/) on any device, pair with the PIN at `https://localhost:47990`, and play.
@@ -86,7 +86,7 @@ git submodule update --init --recursive
 ./scripts/cachyos-build.sh --clean
 sudo cmake --install build
 sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
-systemctl --user restart sunshine
+systemctl --user restart app-dev.lizardbyte.app.Sunshine.service
 ```
 </details>
 
