@@ -101,7 +101,7 @@ if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
                 file(READ ${_sunshine_cpuinfo_file} _sunshine_cpuinfo)
                 # AMD CPU family encoding:
                 #   Family 23 = Zen, Zen+, Zen 2 (kernels lump these together)
-                #   Family 25 = Zen 3
+                #   Family 25 = Zen 3 / Zen 4 desktop parts
                 #   Family 26 = Zen 4
                 # We can't reliably split Zen 1 vs Zen 2 from family alone,
                 # so default to znver2 for family 23 (most common on CachyOS
@@ -120,8 +120,16 @@ if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE)
                     endif()
                 elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 26")
                     set(_sunshine_native_march "znver4")
-                # Family 25 = Zen 3 (family 25 is Zen 3 only; Zen 5 desktop parts
-                # use family 26, not family 25).
+                # Family 25 includes Zen 3 and some Zen 4 desktop parts.
+                # Ryzen 7000 Raphael, including the 7800X3D, reports family
+                # 25 model 97, so split high model numbers to znver4.
+                elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 25" AND _sunshine_cpuinfo MATCHES "model[ \t]*: ([0-9]+)")
+                    set(_model "${CMAKE_MATCH_1}")
+                    if(_model GREATER 95)
+                        set(_sunshine_native_march "znver4")
+                    else()
+                        set(_sunshine_native_march "znver3")
+                    endif()
                 elseif(_sunshine_cpuinfo MATCHES "cpu family[ \t]*: 25")
                     set(_sunshine_native_march "znver3")
                 # Family 23 = Zen, Zen+, Zen 2. Default to znver2; forward-compatible.
