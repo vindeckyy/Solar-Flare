@@ -82,9 +82,19 @@ namespace portal {
   };
 
   struct dbus_response_t {
-    GMainLoop *loop;
-    GVariant *response;
-    guint subscription_id;
+    GMainLoop *loop = nullptr;
+    GVariant *response = nullptr;
+    GDBusConnection *connection = nullptr;
+    guint subscription_id = 0;
+
+    ~dbus_response_t() {
+      if (connection && subscription_id != 0) {
+        g_dbus_connection_signal_unsubscribe(connection, subscription_id);
+      }
+      if (response) {
+        g_variant_unref(response);
+      }
+    }
   };
 
   struct pipewire_streaminfo_t {
@@ -281,11 +291,11 @@ namespace portal {
       GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
       const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
-      dbus_response_t response = {
-        nullptr,
-      };
+      dbus_response_t response;
+      g_autofree gchar *expected_request_path = nullptr;
       g_autofree gchar *request_token = nullptr;
-      create_request_path(conn, nullptr, &request_token);
+      create_request_path(conn, &expected_request_path, &request_token);
+      dbus_response_init(&response, loop, conn, expected_request_path);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(a{sv})"));
@@ -302,9 +312,12 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
-      g_variant_get(reply, "(o)", &request_path);
-      dbus_response_init(&response, loop, conn, request_path);
+      const gchar *returned_request_path = nullptr;
+      g_variant_get(reply, "(&o)", &returned_request_path);
+      if (g_strcmp0(expected_request_path, returned_request_path) != 0) {
+        BOOST_LOG(error) << "[portalgrab] " << session_type << " CreateSession returned unexpected request path. Expected: "sv << expected_request_path << ", got: "sv << returned_request_path;
+        return -1;
+      }
 
       g_autoptr(GVariant) create_response = dbus_response_wait(&response);
 
@@ -344,11 +357,11 @@ namespace portal {
     }
 
     int select_remote_desktop_devices(GMainLoop *loop, const gchar *session_path) {
-      dbus_response_t response = {
-        nullptr,
-      };
+      dbus_response_t response;
+      g_autofree gchar *expected_request_path = nullptr;
       g_autofree gchar *request_token = nullptr;
-      create_request_path(conn, nullptr, &request_token);
+      create_request_path(conn, &expected_request_path, &request_token);
+      dbus_response_init(&response, loop, conn, expected_request_path);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(oa{sv})"));
@@ -370,9 +383,12 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
-      g_variant_get(reply, "(o)", &request_path);
-      dbus_response_init(&response, loop, conn, request_path);
+      const gchar *returned_request_path = nullptr;
+      g_variant_get(reply, "(&o)", &returned_request_path);
+      if (g_strcmp0(expected_request_path, returned_request_path) != 0) {
+        BOOST_LOG(error) << "[portalgrab] SelectDevices returned unexpected request path. Expected: "sv << expected_request_path << ", got: "sv << returned_request_path;
+        return -1;
+      }
 
       g_autoptr(GVariant) devices_response = dbus_response_wait(&response);
 
@@ -394,11 +410,11 @@ namespace portal {
     }
 
     int select_screencast_sources(GMainLoop *loop, const gchar *session_path, bool persist) {
-      dbus_response_t response = {
-        nullptr,
-      };
+      dbus_response_t response;
+      g_autofree gchar *expected_request_path = nullptr;
       g_autofree gchar *request_token = nullptr;
-      create_request_path(conn, nullptr, &request_token);
+      create_request_path(conn, &expected_request_path, &request_token);
+      dbus_response_init(&response, loop, conn, expected_request_path);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(oa{sv})"));
@@ -425,9 +441,12 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
-      g_variant_get(reply, "(o)", &request_path);
-      dbus_response_init(&response, loop, conn, request_path);
+      const gchar *returned_request_path = nullptr;
+      g_variant_get(reply, "(&o)", &returned_request_path);
+      if (g_strcmp0(expected_request_path, returned_request_path) != 0) {
+        BOOST_LOG(error) << "[portalgrab] SelectSources returned unexpected request path. Expected: "sv << expected_request_path << ", got: "sv << returned_request_path;
+        return -1;
+      }
 
       g_autoptr(GVariant) sources_response = dbus_response_wait(&response);
 
@@ -452,11 +471,11 @@ namespace portal {
       GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
       const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
-      dbus_response_t response = {
-        nullptr,
-      };
+      dbus_response_t response;
+      g_autofree gchar *expected_request_path = nullptr;
       g_autofree gchar *request_token = nullptr;
-      create_request_path(conn, nullptr, &request_token);
+      create_request_path(conn, &expected_request_path, &request_token);
+      dbus_response_init(&response, loop, conn, expected_request_path);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(osa{sv})"));
@@ -473,9 +492,12 @@ namespace portal {
         return -1;
       }
 
-      const gchar *request_path = nullptr;
-      g_variant_get(reply, "(o)", &request_path);
-      dbus_response_init(&response, loop, conn, request_path);
+      const gchar *returned_request_path = nullptr;
+      g_variant_get(reply, "(&o)", &returned_request_path);
+      if (g_strcmp0(expected_request_path, returned_request_path) != 0) {
+        BOOST_LOG(error) << "[portalgrab] " << session_type << " Start returned unexpected request path. Expected: "sv << expected_request_path << ", got: "sv << returned_request_path;
+        return -1;
+      }
 
       g_autoptr(GVariant) start_response = dbus_response_wait(&response);
 
@@ -623,12 +645,18 @@ namespace portal {
 
     static void dbus_response_init(struct dbus_response_t *response, GMainLoop *loop, GDBusConnection *conn, const char *request_path) {
       response->loop = loop;
+      response->connection = conn;
       response->subscription_id = g_dbus_connection_signal_subscribe(conn, PORTAL_NAME, REQUEST_IFACE, "Response", request_path, nullptr, G_DBUS_SIGNAL_FLAGS_NONE, on_response_received_cb, response, nullptr);
     }
 
     static GVariant *dbus_response_wait(struct dbus_response_t *response) {
-      g_main_loop_run(response->loop);
-      return response->response;
+      if (!response->response) {
+        g_main_loop_run(response->loop);
+      }
+
+      GVariant *result = response->response;
+      response->response = nullptr;
+      return result;
     }
   };
 
