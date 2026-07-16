@@ -23,12 +23,17 @@ elseif(UNIX)
     endif()
 endif()
 
-target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
+target_link_libraries(sunshine PRIVATE ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
 
 # CLion complains about unknown flags after running cmake, and cannot add symbols to the index for cuda files
 if(CUDA_INHERIT_COMPILE_OPTIONS)
     foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
+        # Exclude LTO flags from CUDA -- nvcc does not support -flto and will fail at link time
+        # with "bytecode stream generated with LTO version X instead of expected version Y".
+        if(flag MATCHES "-flto")
+            continue()
+        endif()
         list(APPEND SUNSHINE_COMPILE_OPTIONS_CUDA "$<$<COMPILE_LANGUAGE:CUDA>:--compiler-options=${flag}>")
     endforeach()
 endif()
@@ -39,6 +44,13 @@ target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COM
 # and add -Wl,-O2 so the linker re-runs cross-TU optimisations on Release.
 if(SUNSHINE_CACHYOS_NATIVE AND UNIX AND NOT APPLE AND CMAKE_BUILD_TYPE STREQUAL "Release")
     target_link_options(sunshine PRIVATE "-flto=auto" "-Wl,-O2")
+endif()
+
+# inputtino requires dynamic libstdc++ — the -static-libstdc++ from linux.cmake
+# comes earlier in SUNSHINE_EXTERNAL_LIBRARIES, so re-add the dynamic lib last.
+# Without this, joypad_nintendo.cpp.o fails to resolve _M_replace_cold@@GLIBCXX_3.4.31.
+if(UNIX AND NOT APPLE)
+    target_link_libraries(sunshine PRIVATE -lstdc++)
 endif()
 
 # Homebrew build fails the vite build if we set these environment variables
