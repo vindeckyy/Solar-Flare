@@ -19,6 +19,8 @@ namespace {
   constexpr uint32_t TYPE_POINTER = 2;
   constexpr uint32_t TYPE_TOUCHSCREEN = 4;
 
+  constexpr uint32_t CURSOR_MODE_EMBEDDED = 2;
+
   // Portal D-Bus interface names and paths
   constexpr const char *PORTAL_NAME = "org.freedesktop.portal.Desktop";
   constexpr const char *PORTAL_PATH = "/org/freedesktop/portal/desktop";
@@ -422,9 +424,17 @@ namespace portal {
       g_variant_builder_open(&builder, G_VARIANT_TYPE("a{sv}"));
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_add(&builder, "{sv}", "types", g_variant_new_uint32(SOURCE_TYPE_MONITOR));
-      // ponytail: cursor_mode is optional per the XDG Desktop Portal ScreenCast
-      // spec. Some compositors (RemoteDesktop, headless) reject EMBEDDED (2)
-      // with "Unavailable cursor mode 2" — let the portal pick its default.
+      // cursor_mode is optional per the XDG Desktop Portal ScreenCast spec, and
+      // some compositors (RemoteDesktop, headless) reject EMBEDDED (2) with
+      // "Unavailable cursor mode 2". The spec default when the option is omitted
+      // is HIDDEN, which captures no cursor at all, so request EMBEDDED only
+      // when the portal advertises it and omit the option otherwise.
+      g_autoptr(GVariant) cursor_modes = g_dbus_proxy_get_cached_property(screencast_proxy, "AvailableCursorModes");
+      if (cursor_modes && (g_variant_get_uint32(cursor_modes) & CURSOR_MODE_EMBEDDED)) {
+        g_variant_builder_add(&builder, "{sv}", "cursor_mode", g_variant_new_uint32(CURSOR_MODE_EMBEDDED));
+      } else {
+        BOOST_LOG(warning) << "[portalgrab] Portal does not advertise embedded cursor mode; captured stream will have no visible cursor"sv;
+      }
       g_variant_builder_add(&builder, "{sv}", "multiple", g_variant_new_boolean(TRUE));
       if (persist) {
         g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_UNTIL_REVOKED));
