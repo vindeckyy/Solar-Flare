@@ -6,6 +6,11 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+
+## 2026-07-16 — v2026.708.4-solarflare
+
+Release notes TBD. Run `git log v<prev>..HEAD --oneline` to enumerate.
+
 ## 2026-07-12
 
 ### Security sweep

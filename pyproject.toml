@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Sunshine"
-version = "0.0.0"
+version = "2026.708.4"
 description = "Python tooling for Sunshine"
 requires-python = ">=3.14"
 license = {text = "GPL-3.0-only"}
