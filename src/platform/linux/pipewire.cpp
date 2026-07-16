@@ -772,14 +772,26 @@ namespace pipewire {
             this->logical_height = monitor->viewport.logical_height;
             BOOST_LOG(debug) << "[pipewire] Set logical resolution: "sv << logical_width << 'x' << logical_height;
           }
-          // Update desktop dimensions to setup maximum environment size over all screens
-          desktop_width = std::max(desktop_width, monitor->viewport.offset_x + monitor->viewport.width);
-          desktop_height = std::max(desktop_height, monitor->viewport.offset_y + monitor->viewport.height);
+          // Update desktop dimensions to setup maximum environment size over all screens.
+          // Some compositors (KWin) report a 0x0 physical resolution via wl_output while
+          // the logical resolution is valid, so fall back per monitor to keep zeros out.
+          int monitor_width = monitor->viewport.width > 0 ? monitor->viewport.width : monitor->viewport.logical_width;
+          int monitor_height = monitor->viewport.height > 0 ? monitor->viewport.height : monitor->viewport.logical_height;
+          desktop_width = std::max(desktop_width, monitor->viewport.offset_x + monitor_width);
+          desktop_height = std::max(desktop_height, monitor->viewport.offset_y + monitor_height);
           // Update desktop logical dimensions to setup maximum logical environment size over all screens
           desktop_logical_width = std::max(desktop_logical_width, monitor->viewport.offset_x + monitor->viewport.logical_width);
           desktop_logical_height = std::max(desktop_logical_height, monitor->viewport.offset_y + monitor->viewport.logical_height);
         }
         if (env_height <= 0 || env_width <= 0) {
+          if (desktop_width <= 0 || desktop_height <= 0) {
+            // Last resort: assume the captured stream spans the whole desktop.
+            // A zero env size invalidates the touch port and silently discards
+            // all absolute mouse input, so any sane value beats zero.
+            desktop_width = width;
+            desktop_height = height;
+            BOOST_LOG(warning) << "[pipewire] No usable monitor dimensions; falling back to stream size for desktop resolution"sv;
+          }
           this->env_width = desktop_width;
           this->env_height = desktop_height;
           BOOST_LOG(debug) << "[pipewire] Set desktop resolution: "sv << env_width << 'x' << env_height;
