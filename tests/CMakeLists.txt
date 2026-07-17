@@ -178,6 +178,13 @@ if(GCOV_LINK_LIBRARY)
     list(APPEND TEST_LINK_LIBRARIES ${GCOV_LINK_LIBRARY})
 endif()
 
+# inputtino requires dynamic libstdc++ — the -static-libstdc++ from linux.cmake
+# comes earlier in SUNSHINE_EXTERNAL_LIBRARIES, so re-add the dynamic lib last.
+# Without this, joypad_nintendo.cpp.o fails to resolve _M_replace_cold@@GLIBCXX_3.4.31.
+if(UNIX AND NOT APPLE)
+    list(APPEND TEST_LINK_LIBRARIES -lstdc++)
+endif()
+
 target_link_libraries(${PROJECT_NAME} ${TEST_LINK_LIBRARIES})
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${SUNSHINE_DEFINITIONS} ${TEST_DEFINITIONS})
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
