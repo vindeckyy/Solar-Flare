@@ -23,6 +23,7 @@
 extern "C" {
   // clang-format off
 #include <moonlight-common-c/src/Limelight-internal.h>
+#include "nanors/rs.h"  // full reed_solomon struct (member p[]) for parity override at audioBroadcastThread
 #include "rswrapper.h"
   // clang-format on
 }
