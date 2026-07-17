@@ -718,6 +718,13 @@ namespace pipewire {
   class pipewire_display_t: public platf::display_t {
   public:
     /**
+     * @brief Initialise dmabuf counter so the destructor safely iterates an
+     *        empty modifier array when query_dmabuf_formats() was never called.
+     */
+    pipewire_display_t()
+      : n_dmabuf_infos{0} {}
+
+    /**
      * @brief Release cached DMA-BUF modifier arrays.
      */
     ~pipewire_display_t() override {

@@ -179,6 +179,17 @@ namespace portal {
    */
   class dbus_t {
   public:
+    /**
+     * @brief Initialise all GObject/fd members to a known-clean state so the
+     *        destructor can safely run even when init() or connect_to_portal()
+     *        fails partway through.
+     */
+    dbus_t()
+      : pipewire_fd{-1},
+        conn{nullptr},
+        screencast_proxy{nullptr},
+        remote_desktop_proxy{nullptr} {}
+
     dbus_t &operator=(dbus_t &&) = delete;  // Do not allow to copying
 
     ~dbus_t() noexcept {
