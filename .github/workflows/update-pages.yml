@@ -1,5 +1,9 @@
 ---
-name: Build GH-Pages
+# SolarFlare fork override.
+# Upstream calls LizardByte/LizardByte.github.io/... which is unreachable from this fork.
+# Every push/PR on the fork would fail. Disabled.
+
+name: "GH-Pages (no-op on fork)"
 permissions: {}
 
 on:
@@ -14,33 +18,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  prep:
+  noop:
+    name: "GH-Pages (no-op on fork)"
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-        with:
-          name: prep
-          path: gh-pages-template/
-          if-no-files-found: error
-          include-hidden-files: true
-          retention-days: 1
-
-  call-jekyll-build:
-    needs: prep
-    permissions:
-      contents: read
-    uses: LizardByte/LizardByte.github.io/.github/workflows/jekyll-build.yml@master
-    secrets:
-      GH_BOT_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
-      GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
-    with:
-      clean_gh_pages: true
-      gh_bot_name: ${{ vars.GH_BOT_NAME }}
-      site_artifact: 'prep'
-      target_branch: 'gh-pages'
+      - name: No-op (fork)
+        run: echo "GH-Pages disabled on vindeckyy/Solar-Flare fork. Upstream calls LizardByte/LizardByte.github.io/."

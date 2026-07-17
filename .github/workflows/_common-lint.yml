@@ -1,9 +1,9 @@
 ---
-# This workflow is centrally managed in https://github.com/LizardByte/.github/
-# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
-# the above-mentioned repo.
+# SolarFlare fork override.
+# Upstream calls LizardByte/.github/... which is unreachable from this fork.
+# Every PR on the fork would fail. Disabled.
 
-name: common lint
+name: "common lint (no-op on fork)"
 permissions: {}
 
 on:
@@ -14,10 +14,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Common Lint
-    uses: LizardByte/.github/.github/workflows/__call-common-lint.yml@master
-    if: ${{ github.repository != 'LizardByte/.github' }}
-    permissions:
-      contents: read
-      pull-requests: read
+  noop:
+    name: "common lint (no-op on fork)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: No-op (fork)
+        run: echo "common lint disabled on vindeckyy/Solar-Flare fork. Upstream calls LizardByte/.github/."

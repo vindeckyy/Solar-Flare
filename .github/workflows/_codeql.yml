@@ -1,9 +1,9 @@
 ---
-# This workflow is centrally managed in https://github.com/LizardByte/.github/
-# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
-# the above-mentioned repo.
+# SolarFlare fork override.
+# Upstream runs CodeQL via LizardByte/.github/... which is unreachable from this fork.
+# Every push/PR/schedule run on the fork would fail. Disabled.
 
-name: CodeQL
+name: "CodeQL (no-op on fork)"
 permissions: {}
 
 on:
@@ -12,18 +12,16 @@ on:
     branches:
       - master
   schedule:
-    - cron: '00 12 * * 0'  # every Sunday at 12:00 UTC
+    - cron: '00 12 * * 0'
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
-  call-codeql:
-    name: CodeQL
-    uses: LizardByte/.github/.github/workflows/__call-codeql.yml@master
-    if: ${{ github.repository != 'LizardByte/.github' }}
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
+  noop:
+    name: "CodeQL (no-op on fork)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: No-op (fork)
+        run: echo "CodeQL disabled on vindeckyy/Solar-Flare fork. Upstream calls LizardByte/.github/."
