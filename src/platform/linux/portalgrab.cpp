@@ -115,16 +115,17 @@ namespace portal {
   };
 
   /**
-   * @brief DBus response loop and response variant for portal calls.
+   * @brief Tracks state of a pending portal D-Bus operation.
    */
   struct dbus_response_t {
-    GMainLoop *loop = nullptr;
-    GVariant *response = nullptr;
-    GDBusConnection *connection = nullptr;
-    guint subscription_id = 0;
-    guint timeout_id = 0;
-    bool timed_out = false;
+    GMainLoop *loop = nullptr;          ///< Event loop to drive while waiting
+    GVariant *response = nullptr;       ///< Captured portal response variant
+    GDBusConnection *connection = nullptr;  ///< D-Bus connection for signal unsubscribe
+    guint subscription_id = 0;          ///< D-Bus signal subscription handle
+    guint timeout_id = 0;               ///< GLib timeout source id for bounded wait
+    bool timed_out = false;             ///< True when the bounded wait expired
 
+    /// @brief Unsubscribe signal, remove timeout, unref response variant.
     ~dbus_response_t() {
       if (timeout_id != 0 && loop != nullptr) {
         g_source_remove(timeout_id);
