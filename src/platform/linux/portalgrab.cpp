@@ -8,7 +8,6 @@
 namespace {
   // Portal configuration constants
   constexpr uint32_t SOURCE_TYPE_MONITOR = 1;
-  constexpr uint32_t CURSOR_MODE_EMBEDDED = 2;
 
   constexpr uint32_t PERSIST_FORGET = 0;
   constexpr uint32_t PERSIST_WHILE_RUNNING = 1;
