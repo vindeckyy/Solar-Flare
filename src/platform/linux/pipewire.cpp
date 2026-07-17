@@ -721,8 +721,8 @@ namespace pipewire {
      * @brief Initialise dmabuf counter so the destructor safely iterates an
      *        empty modifier array when query_dmabuf_formats() was never called.
      */
-    pipewire_display_t()
-      : n_dmabuf_infos{0} {}
+    pipewire_display_t():
+        n_dmabuf_infos {0} {}
 
     /**
      * @brief Release cached DMA-BUF modifier arrays.
