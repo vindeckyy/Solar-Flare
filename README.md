@@ -2,7 +2,7 @@
   <img src="src_assets/common/assets/web/public/images/logo-solarflare-45.svg" width="112" alt="SolarFlare logo">
   <h1>SolarFlare</h1>
   <p><strong>A precision game-streaming host for Moonlight.</strong></p>
-  <p>Linux-first capture, transport, and host control engineered for predictable local-network latency.</p>
+  <p>Linux & AMD-first capture, transport, and host control engineered for predictable local-network latency.</p>
 
   <p>
     <a href="https://github.com/vindeckyy/Solar-Flare/releases/latest"><img src="https://img.shields.io/github/v/release/vindeckyy/Solar-Flare?display_name=tag&sort=semver&style=for-the-badge&color=f97316&label=release" alt="Latest release"></a>
