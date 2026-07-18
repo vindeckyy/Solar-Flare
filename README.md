@@ -11,8 +11,8 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License"></a>
   <a href="https://github.com/LizardByte/Sunshine"><img src="https://img.shields.io/badge/fork-LizardByte%2FSunshine-9cf?style=flat-square" alt="Fork"></a>
-  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/version-v2026.708.3--solarflare-orange?style=flat-square" alt="Version"></a>
-  <a href="#testing"><img src="https://img.shields.io/badge/tests-490%20passed%2C%2012%20skipped-brightgreen?style=flat-square" alt="Tests"></a>
+  <a href="docs/CHANGELOG-SolarFlare.md"><img src="https://img.shields.io/badge/changelog-SolarFlare-orange?style=flat-square" alt="Changelog"></a>
+  <a href="https://github.com/vindeckyy/Solar-Flare/actions/workflows/ci.yml"><img src="https://github.com/vindeckyy/Solar-Flare/actions/workflows/ci.yml/badge.svg?branch=master" alt="CI"></a>
   <a href="https://github.com/vindeckyy/Solar-Flare/releases"><img src="https://img.shields.io/github/v/release/vindeckyy/Solar-Flare?style=flat-square" alt="Release"></a>
   <a href="https://github.com/vindeckyy/Solar-Flare/stargazers"><img src="https://img.shields.io/github/stars/vindeckyy/Solar-Flare?style=flat-square" alt="Stars"></a>
 </p>
@@ -401,9 +401,11 @@ sudo setcap 'cap_sys_admin,cap_sys_nice+ep' /usr/local/bin/sunshine
 
 ## Testing
 
-490 automated tests: config defaults, video presets, audio processing, capture backends, bitrate control, and regression guards.
-
-478 pass, 12 skipped (hardware-dependent: some tests need NVIDIA GPUs, physical audio devices, or input hardware). Zero failures.
+The automated suite covers config defaults, video presets, audio processing,
+capture backends, bitrate control, and regression guards. Some hardware-dependent
+tests are skipped when the runner has no supported GPU, audio device, or input
+hardware. See the [latest CI run](https://github.com/vindeckyy/Solar-Flare/actions/workflows/ci.yml)
+for the current test count and result.
 
 ```bash
 cmake -B build-tests -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON

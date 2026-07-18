@@ -8,19 +8,12 @@ itself, see upstream's
 
 ## Reporting a vulnerability in the fork
 
-If you find a security issue that is **specific to the SolarFlare fork** --
-the 5 fork config keys, the CachyOS native build flags, the multi-distro
-build script, the SolarFlare web UI rebrand, the post-install verification
-block, or any other code that lives only on this fork -- please report
-it via one of:
-
-* **GitHub Security Advisories** (preferred):
-  https://github.com/vindeckyy/Solar-Flare/security/advisories/new
-* **GitHub issue** tagged `security`: open a public issue and the
-  maintainer (`@vindeckyy`) will DM you to coordinate a private
-  disclosure. We don't publish a security@ email because the fork is
-  a single-maintainer hobby project; the public issue + DM flow is
-  faster in practice.
+If you find a security issue that is **specific to the SolarFlare fork**,
+report it privately through
+[GitHub Security Advisories](https://github.com/vindeckyy/Solar-Flare/security/advisories/new).
+Do not open a public issue containing vulnerability details. If private
+reporting is unavailable, open an issue that asks the maintainer for a private
+contact channel without including technical details or a reproducer.
 
 For **upstream Sunshine security issues** (anything that would also
 affect a stock LizardByte/Sunshine build), please report them at
@@ -30,18 +23,19 @@ them.
 
 ## Scope
 
-The fork's security surface is small. The interesting bits are:
+Fork-specific changes include:
 
 | Component                  | Security impact                                    |
 |----------------------------|----------------------------------------------------|
-| 5 fork config keys in `src/config.h`  | None (config is read from `~/.config/sunshine/sunshine.conf`, not a network surface) |
-| `scripts/cachyos-build.sh` post-install verification | None (reads binary version, writes a temp file in /tmp) |
-| Fork-specific web UI branding (logo, navbar, theme) | None (purely cosmetic) |
-| CachyOS native flags (-march=znverN, -flto, -O3) | None (compiler flags) |
-| fork-publisher metadata (`vindeckyy/Solar-Flare` URL) | Low (the URL is logged on startup, no auth tokens) |
+| Fork configuration and API behavior | May affect authentication, authorization, networking, or process behavior |
+| `scripts/cachyos-build.sh` and packaging | May affect build integrity, installation, permissions, and bundled files |
+| Fork-specific web UI code | May affect browser-side authentication, API calls, or content handling |
+| Native compiler and linker flags | May affect binary compatibility and hardening |
+| Fork publisher and update metadata | May affect where users obtain builds and report problems |
 
-Everything else on the fork is a direct copy of upstream code and any
-vulnerability found there is an upstream issue.
+Code inherited from upstream may still interact with fork-specific changes. If
+you are unsure where a vulnerability belongs, report it privately here and the
+maintainer will coordinate with upstream as needed.
 
 ## Supported versions
 
@@ -54,8 +48,8 @@ patched build, pull the latest master and run `./scripts/cachyos-build.sh`.
 The fork follows upstream's release cadence. Critical security fixes
 are cherry-picked onto the fork as soon as upstream ships them (see
 [docs/CHANGELOG-SolarFlare.md](docs/CHANGELOG-SolarFlare.md) for the
-cherry-pick log). The fork does **not** maintain its own security
-advisories; if you need CVE-tracked notifications, watch upstream.
+cherry-pick log). For CVE-tracked notifications affecting inherited Sunshine
+code, watch upstream as well as this repository.
 
 ## What to expect when you report
 
@@ -66,7 +60,6 @@ advisories; if you need CVE-tracked notifications, watch upstream.
    it's a Sunshine issue.
 4. A note in `docs/CHANGELOG-SolarFlare.md` mentioning the fix.
 
-The fork does **not** ship backports to a separate LTS branch and does
-**not** publish security advisory records to GitHub Security Advisories
-for fork-specific bugs (a small project that ships to one user's
-CachyOS box doesn't need a CVE database).
+The fork does **not** ship backports to a separate LTS branch. Whether a
+fork-specific report becomes a published advisory depends on its impact and
+the coordinated-disclosure process.
