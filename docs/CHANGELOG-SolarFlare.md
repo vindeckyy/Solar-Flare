@@ -6,6 +6,17 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+
+## 2026-07-18 — v2026.718.0-solarflare
+
+SolarFlare's Web UI is now a responsive observatory console with a persistent
+desktop navigation rail, compact mobile controls, a magnetic-field host
+dashboard, denser configuration surfaces, and a fully local featured-client
+catalog. User-facing upstream branding is normalized to SolarFlare while
+protocol and configuration identifiers remain compatible. The release also
+adds focused UI contract tests, six README screenshots, and a reproducible
+all-tab screenshot script.
+
 ## 2026-07-18
 
 ### Observatory Web UI and SolarFlare branding
