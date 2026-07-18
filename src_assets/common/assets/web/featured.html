@@ -250,6 +250,63 @@
     Tv,
   } from '@lucide/vue'
 
+  /**
+   * @brief Curated client catalog displayed without an outbound network fetch.
+   *
+   * Keeping this data local preserves the Featured Apps experience while
+   * avoiding the browser-side third-party request removed by the security
+   * hardening pass.
+   */
+  const FEATURED_APPS = Object.freeze([
+    {
+      id: 'moonlight-pc',
+      name: 'Moonlight PC',
+      tagline: 'Open-source game streaming client',
+      description: 'The official Moonlight client for Windows, macOS, and Linux desktops.',
+      category: 'client',
+      official: true,
+      platforms: ['windows', 'macos', 'linux'],
+      links: {
+        download: 'https://github.com/moonlight-stream/moonlight-qt/releases',
+        github: 'https://github.com/moonlight-stream/moonlight-qt',
+        website: 'https://moonlight-stream.org/'
+      }
+    },
+    {
+      id: 'moonlight-mobile',
+      name: 'Moonlight Mobile',
+      tagline: 'Stream to phones, tablets, and TVs',
+      description: 'Official mobile clients with controller, touch, HDR, and high-refresh-rate support.',
+      category: 'client',
+      official: true,
+      platforms: ['android', 'ios', 'tv'],
+      links: {
+        download: 'https://moonlight-stream.org/',
+        website: 'https://moonlight-stream.org/'
+      }
+    },
+    {
+      id: 'moonlight-embedded',
+      name: 'Moonlight Embedded',
+      tagline: 'A lightweight client for embedded Linux',
+      description: 'Command-line Moonlight client for single-board computers and appliance-style receivers.',
+      category: 'client',
+      official: false,
+      platforms: ['linux'],
+      links: {
+        download: 'https://github.com/moonlight-stream/moonlight-embedded/releases',
+        github: 'https://github.com/moonlight-stream/moonlight-embedded'
+      }
+    }
+  ]);
+
+  /**
+   * @brief Local category definitions for the curated client catalog.
+   */
+  const FEATURED_CATEGORIES = Object.freeze([
+    { id: 'client', originalId: 'client' }
+  ]);
+
   const app = createApp({
     components: {
       Navbar,
@@ -312,7 +369,14 @@
       window.removeEventListener('keydown', this.handleKeydown);
     },
     methods: {
+      /**
+       * @brief Load the bundled featured-client catalog into reactive state.
+       *
+       * @return A promise that resolves after the local catalog is assigned.
+       */
       async loadFeaturedApps() {
+        this.apps = FEATURED_APPS.map((app) => ({ ...app }));
+        this.categories = FEATURED_CATEGORIES.map((category) => ({ ...category }));
         this.loading = false;
         this.error = null;
       },

@@ -9,28 +9,67 @@
   <Navbar></Navbar>
   <div id="content" class="container">
 
-    <!-- SolarFlare status hero -->
-    <div class="solarflare-hero card my-4">
-      <div class="card-body d-flex flex-wrap align-items-center gap-3">
-        <div class="solarflare-hero-mark">
-          <img src="/images/logo-solarflare-45.svg" height="56" alt="SolarFlare" class="solarflare-logo solarflare-pulse">
-        </div>
-        <div class="solarflare-hero-text flex-grow-1">
-          <h2 class="solarflare-hero-title mb-1">SolarFlare</h2>
-          <p class="solarflare-hero-tagline mb-0">
-            A SolarFlare fork tuned for sub-frame local LAN streaming on Zen-class CPUs.
-            <span v-if="version" class="solarflare-hero-version">v{{ version.version }}</span>
-          </p>
-        </div>
-        <div class="solarflare-hero-status">
-          <span class="solarflare-status-dot" :class="solarflareStatusClass"></span>
-          <span class="solarflare-status-text">{{ solarflareStatusText }}</span>
+    <!-- SolarFlare observatory status deck -->
+    <section class="sf-command-deck my-4" aria-labelledby="sf-dashboard-title">
+      <div class="sf-hero-copy">
+        <div class="sf-eyebrow"><span>SF/HOST</span> Real-time control surface</div>
+        <h1 id="sf-dashboard-title">Your stream,<br><em>in vector.</em></h1>
+        <p class="sf-hero-lede">
+          SolarFlare is online and tuned for direct, sub-frame local streaming.
+          Pair a client, map an application, or inspect the host without leaving this console.
+        </p>
+        <div class="sf-hero-actions">
+          <a class="btn btn-primary" href="./pin">
+            <link-2 :size="17" class="icon"></link-2>
+            Pair a device
+          </a>
+          <a class="btn btn-outline-secondary" href="./apps">
+            <layers :size="17" class="icon"></layers>
+            Open application map
+          </a>
         </div>
       </div>
-    </div>
 
-    <h1 class="my-4">{{ $t('index.welcome') }}</h1>
-    <p>{{ $t('index.description') }}</p>
+      <div class="sf-solar-instrument" aria-hidden="true">
+        <div class="sf-instrument-axis sf-axis-x"></div>
+        <div class="sf-instrument-axis sf-axis-y"></div>
+        <div class="sf-field-ring sf-ring-outer"></div>
+        <div class="sf-field-ring sf-ring-mid"></div>
+        <div class="sf-field-ring sf-ring-inner"></div>
+        <div class="sf-solar-disc">
+          <img src="/images/logo-solarflare-45.svg" height="78" alt="">
+        </div>
+        <span class="sf-plot-label sf-plot-north">N 00°</span>
+        <span class="sf-plot-label sf-plot-east">E 90°</span>
+        <span class="sf-plot-label sf-plot-vector">VECTOR LOCK</span>
+      </div>
+
+      <div class="sf-deck-telemetry">
+        <div class="sf-deck-status">
+          <span class="solarflare-status-dot" :class="solarflareStatusClass"></span>
+          <span>
+            <small class="sf-metric-label">Host condition</small>
+            <strong>{{ solarflareStatusText }}</strong>
+          </span>
+        </div>
+        <div class="sf-deck-metric">
+          <small class="sf-metric-label">Build vector</small>
+          <strong>{{ version ? 'v' + version.version : 'Probing…' }}</strong>
+        </div>
+        <div class="sf-deck-metric">
+          <small class="sf-metric-label">Platform</small>
+          <strong>{{ platform || 'Detecting' }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <div class="sf-section-heading">
+      <span class="sf-section-index">01 / Host signal</span>
+      <div>
+        <h2>{{ $t('index.welcome') }}</h2>
+        <p>{{ $t('index.description') }}</p>
+      </div>
+    </div>
 
     <!-- Fatal Errors Alert -->
     <div class="alert alert-danger my-4" v-if="fancyLogs.find(x => x.level === 'Fatal')">
@@ -73,7 +112,7 @@
     </div>
 
     <!-- Version -->
-    <div class="card my-4">
+    <div class="card my-4 sf-version-panel">
       <div class="card-body" v-if="version">
         <h2>Version {{version.version}}</h2>
 
@@ -159,12 +198,12 @@
     </div>
 
     <!-- Resources -->
-    <div class="my-4">
+    <div class="my-4 sf-resource-grid">
       <Resource-Card :installed-version-not-stable="installedVersionNotStable"></Resource-Card>
     </div>
 
     <footer class="solarflare-footer">
-      <span>Powered by <a href="https://github.com/vindeckyy/Solar-Flare" target="_blank" rel="noopener">SolarFlare</a> &middot; a derivative of <a href="https://github.com/LizardByte/Sunshine" target="_blank" rel="noopener">LizardByte/Sunshine</a></span>
+      <span>Powered by <a href="https://github.com/vindeckyy/Solar-Flare" target="_blank" rel="noopener">SolarFlare</a> &middot; based on the <a href="https://github.com/LizardByte/Sunshine" target="_blank" rel="noopener">LizardByte upstream project</a></span>
     </footer>
   </div>
 </body>
@@ -186,7 +225,9 @@
     Package,
     Info,
     CheckCircle,
-    Download
+    Download,
+    Layers,
+    Link2
   } from '@lucide/vue'
 
   // Configure marked to allow HTML
@@ -212,7 +253,9 @@
       Package,
       Info,
       CheckCircle,
-      Download
+      Download,
+      Layers,
+      Link2
     },
     data() {
       return {

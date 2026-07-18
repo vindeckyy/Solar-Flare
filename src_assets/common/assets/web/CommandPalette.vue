@@ -270,12 +270,12 @@ export default {
       } else if (command.parent === 'config') {
         globalThis.location.href = '/config#' + command.section
       } else if (command.action === 'restart') {
-        if (confirm('Are you sure you want to restart Sunshine?')) {
+        if (confirm('Are you sure you want to restart SolarFlare?')) {
           fetch('./api/restart', { method: 'POST' }).catch(() => {})
           this.close()
         }
       } else if (command.action === 'quit') {
-        if (confirm('Are you sure you want to quit Sunshine?')) {
+        if (confirm('Are you sure you want to quit SolarFlare?')) {
           fetch('./api/quit', { method: 'POST' }).catch(() => {})
           this.close()
         }

@@ -7,7 +7,7 @@ export const getPreferredTheme = () => {
         return storedTheme
     }
 
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'solarflare' : 'solarflare-light'
 }
 
 // Define which themes are dark (for Bootstrap compatibility)
@@ -26,8 +26,9 @@ const darkThemes = new Set([
 
 const setTheme = theme => {
     if (theme === 'auto') {
-        const preferredTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-        document.documentElement.dataset.bsTheme = preferredTheme
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        const preferredTheme = prefersDark ? 'solarflare' : 'solarflare-light'
+        document.documentElement.dataset.bsTheme = prefersDark ? 'dark' : 'light'
         document.documentElement.dataset.theme = preferredTheme
         console.log(`Theme set to auto (resolved to: ${preferredTheme})`)
     } else {

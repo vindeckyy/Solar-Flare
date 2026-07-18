@@ -66,7 +66,7 @@ function removeCmd(index) {
     <!-- Sunshine Name -->
     <div class="mb-3">
       <label for="sunshine_name" class="form-label">{{ $t('config.sunshine_name') }}</label>
-      <input type="text" class="form-control" id="sunshine_name" placeholder="Sunshine"
+      <input type="text" class="form-control" id="sunshine_name" placeholder="SolarFlare"
              v-model="config.sunshine_name" />
       <div class="form-text">{{ $t('config.sunshine_name_desc') }}</div>
     </div>

@@ -13,6 +13,14 @@ Read our contribution guide in our organization level
 ### Web UI
 * The Web UI uses [Vite](https://vitejs.dev) as its build system.
 * The HTML pages used by the Web UI are found in `./src_assets/common/assets/web`.
+* The shared observatory interface is intentionally implemented without a
+  client-side router: `Navbar.vue` owns the semantic navigation rail,
+  `sunshine.css` owns the responsive design system, and `init.js` initializes
+  theme and locale state for every Vite entry point. Keep endpoint behavior
+  and form serialization independent from the visual shell.
+* Motion must explain an interaction or state change. Do not add ambient
+  looping animation; provide a static state under `prefers-reduced-motion`
+  for any necessary transition.
 * [EJS](https://www.npmjs.com/package/vite-plugin-ejs) is used as a templating system for the pages
   (check `template_header.html` and `template_header_main.html`).
 * The Style System is provided by [Bootstrap](https://getbootstrap.com).

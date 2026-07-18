@@ -2756,3 +2756,1130 @@ p {
     color: rgba(255, 255, 255, 0.9);
     font-size: 0.65rem;
 }
+
+/* ==========================================================================
+   SolarFlare Observatory Interface
+
+   This layer borrows from instrument housings, spectral readouts, plotting
+   grids, and magnetic-field diagrams. It deliberately avoids translucent
+   floating panels and decorative looping motion. Existing theme tokens stay
+   authoritative so every supported color theme remains usable.
+   ========================================================================== */
+
+:root {
+    --sf-rail-width: 17.25rem;
+    --sf-line: color-mix(in srgb, var(--color-border-strong) 74%, transparent);
+    --sf-hairline: color-mix(in srgb, var(--color-border) 70%, transparent);
+    --sf-flare: #ffad42;
+    --sf-flare-hot: #ff6b35;
+    --sf-spectrum: #65d5cf;
+    --sf-ink: #07090c;
+}
+
+[data-theme="solarflare"] {
+    --color-primary: #ffad42;
+    --color-primary-hover: #ffc36f;
+    --color-primary-light: #2d1b0d;
+    --color-accent: #ff6b35;
+    --color-accent-hover: #ff8c62;
+    --color-accent-light: #30130c;
+    --color-info: #65d5cf;
+    --color-info-hover: #91e5df;
+    --color-info-light: #0b2929;
+    --color-success: #64d39b;
+    --color-success-light: #0c2a1d;
+    --color-bg-base: #07090c;
+    --color-bg-subtle: #0a0e12;
+    --color-bg-muted: #121820;
+    --color-surface: #0d1217;
+    --color-surface-raised: #141b22;
+    --color-border: #222b33;
+    --color-border-strong: #35414c;
+    --color-text-base: #edf0ed;
+    --color-text-muted: #a5afb4;
+    --color-text-subtle: #727e84;
+    --navbar-bg: #080b0f;
+    --navbar-text: #fff1dc;
+    --navbar-text-muted: #919ba0;
+    --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.025);
+    --shadow-md: 0 14px 32px rgba(0, 0, 0, 0.22);
+    --shadow-lg: 0 24px 54px rgba(0, 0, 0, 0.3);
+    --shadow-xl: 0 32px 80px rgba(0, 0, 0, 0.38);
+}
+
+[data-theme="solarflare-light"] {
+    --color-bg-base: #f2efe7;
+    --color-bg-subtle: #e9e5da;
+    --color-bg-muted: #ddd8ca;
+    --color-surface: #f8f6f0;
+    --color-surface-raised: #ffffff;
+    --color-border: #d0c9b8;
+    --color-border-strong: #9d9481;
+    --color-text-base: #201e1a;
+    --color-text-muted: #5e5a51;
+    --color-text-subtle: #827c6f;
+    --navbar-bg: #171713;
+    --navbar-text: #fff4e0;
+    --navbar-text-muted: #aaa79d;
+}
+
+html {
+    scroll-padding-top: 1rem;
+}
+
+body {
+    font-family: Inter, Aptos, "Segoe UI Variable", "Segoe UI", sans-serif;
+    background-image:
+        linear-gradient(90deg, color-mix(in srgb, var(--color-border) 18%, transparent) 1px, transparent 1px),
+        linear-gradient(color-mix(in srgb, var(--color-border) 14%, transparent) 1px, transparent 1px);
+    background-size: 5rem 5rem;
+    background-attachment: fixed;
+    overflow-x: hidden;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+        linear-gradient(115deg, transparent 0 74%, color-mix(in srgb, var(--color-primary) 5%, transparent) 74% 74.15%, transparent 74.15%),
+        linear-gradient(65deg, transparent 0 84%, color-mix(in srgb, var(--color-info) 4%, transparent) 84% 84.12%, transparent 84.12%);
+}
+
+#app > * {
+    position: relative;
+    z-index: 1;
+}
+
+::selection {
+    color: var(--sf-ink);
+    background: var(--sf-flare);
+}
+
+/* Fixed observatory rail --------------------------------------------------- */
+.sf-chrome {
+    position: relative;
+    z-index: 1040 !important;
+}
+
+.navbar-sunshine {
+    background: var(--navbar-bg) !important;
+    border-right: 1px solid var(--sf-line);
+    box-shadow: 10px 0 40px rgba(0, 0, 0, 0.16);
+}
+
+.sf-nav-frame {
+    min-height: 100%;
+}
+
+.solarflare-brand {
+    position: relative;
+    min-width: 0;
+}
+
+.sf-brand-orbit {
+    position: absolute;
+    left: -0.42rem;
+    width: 3.45rem;
+    height: 1.65rem;
+    border: 1px solid color-mix(in srgb, var(--sf-flare) 50%, transparent);
+    border-radius: 50%;
+    transform: rotate(-28deg);
+}
+
+.sf-brand-copy {
+    display: block;
+    min-width: 0;
+}
+
+.sf-brand-descriptor,
+.sf-nav-section-label,
+.sf-node-readout strong,
+.sf-node-readout small,
+.sf-eyebrow,
+.sf-metric-label,
+.sf-section-index {
+    font-family: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+}
+
+.sf-brand-descriptor {
+    display: block;
+    margin-top: 0.08rem;
+    color: var(--navbar-text-muted);
+    font-size: 0.58rem;
+    line-height: 1;
+}
+
+.sf-nav-section-label {
+    color: color-mix(in srgb, var(--navbar-text-muted) 72%, transparent);
+    font-size: 0.59rem;
+}
+
+.sf-primary-nav .nav-link {
+    position: relative;
+    overflow: hidden;
+}
+
+.sf-primary-nav .nav-link::after {
+    content: attr(data-nav-code);
+    margin-left: auto;
+    font-family: "SFMono-Regular", "Cascadia Code", monospace;
+    color: color-mix(in srgb, var(--navbar-text-muted) 48%, transparent);
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+}
+
+.sf-primary-nav .nav-link.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 2px;
+    height: 1.3rem;
+    background: var(--sf-flare);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--sf-flare) 65%, transparent);
+}
+
+.sf-nav-utility {
+    width: 100%;
+}
+
+.sf-node-readout {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    color: var(--navbar-text-muted);
+}
+
+.sf-node-readout span:last-child {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.sf-node-readout strong {
+    color: var(--navbar-text);
+    font-size: 0.63rem;
+    font-weight: 650;
+}
+
+.sf-node-readout small {
+    color: var(--navbar-text-muted);
+    font-size: 0.5rem;
+}
+
+.sf-node-signal {
+    width: 0.55rem;
+    height: 0.55rem;
+    background: var(--color-success);
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 14%, transparent);
+}
+
+@media (min-width: 992px) {
+    .navbar-sunshine {
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: var(--sf-rail-width);
+        padding: 0;
+        align-items: stretch;
+    }
+
+    .sf-nav-frame {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch !important;
+        padding: 1.55rem 1.15rem 1.2rem;
+    }
+
+    .solarflare-brand {
+        width: 100%;
+        padding: 0.3rem 0.45rem 1.7rem !important;
+        margin: 0 0 1.2rem !important;
+        border-bottom: 1px solid var(--sf-hairline);
+    }
+
+    .sf-nav-content {
+        display: flex !important;
+        flex: 1 1 auto;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sf-nav-section-label {
+        padding: 0 0.7rem 0.55rem;
+    }
+
+    .sf-primary-nav {
+        display: flex;
+        flex-direction: column !important;
+        width: 100%;
+        gap: 0.22rem;
+    }
+
+    .sf-primary-nav .nav-link {
+        min-height: 2.82rem;
+        padding: 0.65rem 0.72rem !important;
+        border-radius: 2px;
+        font-size: 0.89rem;
+    }
+
+    .sf-primary-nav .nav-link:hover {
+        transform: translateX(3px);
+        background: color-mix(in srgb, var(--navbar-text) 5%, transparent);
+    }
+
+    .sf-primary-nav .nav-link.active {
+        color: var(--navbar-text) !important;
+        background: linear-gradient(90deg, color-mix(in srgb, var(--sf-flare) 14%, transparent), transparent 78%);
+    }
+
+    .sf-nav-utility {
+        margin-top: auto;
+        padding-top: 1rem;
+        border-top: 1px solid var(--sf-hairline);
+    }
+
+    .sf-node-readout {
+        margin: 0 0.45rem 0.8rem;
+    }
+
+    .sf-utility-nav {
+        display: grid !important;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        width: 100%;
+        gap: 0.35rem;
+    }
+
+    .sf-utility-nav > .nav-item:first-child .nav-link {
+        justify-content: flex-start;
+    }
+
+    .sf-chrome + #content {
+        width: calc(100% - var(--sf-rail-width));
+        max-width: none;
+        margin-left: var(--sf-rail-width);
+    }
+
+    .solarflare-global-update-banner {
+        position: fixed;
+        left: var(--sf-rail-width);
+        right: 0;
+        top: 0;
+    }
+}
+
+/* Page frame and typography ---------------------------------------------- */
+#content {
+    padding: clamp(1.4rem, 3vw, 3.4rem) clamp(1.1rem, 4vw, 5.25rem) 5rem;
+}
+
+#content > .my-4:first-child,
+#content > h1.my-4 {
+    position: relative;
+    padding-bottom: 1.35rem;
+    border-bottom: 1px solid var(--sf-line);
+}
+
+#content > .my-4:first-child::after,
+#content > h1.my-4::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 5.5rem;
+    height: 2px;
+    background: var(--color-primary);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: "Arial Narrow", "Roboto Condensed", "Aptos Display", "Segoe UI Variable Display", sans-serif;
+    font-stretch: condensed;
+}
+
+h1 {
+    max-width: 18ch;
+    font-size: clamp(2.15rem, 4vw, 4.65rem);
+    line-height: 0.94;
+    letter-spacing: -0.055em;
+}
+
+#content > .my-4:first-child > p,
+#content > h1 + p {
+    max-width: 62ch;
+    color: var(--color-text-muted);
+}
+
+a {
+    text-underline-offset: 0.2em;
+}
+
+/* Instrument panels ------------------------------------------------------ */
+.card,
+.modal-content,
+.config-page,
+.toolbar,
+.dropdown-menu {
+    border-radius: 2px !important;
+}
+
+.card {
+    position: relative;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-surface-raised) 42%, transparent), transparent 34%), var(--color-surface) !important;
+    border-color: var(--sf-line) !important;
+    box-shadow: var(--shadow-sm);
+}
+
+.card::after,
+.config-page::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    top: -1px;
+    right: -1px;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-top: 1px solid var(--color-primary);
+    border-right: 1px solid var(--color-primary);
+}
+
+.card:hover {
+    transform: none;
+    border-color: color-mix(in srgb, var(--color-primary) 38%, var(--color-border)) !important;
+    box-shadow: var(--shadow-md);
+}
+
+.card-header {
+    padding: 0.9rem 1.2rem;
+    background: color-mix(in srgb, var(--color-bg-muted) 52%, transparent) !important;
+    font-family: "SFMono-Regular", "Cascadia Code", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.btn {
+    min-height: 2.55rem;
+    border-radius: 1px !important;
+    clip-path: polygon(0 0, calc(100% - 0.48rem) 0, 100% 0.48rem, 100% 100%, 0 100%);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.04);
+}
+
+.btn-primary {
+    color: #17110a !important;
+    background: var(--color-primary) !important;
+    border-color: var(--color-primary) !important;
+}
+
+.form-control,
+.form-select,
+.input-group-text {
+    min-height: 2.8rem;
+    border-radius: 1px !important;
+    border-color: var(--sf-line) !important;
+    background-color: color-mix(in srgb, var(--color-bg-base) 56%, var(--color-surface)) !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--color-primary) !important;
+    box-shadow: 3px 0 0 var(--color-primary) inset !important;
+}
+
+.form-label {
+    font-size: 0.78rem;
+    font-weight: 680;
+    letter-spacing: 0.025em;
+}
+
+.form-text {
+    max-width: 75ch;
+    color: var(--color-text-subtle) !important;
+    font-size: 0.76rem;
+}
+
+.alert {
+    border-radius: 1px !important;
+    border-left-width: 3px !important;
+    box-shadow: none;
+}
+
+.badge {
+    border-radius: 1px;
+    font-family: "SFMono-Regular", "Cascadia Code", monospace;
+    font-size: 0.64rem;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+}
+
+/* Application and featured catalogs ------------------------------------- */
+.apps-toolbar,
+.toolbar {
+    padding: 0.9rem;
+    border: 1px solid var(--sf-line);
+    background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+}
+
+.app-card {
+    border-bottom: 2px solid color-mix(in srgb, var(--color-primary) 55%, var(--color-border)) !important;
+}
+
+.app-card:hover,
+.featured-app-card:hover {
+    transform: translateY(-3px);
+}
+
+.app-poster-container {
+    aspect-ratio: 4 / 5;
+    border-bottom: 1px solid var(--sf-line);
+    background: repeating-linear-gradient(135deg, transparent 0 9px, color-mix(in srgb, var(--color-border) 24%, transparent) 9px 10px), var(--color-bg-muted);
+}
+
+.app-poster-placeholder {
+    background: radial-gradient(circle at center, color-mix(in srgb, var(--color-primary) 18%, transparent) 0 2px, transparent 3px), repeating-radial-gradient(circle at center, transparent 0 1.6rem, color-mix(in srgb, var(--color-primary) 12%, transparent) 1.65rem 1.72rem), var(--color-bg-subtle);
+}
+
+.app-initial {
+    font-family: "Arial Narrow", "Aptos Display", sans-serif;
+    font-size: 4.2rem;
+    font-weight: 800;
+    color: var(--color-primary);
+    text-shadow: 0 0 28px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+.app-poster-overlay {
+    background: linear-gradient(transparent, color-mix(in srgb, var(--sf-ink) 94%, transparent));
+}
+
+.featured-app-card {
+    border-left: 2px solid color-mix(in srgb, var(--color-info) 52%, var(--color-border)) !important;
+}
+
+/* Configuration console -------------------------------------------------- */
+.config-layout {
+    gap: 1.15rem;
+}
+
+.config-nav {
+    flex-basis: 16.5rem;
+    top: 1rem;
+    padding: 0.65rem;
+    border: 1px solid var(--sf-line);
+    background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+}
+
+.config-nav-heading {
+    font-family: "SFMono-Regular", "Cascadia Code", monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.14em;
+}
+
+.config-nav-list .nav-link {
+    min-height: 2.45rem;
+    border-radius: 1px;
+    font-size: 0.8rem;
+}
+
+.config-nav-list .nav-link.active {
+    color: #17110a;
+    background: var(--color-primary);
+}
+
+.config-page {
+    position: relative;
+    border-color: var(--sf-line);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 5%, transparent), transparent 10rem), var(--color-surface);
+}
+
+.config-page h2,
+.config-page h3 {
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--sf-hairline);
+}
+
+.config-search-highlight {
+    animation: none;
+    background: color-mix(in srgb, var(--color-warning) 14%, transparent);
+    box-shadow: -3px 0 0 var(--color-warning);
+}
+
+/* Troubleshooting console and data tables -------------------------------- */
+.troubleshooting-logs {
+    border-radius: 1px;
+    border-color: var(--sf-line);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-info) 5%, transparent) 1px, transparent 1px), #070a0d;
+    background-size: 4rem 100%;
+}
+
+.troubleshooting-logs,
+.monospace,
+code,
+pre {
+    font-family: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+}
+
+.table thead th {
+    font-family: "SFMono-Regular", "Cascadia Code", monospace;
+    font-size: 0.64rem;
+    letter-spacing: 0.095em;
+    text-transform: uppercase;
+}
+
+/* Overlays and secondary navigation -------------------------------------- */
+.dropdown-menu,
+.modal-content,
+.command-palette {
+    border: 1px solid var(--sf-line) !important;
+    background: var(--color-surface-raised) !important;
+    box-shadow: var(--shadow-xl) !important;
+}
+
+.command-palette-backdrop {
+    background: linear-gradient(90deg, transparent 49.9%, color-mix(in srgb, var(--color-primary) 12%, transparent) 50%, transparent 50.1%), rgba(2, 4, 6, 0.82) !important;
+}
+
+.command-palette-item-selected {
+    box-shadow: 3px 0 0 var(--color-primary) inset;
+}
+
+.theme-menu {
+    max-height: min(72vh, 42rem);
+    overflow-y: auto;
+}
+
+.solarflare-footer {
+    font-family: "SFMono-Regular", "Cascadia Code", monospace;
+    font-size: 0.67rem;
+    letter-spacing: 0.035em;
+}
+
+/* Dashboard command deck ------------------------------------------------- */
+.sf-command-deck {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(20rem, 1.1fr) minmax(20rem, 0.9fr);
+    min-height: min(40rem, calc(100vh - 6rem));
+    overflow: hidden;
+    border: 1px solid var(--sf-line);
+    background:
+        linear-gradient(115deg, color-mix(in srgb, var(--color-primary) 6%, transparent), transparent 36%),
+        color-mix(in srgb, var(--color-bg-base) 78%, var(--color-surface));
+}
+
+.sf-command-deck::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(90deg, transparent 0 calc(20% - 1px), color-mix(in srgb, var(--color-border) 22%, transparent) calc(20% - 1px) 20%);
+}
+
+.sf-command-deck::after {
+    content: "OBSERVATORY / 47990";
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    color: var(--color-text-subtle);
+    font-family: "SFMono-Regular", "Cascadia Code", monospace;
+    font-size: 0.55rem;
+    letter-spacing: 0.12em;
+}
+
+.sf-hero-copy {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(2rem, 5vw, 5.5rem);
+}
+
+.sf-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: 1.6rem;
+    color: var(--color-text-subtle);
+    font-size: 0.62rem;
+}
+
+.sf-eyebrow span {
+    padding: 0.28rem 0.45rem;
+    color: #17110a;
+    background: var(--color-primary);
+}
+
+.sf-command-deck h1 {
+    max-width: 9ch;
+    margin: 0;
+    font-size: clamp(3.5rem, 7vw, 7.75rem);
+    line-height: 0.82;
+    letter-spacing: -0.075em;
+}
+
+.sf-command-deck h1 em {
+    color: var(--color-primary);
+    font-style: normal;
+    font-weight: 360;
+}
+
+.sf-hero-lede {
+    max-width: 38rem;
+    margin: 2rem 0 0;
+    color: var(--color-text-muted);
+    font-size: clamp(0.95rem, 1.35vw, 1.12rem);
+    line-height: 1.7;
+}
+
+.sf-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    margin-top: 2rem;
+}
+
+.sf-solar-instrument {
+    position: relative;
+    align-self: center;
+    justify-self: center;
+    width: min(34vw, 29rem);
+    aspect-ratio: 1;
+}
+
+.sf-instrument-axis {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    background: color-mix(in srgb, var(--color-info) 32%, transparent);
+}
+
+.sf-axis-x {
+    width: 118%;
+    height: 1px;
+    transform: translate(-50%, -50%);
+}
+
+.sf-axis-y {
+    width: 1px;
+    height: 118%;
+    transform: translate(-50%, -50%);
+}
+
+.sf-field-ring,
+.sf-solar-disc {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.sf-field-ring {
+    border: 1px solid color-mix(in srgb, var(--color-primary) 42%, transparent);
+}
+
+.sf-ring-outer {
+    width: 100%;
+    height: 58%;
+    transform: translate(-50%, -50%) rotate(24deg);
+}
+
+.sf-ring-mid {
+    width: 82%;
+    height: 82%;
+    border-color: color-mix(in srgb, var(--color-info) 32%, transparent);
+}
+
+.sf-ring-inner {
+    width: 54%;
+    height: 92%;
+    transform: translate(-50%, -50%) rotate(-38deg);
+}
+
+.sf-solar-disc {
+    display: grid;
+    place-items: center;
+    width: 41%;
+    aspect-ratio: 1;
+    background:
+        radial-gradient(circle at 34% 30%, #ffd79a 0, #ffad42 28%, #ff6b35 68%, #b82710 100%);
+    box-shadow: 0 0 0 1px #ffc56d, 0 0 55px color-mix(in srgb, var(--sf-flare-hot) 44%, transparent);
+}
+
+.sf-solar-disc img {
+    width: 46%;
+    height: auto;
+    filter: brightness(0.25) saturate(0.3);
+}
+
+.sf-plot-label {
+    position: absolute;
+    color: var(--color-text-subtle);
+    font-family: "SFMono-Regular", "Cascadia Code", monospace;
+    font-size: 0.52rem;
+    letter-spacing: 0.1em;
+}
+
+.sf-plot-north { top: -0.8rem; left: calc(50% + 0.6rem); }
+.sf-plot-east { right: -1.6rem; top: calc(50% + 0.5rem); }
+.sf-plot-vector { left: 0; bottom: 8%; color: var(--color-info); }
+
+.sf-deck-telemetry {
+    position: absolute;
+    z-index: 3;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr;
+    border-top: 1px solid var(--sf-line);
+    background: color-mix(in srgb, var(--color-bg-base) 92%, transparent);
+}
+
+.sf-deck-status,
+.sf-deck-metric {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    min-width: 0;
+    padding: 0.85rem 1.2rem;
+    border-right: 1px solid var(--sf-line);
+}
+
+.sf-deck-status span:last-child,
+.sf-deck-metric {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.16rem;
+}
+
+.sf-metric-label {
+    color: var(--color-text-subtle);
+    font-size: 0.52rem;
+}
+
+.sf-deck-status strong,
+.sf-deck-metric strong {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--color-text-base);
+    font-family: "SFMono-Regular", "Cascadia Code", monospace;
+    font-size: 0.74rem;
+    font-weight: 580;
+    text-overflow: ellipsis;
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+
+.sf-section-heading {
+    display: grid;
+    grid-template-columns: minmax(8rem, 0.32fr) 1fr;
+    gap: 2rem;
+    align-items: start;
+    margin: clamp(3rem, 6vw, 6rem) 0 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sf-line);
+}
+
+.sf-section-index {
+    padding-top: 0.35rem;
+    color: var(--color-primary);
+    font-size: 0.58rem;
+}
+
+.sf-section-heading h2 {
+    margin-bottom: 0.45rem;
+    font-size: clamp(2rem, 3vw, 3.4rem);
+    letter-spacing: -0.045em;
+}
+
+.sf-section-heading p {
+    color: var(--color-text-muted);
+}
+
+.sf-version-panel {
+    border-left: 2px solid var(--color-primary) !important;
+}
+
+.sf-resource-grid > .card {
+    display: inline-block;
+    width: calc(50% - 0.75rem);
+    vertical-align: top;
+}
+
+.sf-resource-grid > .card:nth-child(2) {
+    margin-top: 0 !important;
+    margin-left: 1rem;
+}
+
+/* First-run credential observatory --------------------------------------- */
+.sf-auth-stage {
+    width: min(100% - 2rem, 76rem);
+    min-height: 100vh;
+    margin: 0 auto;
+    padding: clamp(1.2rem, 5vw, 5rem) 0;
+}
+
+.sf-auth-grid {
+    align-items: stretch;
+}
+
+.sf-auth-panel {
+    flex: 1 1 58%;
+    padding: clamp(1rem, 3vw, 2.7rem) !important;
+    border-top: 2px solid var(--color-primary) !important;
+}
+
+.sf-auth-panel::before {
+    content: "ACCESS VECTOR / INITIALIZATION";
+    display: block;
+    margin-bottom: 1.2rem;
+    color: var(--color-primary);
+    font-family: "SFMono-Regular", "Cascadia Code", monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.14em;
+}
+
+.sf-auth-panel h1 {
+    max-width: 11ch;
+    font-size: clamp(2.7rem, 5.5vw, 5rem);
+    line-height: 0.9;
+}
+
+.sf-auth-panel h1 img {
+    display: block;
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 1rem;
+}
+
+.sf-auth-panel form {
+    margin-top: 1.5rem;
+}
+
+.sf-auth-resources {
+    flex: 1 1 42%;
+    display: flex;
+    flex-direction: column;
+}
+
+.sf-auth-resources .card {
+    flex: 1 1 auto;
+}
+
+.sf-auth-resources .card + .card {
+    margin-top: 1rem !important;
+}
+
+@media (max-width: 768px) {
+    .sf-auth-grid {
+        flex-direction: column;
+    }
+
+    .sf-auth-panel h1 {
+        font-size: clamp(2.65rem, 13vw, 4rem);
+    }
+}
+
+/* Animation policy: transitions explain hover/focus; status does not loop. */
+.solarflare-pulse,
+.solarflare-status-ok,
+.solarflare-update-banner,
+.solarflare-update-icon,
+.solarflare-global-update-banner {
+    animation: none !important;
+}
+
+/* Responsive control bar ------------------------------------------------- */
+@media (max-width: 991.98px) {
+    :root {
+        --sf-rail-width: 0rem;
+    }
+
+    .navbar-sunshine {
+        position: sticky;
+        top: 0;
+        padding: 0.5rem 0;
+        border-right: 0;
+        border-bottom: 1px solid var(--sf-line);
+    }
+
+    .sf-nav-frame {
+        padding-inline: 0.85rem;
+    }
+
+    .solarflare-brand {
+        padding-block: 0.15rem !important;
+    }
+
+    .sf-brand-descriptor,
+    .sf-nav-section-label,
+    .sf-node-readout {
+        display: none;
+    }
+
+    .sf-nav-content {
+        padding: 0.8rem 0 0.25rem;
+    }
+
+    .sf-primary-nav {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.3rem;
+    }
+
+    .sf-primary-nav .nav-link {
+        border-radius: 1px;
+        border: 1px solid transparent;
+    }
+
+    .sf-primary-nav .nav-link.active {
+        border-color: color-mix(in srgb, var(--color-primary) 42%, transparent);
+        background: color-mix(in srgb, var(--color-primary) 9%, transparent);
+    }
+
+    .sf-utility-nav {
+        display: flex;
+        flex-direction: row;
+        margin-top: 0.6rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid var(--sf-hairline);
+    }
+
+    #content {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .sf-command-deck {
+        grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.8fr);
+        min-height: 38rem;
+    }
+
+    .sf-command-deck h1 {
+        font-size: clamp(3.4rem, 8vw, 6rem);
+    }
+
+    .sf-solar-instrument {
+        width: min(38vw, 23rem);
+    }
+}
+
+@media (max-width: 768px) {
+    body {
+        background-size: 3rem 3rem;
+    }
+
+    #content {
+        padding: 1.25rem 0.9rem 4rem;
+    }
+
+    h1 {
+        font-size: clamp(2.15rem, 12vw, 3.35rem);
+        line-height: 0.96;
+    }
+
+    .config-page {
+        padding: 1rem;
+    }
+
+    .config-nav {
+        padding: 0.45rem;
+    }
+
+    .config-nav-list {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+    }
+
+    .config-nav-list .nav-link {
+        white-space: nowrap;
+    }
+
+    .card .card-body {
+        padding: 1.1rem;
+    }
+
+    .sf-command-deck {
+        display: block;
+        min-height: auto;
+        padding-bottom: 0;
+    }
+
+    .sf-hero-copy {
+        padding: 2.1rem 1.35rem;
+    }
+
+    .sf-command-deck h1 {
+        font-size: clamp(3.6rem, 17vw, 5.6rem);
+    }
+
+    .sf-solar-instrument {
+        position: absolute;
+        top: 2.5rem;
+        right: -6rem;
+        width: 16rem;
+        opacity: 0.38;
+    }
+
+    .sf-hero-lede {
+        max-width: 28rem;
+    }
+
+    .sf-deck-telemetry {
+        position: relative;
+        grid-template-columns: 1fr;
+    }
+
+    .sf-deck-status,
+    .sf-deck-metric {
+        min-height: 3.25rem;
+        border-right: 0;
+        border-bottom: 1px solid var(--sf-line);
+    }
+
+    .sf-deck-metric {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .sf-section-heading {
+        grid-template-columns: 1fr;
+        gap: 0.8rem;
+    }
+
+    .sf-resource-grid > .card {
+        display: block;
+        width: 100%;
+    }
+
+    .sf-resource-grid > .card:nth-child(2) {
+        margin-top: 1rem !important;
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 430px) {
+    .sf-primary-nav {
+        grid-template-columns: 1fr;
+    }
+
+    .sf-primary-nav .nav-link {
+        min-height: 2.55rem;
+    }
+}

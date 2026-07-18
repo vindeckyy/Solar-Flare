@@ -7,9 +7,9 @@
 
 <body id="app" v-cloak>
   <Notification></Notification>
-  <main role="main" style="max-width: 1200px; margin: 1em auto">
-    <div class="d-flex gap-4">
-      <div class="card p-2">
+  <main role="main" class="sf-auth-stage">
+    <div class="d-flex gap-4 sf-auth-grid">
+      <div class="card p-2 sf-auth-panel">
         <header>
           <h1 class="mb-0">
             <img src="./images/logo-solarflare-45.svg" height="45" alt="SolarFlare" class="solarflare-logo">
@@ -45,7 +45,7 @@
           </div>
         </form>
       </div>
-      <div>
+      <div class="sf-auth-resources">
         <Resource-Card></Resource-Card>
       </div>
     </div>
@@ -70,7 +70,7 @@
         success: false,
         loading: false,
         passwordData: {
-          newUsername: "sunshine",
+          newUsername: "solarflare",
           newPassword: "",
           confirmNewPassword: "",
         },

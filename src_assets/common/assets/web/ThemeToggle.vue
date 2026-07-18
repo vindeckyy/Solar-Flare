@@ -1,5 +1,5 @@
 <script setup>
-import { loadAutoTheme, setupThemeToggleListener } from './theme'
+import { setupThemeToggleListener } from './theme'
 import { onMounted } from 'vue'
 import {
   CloudMoon,
@@ -29,7 +29,6 @@ import {
 } from '@lucide/vue'
 
 onMounted(() => {
-  loadAutoTheme()
   setupThemeToggleListener()
 })
 </script>

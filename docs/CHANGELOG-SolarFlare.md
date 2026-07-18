@@ -6,6 +6,20 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+## 2026-07-18
+
+### Observatory Web UI and SolarFlare branding
+
+Rebuilt the host Web UI around a responsive observatory console: a persistent
+desktop navigation rail, compact mobile control bar, magnetic-field dashboard,
+denser configuration surfaces, and shared theme bootstrap for first-run and
+authentication pages. The visual layer preserves existing endpoints,
+configuration serialization, theme variants, and the keyboard command palette.
+All localized presentation copy now normalizes the upstream product name to
+SolarFlare at runtime while protocol identifiers remain compatible.
+
+---
+
 ## 2026-07-12
 
 ### Security sweep
@@ -289,4 +303,3 @@ General cleanup batch post-release: fixed the CONFIGURATION.md drift caught by t
 ## Full commit index (commits not in the curated sections)
 
 ### 2026-07-08
-

@@ -50,6 +50,30 @@ What that means: with regular Sunshine there's a noticeable gap between pressing
 
 ---
 
+## SolarFlare Web UI
+
+The host observatory keeps pairing, application mapping, configuration, and
+diagnostics in one responsive control surface. It uses a persistent desktop
+rail, a compact mobile bar, keyboard command search, and interaction-driven
+feedback without ambient looping animation.
+
+<table>
+  <tr>
+    <td width="50%"><strong>Host overview</strong><br><img src="docs/images/web-ui-home.png" alt="SolarFlare host overview"></td>
+    <td width="50%"><strong>Pair a device</strong><br><img src="docs/images/web-ui-pin.png" alt="SolarFlare PIN pairing"></td>
+  </tr>
+  <tr>
+    <td width="50%"><strong>Applications</strong><br><img src="docs/images/web-ui-applications.png" alt="SolarFlare application catalog"></td>
+    <td width="50%"><strong>Featured apps</strong><br><img src="docs/images/web-ui-featured.png" alt="SolarFlare featured applications"></td>
+  </tr>
+  <tr>
+    <td width="50%"><strong>Configuration</strong><br><img src="docs/images/web-ui-configuration.png" alt="SolarFlare configuration console"></td>
+    <td width="50%"><strong>Troubleshooting</strong><br><img src="docs/images/web-ui-troubleshooting.png" alt="SolarFlare troubleshooting console"></td>
+  </tr>
+</table>
+
+---
+
 ## Quick start
 
 Build from source or grab the prebuilt binary:
