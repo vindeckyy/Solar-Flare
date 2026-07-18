@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # SolarFlare release script — the ONLY thing that should edit version strings.
-# ponytail: three version files (CMakeLists.txt, pyproject.toml, README badge)
-# must stay in lockstep and must only change at release time. Feature commits
-# must NOT touch these files.
+# ponytail: the two source version files (CMakeLists.txt and pyproject.toml)
+# must stay in lockstep and must only change at release time. The README uses
+# GitHub's dynamic latest-release badge, though older branches may still carry
+# the legacy hard-coded version badge that this script knows how to update.
 #
 # Usage:
 #   ./scripts/release.sh <version>            # e.g. 2026.999.2
@@ -11,7 +12,7 @@
 # Side effects (in order):
 #   1. Updates CMakeLists.txt:7 PROJECT VERSION
 #   2. Updates pyproject.toml:7 version
-#   3. Updates README.md:14 version badge (with proper shields.io escaping)
+#   3. Updates a legacy README version badge, or validates the dynamic badge
 #   4. Prepends a release section to docs/CHANGELOG-SolarFlare.md
 #   5. Creates a git tag v<version>-solarflare
 #   6. Pushes the tag + commit (skippable with --no-push)
@@ -83,9 +84,8 @@ if [ "$DRY_RUN" = false ]; then
 fi
 echo "✓ pyproject.toml"
 
-# 3. README.md badge — only update the version=... segment inside the version badge.
-# Match the existing badge URL and replace only the version portion, so a future
-# shields.io URL change doesn't break this script.
+# 3. README.md badge — update the legacy static badge when present. Newer
+# READMEs use GitHub's dynamic latest-release badge and need no version edit.
 if [ "$DRY_RUN" = false ]; then
   python3 -c "
 import re, pathlib
@@ -97,15 +97,18 @@ new = re.sub(
   src
 )
 if new == src:
-    raise SystemExit('README.md version badge not matched — update script or fix manually')
-p.write_text(new)
+    dynamic_badge = 'img.shields.io/github/v/release/vindeckyy/Solar-Flare'
+    if dynamic_badge not in src:
+        raise SystemExit('README.md release badge not matched — update script or fix manually')
+else:
+    p.write_text(new)
 "
 fi
 echo "✓ README.md"
 
 # 4. CHANGELOG header — single Python call, no temp file
 TODAY="$(date -u +%Y-%m-%d)"
-if [ "$DRY_RUN" = false ] && ! grep -q "^## $TODAY " docs/CHANGELOG-SolarFlare.md; then
+if [ "$DRY_RUN" = false ] && ! grep -q "v${VERSION}-solarflare" docs/CHANGELOG-SolarFlare.md; then
   python3 -c "
 import pathlib
 p = pathlib.Path('docs/CHANGELOG-SolarFlare.md')
