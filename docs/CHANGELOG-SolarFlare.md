@@ -6,8 +6,7 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
-
-## 2026-07-18 — v2026.718.0-solarflare
+## 2026-07-18 — v2026.718.5-solarflare
 
 SolarFlare's Web UI is now a responsive observatory console with a persistent
 desktop navigation rail, compact mobile controls, a magnetic-field host
