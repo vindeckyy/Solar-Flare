@@ -4,6 +4,7 @@
  */
 
 // standard includes
+#include <cmath>
 #include <cstdlib>
 #include <sstream>
 #include <thread>
@@ -31,6 +32,29 @@ namespace platf {
   using namespace std::literals;
 
   namespace {
+    /**
+     * @brief Map an AVFoundation presentation timestamp to steady clock time.
+     * @param sample_buffer Captured sample containing the presentation timestamp.
+     * @return The mapped timestamp, or the current time if the timestamp is invalid.
+     */
+    std::chrono::steady_clock::time_point frame_timestamp(CMSampleBufferRef sample_buffer) {
+      const auto now = std::chrono::steady_clock::now();
+      const auto presentation_time = CMSampleBufferGetPresentationTimeStamp(sample_buffer);
+      const auto host_time = CMClockGetTime(CMClockGetHostTimeClock());
+      if (!CMTIME_IS_VALID(presentation_time) || !CMTIME_IS_NUMERIC(presentation_time) ||
+          !CMTIME_IS_VALID(host_time) || !CMTIME_IS_NUMERIC(host_time) ||
+          presentation_time.epoch != host_time.epoch) {
+        return now;
+      }
+
+      const auto age_seconds = CMTimeGetSeconds(CMTimeSubtract(host_time, presentation_time));
+      if (!std::isfinite(age_seconds) || age_seconds < 0.0 || age_seconds > 5.0) {
+        return now;
+      }
+
+      return now - std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(age_seconds));
+    }
+
     const char *cg_error_name(CGError error) {
       switch (error) {
         case kCGErrorSuccess:
@@ -274,6 +298,7 @@ namespace platf {
         img_out->height = (int) CVPixelBufferGetHeight(new_pixel_buffer->buf);
         img_out->row_pitch = (int) CVPixelBufferGetBytesPerRow(new_pixel_buffer->buf);
         img_out->pixel_pitch = img_out->row_pitch / img_out->width;
+        img_out->frame_timestamp = frame_timestamp(sampleBuffer);
 
         old_data_retainer = nullptr;
 

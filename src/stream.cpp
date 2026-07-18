@@ -90,6 +90,41 @@ namespace stream {
 
   namespace detail {
 
+    bool ipv4_address_matches(const boost::asio::ip::address_v4::bytes_type &interface_address, const boost::asio::ip::address_v4 &local_address) {
+      return interface_address == local_address.to_bytes();
+    }
+
+    std::size_t next_pacing_batch_size(std::size_t pending_packets, std::size_t maximum_batch_size, std::size_t interval_packets_sent, std::size_t interval_packet_limit) {
+      if (pending_packets == 0 || maximum_batch_size == 0 || interval_packet_limit == 0 || interval_packets_sent >= interval_packet_limit) {
+        return 0;
+      }
+
+      return std::min({pending_packets, maximum_batch_size, interval_packet_limit - interval_packets_sent});
+    }
+
+    std::chrono::nanoseconds video_queue_age_budget(int framerate, int framerate_x100, bool aggressive) {
+      const auto rate_x100 = framerate_x100 > 0 ? framerate_x100 : std::max(framerate, 1) * 100;
+      const auto budget_frames_x100 = aggressive ? 150LL : 300LL;
+      return std::chrono::nanoseconds {(budget_frames_x100 * 1'000'000'000LL) / rate_x100};
+    }
+
+    std::optional<std::pair<float, float>> parse_frame_fec_status(std::string_view payload, std::uint32_t rtt_ms) {
+      if (payload.size() != sizeof(SS_FRAME_FEC_STATUS)) {
+        return std::nullopt;
+      }
+
+      SS_FRAME_FEC_STATUS status {};
+      std::memcpy(&status, payload.data(), sizeof(status));
+      const auto total_data_packets = util::endian::big(status.totalDataPackets);
+      const auto missing_packets = util::endian::big(status.missingPacketsBeforeHighestReceived);
+      if (total_data_packets == 0 || missing_packets > total_data_packets) {
+        return std::nullopt;
+      }
+
+      const auto loss_pct = 100.0f * static_cast<float>(missing_packets) / static_cast<float>(total_data_packets);
+      return std::pair {loss_pct, static_cast<float>(rtt_ms)};
+    }
+
     /**
      * @brief Read the negotiated link speed of the interface that owns
      * `local_address` from sysfs and return it in bits-per-second.
@@ -142,7 +177,9 @@ namespace stream {
         auto family = ifa->ifa_addr->sa_family;
         if (family == AF_INET && local_address.is_v4()) {
           auto in = reinterpret_cast<struct sockaddr_in *>(ifa->ifa_addr);
-          if (in->sin_addr.s_addr == local_address.to_v4().to_uint()) {
+          boost::asio::ip::address_v4::bytes_type interface_address;
+          std::memcpy(interface_address.data(), &in->sin_addr, interface_address.size());
+          if (ipv4_address_matches(interface_address, local_address.to_v4())) {
             matched_iface = ifa->ifa_name;
             break;
           }
@@ -398,7 +435,13 @@ namespace stream {
     //   session refers to broadcast_ctx_t
     //   broadcast_ctx_t refers to control_server_t
     // Therefore, iterate is implemented further down the source file
-    void iterate(std::chrono::milliseconds timeout);
+    /**
+     * @brief Service at most one ENet control event.
+     *
+     * @param timeout Maximum time to wait for an event.
+     * @return `true` when an event was serviced; otherwise `false`.
+     */
+    bool iterate(std::chrono::milliseconds timeout);
 
     /**
      * @brief Call the handler for a given control stream message.
@@ -482,6 +525,10 @@ namespace stream {
       std::optional<crypto::cipher::gcm_t> cipher;
       std::uint64_t gcm_iv_counter;
 
+      size_t link_speed_bps;  ///< Detected physical link speed used for this session's pacing.
+      std::chrono::steady_clock::time_point ratecontrol_next_frame_start;  ///< Earliest pacing time for this session's next frame.
+      bool drop_until_idr;  ///< Suppress dependent frames after a stale or partially sent frame until recovery.
+
       safe::mail_raw_t::event_t<bool> idr_events;
       safe::mail_raw_t::event_t<std::pair<int64_t, int64_t>> invalidate_ref_frames_events;
 
@@ -496,6 +543,8 @@ namespace stream {
       // avRiKeyId == util::endian::big(First (sizeof(avRiKeyId)) bytes of launch_session->iv)
       std::uint32_t avRiKeyId;
       std::uint32_t timestamp;
+      std::uint64_t next_frame_index;  ///< Next expected encoded capture index for RTP gap accounting.
+      bool fec_block_valid;  ///< Whether every data shard in the current audio FEC block is fresh.
       udp::endpoint peer;
 
       util::buffer_t<char> shards;
@@ -683,7 +732,7 @@ namespace stream {
     }
   }
 
-  void control_server_t::iterate(std::chrono::milliseconds timeout) {
+  bool control_server_t::iterate(std::chrono::milliseconds timeout) {
     ENetEvent event;
     auto res = enet_host_service(_host.get(), &event, (enet_uint32) timeout.count());
 
@@ -693,7 +742,7 @@ namespace stream {
         BOOST_LOG(warning) << "Rejected connection from ["sv << platf::from_sockaddr((sockaddr *) &event.peer->address.address) << "]: it's not properly set up"sv;
         enet_peer_disconnect_now(event.peer, 0);
 
-        return;
+        return true;
       }
 
       session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
@@ -722,7 +771,11 @@ namespace stream {
         case ENET_EVENT_TYPE_NONE:
           break;
       }
+
+      return true;
     }
+
+    return false;
   }
 
   namespace fec {
@@ -1070,6 +1123,17 @@ namespace stream {
         << "---end stats---";
     });
 
+    server->map(SS_FRAME_FEC_PTYPE, [](session_t *session, const std::string_view &payload) {
+      const auto rtt_ms = session->control.peer ? session->control.peer->roundTripTime : 0U;
+      auto stats = detail::parse_frame_fec_status(payload, rtt_ms);
+      if (!stats) {
+        BOOST_LOG(warning) << "SS_FRAME_FEC_STATUS malformed packet: "sv << payload.size();
+        return;
+      }
+
+      session->mail->event<std::pair<float, float>>(mail::adaptive_bitrate_net_stats)->raise(*stats);
+    });
+
     server->map(packetTypes[IDX_REQUEST_IDR_FRAME], [&](session_t *session, const std::string_view &payload) {
       BOOST_LOG(debug) << "type [IDX_REQUEST_IDR_FRAME]"sv;
 
@@ -1243,16 +1307,16 @@ namespace stream {
             has_session_awaiting_peer = true;
           } else {
             auto &feedback_queue = session->control.feedback_queue;
-            while (feedback_queue->peek()) {
-              auto feedback_msg = feedback_queue->pop();
-
+            while (auto feedback_msg = feedback_queue->try_pop()) {
               send_feedback_msg(session, *feedback_msg);
             }
 
             auto &hdr_queue = session->control.hdr_queue;
-            while (session->control.peer && hdr_queue->peek()) {
-              auto hdr_info = hdr_queue->pop();
-
+            while (session->control.peer) {
+              auto hdr_info = hdr_queue->try_pop();
+              if (!hdr_info) {
+                break;
+              }
               send_hdr_mode(session, std::move(hdr_info));
             }
           }
@@ -1267,7 +1331,16 @@ namespace stream {
         break;
       }
 
-      server->iterate(150ms);
+      if (server->iterate(5ms)) {
+        // Drain a bounded burst without blocking so a busy peer does not force
+        // another session scan and sleep for each queued control event.
+        constexpr std::size_t MAX_NONBLOCKING_CONTROL_EVENTS = 64;
+        for (std::size_t event_count = 1; event_count < MAX_NONBLOCKING_CONTROL_EVENTS; ++event_count) {
+          if (!server->iterate(0ms)) {
+            break;
+          }
+        }
+      }
     }
 
     // Let all remaining connections know the server is shutting down
@@ -1315,7 +1388,7 @@ namespace stream {
 
     auto &io = ctx.io_context;
 
-    udp::endpoint peer;
+    udp::endpoint peers[2];
 
     std::array<char, 2048> buf[2];
     std::function<void(const boost::system::error_code, size_t)> recv_func[2];
@@ -1323,8 +1396,7 @@ namespace stream {
     platf::set_thread_name("stream::recv");
 
     auto populate_peer_to_session = [&]() {
-      while (message_queue_queue->peek()) {
-        auto message_queue_opt = message_queue_queue->pop();
+      while (auto message_queue_opt = message_queue_queue->try_pop()) {
         TUPLE_3D_REF(socket_type, session_id, message_queue, *message_queue_opt);
 
         switch (socket_type) {
@@ -1348,6 +1420,7 @@ namespace stream {
 
     auto recv_func_init = [&](udp::socket &sock, int buf_elem, std::map<av_session_id_t, message_queue_t> &peer_to_session) {
       recv_func[buf_elem] = [&, buf_elem](const boost::system::error_code &ec, size_t bytes) {
+        auto &peer = peers[buf_elem];
         auto fg = util::fail_guard([&]() {
           sock.async_receive_from(asio::buffer(buf[buf_elem]), peer, 0, recv_func[buf_elem]);
         });
@@ -1390,8 +1463,8 @@ namespace stream {
     recv_func_init(video_sock, 0, peer_to_video_session);
     recv_func_init(audio_sock, 1, peer_to_audio_session);
 
-    video_sock.async_receive_from(asio::buffer(buf[0]), peer, 0, recv_func[0]);
-    audio_sock.async_receive_from(asio::buffer(buf[1]), peer, 0, recv_func[1]);
+    video_sock.async_receive_from(asio::buffer(buf[0]), peers[0], 0, recv_func[0]);
+    audio_sock.async_receive_from(asio::buffer(buf[1]), peers[1], 0, recv_func[1]);
 
     while (!broadcast_shutdown_event->peek()) {
       io.run();
@@ -1408,6 +1481,7 @@ namespace stream {
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     logging::min_max_avg_periodic_logger<double> frame_processing_latency_logger(debug, "Frame processing latency", "ms");
+    logging::min_max_avg_periodic_logger<double> video_queue_dwell_logger(debug, "Network: video queue dwell", "ms");
 
     logging::time_delta_periodic_logger frame_send_batch_latency_logger(debug, "Network: each send_batch() latency");
     logging::time_delta_periodic_logger frame_fec_latency_logger(debug, "Network: each FEC block latency");
@@ -1421,8 +1495,6 @@ namespace stream {
       return;
     }
 
-    auto ratecontrol_next_frame_start = std::chrono::steady_clock::now();
-
     while (auto packet = packets->pop()) {
       if (shutdown_event->peek()) {
         break;
@@ -1432,6 +1504,32 @@ namespace stream {
 
       auto session = (session_t *) packet->channel_data;
       auto lowseq = session->video.lowseq;
+
+      const auto queue_age_budget = detail::video_queue_age_budget(
+        session->config.monitor.framerate,
+        session->config.monitor.framerateX100,
+        config::solarflare.latency_mode == "aggressive"
+      );
+      const auto dequeue_time = std::chrono::steady_clock::now();
+      if (packet->enqueued_at != std::chrono::steady_clock::time_point {}) {
+        const auto queue_age = dequeue_time - packet->enqueued_at;
+        video_queue_dwell_logger.collect_and_log(std::chrono::duration<double, std::milli>(queue_age).count());
+        if (queue_age > queue_age_budget) {
+          session->video.drop_until_idr = true;
+          session->video.idr_events->raise(true);
+          BOOST_LOG(warning) << "Dropping stale video frame after "
+                             << std::chrono::duration<double, std::milli>(queue_age).count()
+                             << " ms in the network queue";
+          continue;
+        }
+      }
+
+      if (session->video.drop_until_idr) {
+        if (!packet->is_idr()) {
+          continue;
+        }
+        session->video.drop_until_idr = false;
+      }
 
       std::string_view payload {(char *) packet->data(), packet->data_size()};
       std::vector<uint8_t> payload_with_replacements;
@@ -1545,13 +1643,15 @@ namespace stream {
         // Falls back to 1 Gbps if the interface isn't found or sysfs is
         // unreadable, matching the original behaviour exactly.
         //
-        // Cache the result once per session so we don't call getifaddrs + read
-        // sysfs every encode cycle (~50ms). The link speed doesn't change
-        // mid-stream, and calling getifaddrs 20 times/second is wasteful.
+        // Cache the result in the session so we don't call getifaddrs + read
+        // sysfs every encode cycle (~50ms). Calling getifaddrs 20 times/second
+        // would be wasteful and would repeatedly emit fallback warnings.
         // Without the cache, the warnings in detect_link_speed_bps() flood
         // the journal on every encode tick (issue #11).
-        static size_t cached_link_bps = detail::detect_link_speed_bps(session->localAddress);
-        size_t link_bps = cached_link_bps;
+        if (session->video.link_speed_bps == 0) {
+          session->video.link_speed_bps = detail::detect_link_speed_bps(session->localAddress);
+        }
+        size_t link_bps = session->video.link_speed_bps;
         size_t ratecontrol_packets_in_1ms =
           link_bps * (size_t) config::solarflare.rate_cap_pct / 100 / 1000 / blocksize / 8;
         if (ratecontrol_packets_in_1ms < 1) {
@@ -1567,15 +1667,21 @@ namespace stream {
         // unusually small packet size.
         // Generic Segmentation Offload on Linux can't do more than 64.
         send_batch_size = std::min<size_t>(64, send_batch_size);
+        send_batch_size = std::max<size_t>(1, send_batch_size);
 
-        // Don't ignore the last ratecontrol group of the previous frame
-        auto ratecontrol_frame_start = std::max(ratecontrol_next_frame_start, std::chrono::steady_clock::now());
+        // Don't ignore the last rate-control group of this session's previous frame.
+        auto ratecontrol_frame_start = std::max(session->video.ratecontrol_next_frame_start, std::chrono::steady_clock::now());
 
         size_t ratecontrol_frame_packets_sent = 0;
         size_t ratecontrol_group_packets_sent = 0;
 
         auto blockIndex = 0;
+        bool frame_send_timed_out = false;
         std::for_each(fec_blocks_begin, fec_blocks_end, [&](std::string_view &current_payload) {
+          if (frame_send_timed_out) {
+            return;
+          }
+
           auto packets = (current_payload.size() + (blocksize - 1)) / blocksize;
 
           for (int x = 0; x < packets; ++x) {
@@ -1622,8 +1728,12 @@ namespace stream {
           // When a timestamp isn't available (duplicate frames), the timestamp from rate control is used instead.
           bool frame_is_dupe = false;
           if (!packet->frame_timestamp) {
-            packet->frame_timestamp = ratecontrol_next_frame_start;
+            packet->frame_timestamp = ratecontrol_frame_start;
             frame_is_dupe = true;
+          }
+          auto frame_send_deadline = (frame_is_dupe || packet->frame_timestamp == std::nullopt ? packet->enqueued_at : *packet->frame_timestamp) + queue_age_budget;
+          if (frame_send_deadline <= std::chrono::steady_clock::time_point {}) {
+            frame_send_deadline = std::chrono::steady_clock::now() + queue_age_budget;
           }
           using rtp_tick = std::chrono::duration<uint32_t, std::ratio<1, 90000>>;
           uint32_t timestamp = std::chrono::round<rtp_tick>(*packet->frame_timestamp - video_epoch).count();
@@ -1666,58 +1776,87 @@ namespace stream {
             }
 
             if (x - next_shard_to_send + 1 >= send_batch_size || x + 1 == shards.size()) {
-              // Do pacing within the frame.
-              // Also trigger pacing before the first send_batch() of the frame
-              // to account for the last send_batch() of the previous frame.
-              if (ratecontrol_group_packets_sent >= ratecontrol_packets_in_1ms || ratecontrol_frame_packets_sent == 0) {
-                auto due = ratecontrol_frame_start +
-                           std::chrono::duration_cast<std::chrono::nanoseconds>(1ms) *
-                             ratecontrol_frame_packets_sent / ratecontrol_packets_in_1ms;
-
-                auto now = std::chrono::steady_clock::now();
-                if (now < due) {
-                  timer->sleep_for(due - now);
-                }
-
-                ratecontrol_group_packets_sent = 0;
-              }
-
-              size_t current_batch_size = x - next_shard_to_send + 1;
-              batch_info.block_offset = next_shard_to_send;
-              batch_info.block_count = current_batch_size;
-
-              frame_send_batch_latency_logger.first_point_now();
-              // Use a batched send if it's supported on this platform
-              if (!platf::send_batch(batch_info)) {
-                // Batched send is not available, so send each packet individually
-                BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
-                for (auto y = 0; y < current_batch_size; y++) {
-                  auto send_info = platf::send_info_t {
-                    shards.prefix(next_shard_to_send + y),
-                    shards.prefixsize,
-                    shards.data(next_shard_to_send + y),
-                    shards.blocksize,
-                    (uintptr_t) sock.native_handle(),
-                    peer_address,
-                    session->video.peer.port(),
-                    session->localAddress,
+              while (next_shard_to_send <= x) {
+                // Pace before the first batch and whenever the current 1 ms
+                // allowance is exhausted, including carry from the prior frame.
+                if (ratecontrol_group_packets_sent >= ratecontrol_packets_in_1ms || ratecontrol_frame_packets_sent == 0) {
+                  const auto pacing_offset = std::chrono::nanoseconds {
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count() *
+                    static_cast<std::chrono::nanoseconds::rep>(ratecontrol_frame_packets_sent) /
+                    static_cast<std::chrono::nanoseconds::rep>(ratecontrol_packets_in_1ms)
                   };
+                  auto due = ratecontrol_frame_start + pacing_offset;
 
-                  platf::send(send_info);
+                  auto now = std::chrono::steady_clock::now();
+                  if (now < due) {
+                    timer->sleep_for(due - now);
+                  }
+
+                  ratecontrol_group_packets_sent = 0;
                 }
-              }
-              frame_send_batch_latency_logger.second_point_now_and_log();
 
-              ratecontrol_group_packets_sent += current_batch_size;
-              ratecontrol_frame_packets_sent += current_batch_size;
-              next_shard_to_send = x + 1;
+                auto pending_packets = x - next_shard_to_send + 1;
+                size_t current_batch_size = detail::next_pacing_batch_size(
+                  pending_packets,
+                  send_batch_size,
+                  ratecontrol_group_packets_sent,
+                  ratecontrol_packets_in_1ms
+                );
+                if (current_batch_size == 0) {
+                  continue;
+                }
+
+                batch_info.block_offset = next_shard_to_send;
+                batch_info.block_count = current_batch_size;
+                batch_info.deadline = frame_send_deadline;
+                batch_info.timed_out = false;
+
+                frame_send_batch_latency_logger.first_point_now();
+                // Use a batched send if it's supported on this platform.
+                if (!platf::send_batch(batch_info)) {
+                  // Batched send is not available, so send each packet individually.
+                  BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
+                  for (auto y = 0; y < current_batch_size; y++) {
+                    auto send_info = platf::send_info_t {
+                      shards.prefix(next_shard_to_send + y),
+                      shards.prefixsize,
+                      shards.data(next_shard_to_send + y),
+                      shards.blocksize,
+                      (uintptr_t) sock.native_handle(),
+                      peer_address,
+                      session->video.peer.port(),
+                      session->localAddress,
+                    };
+
+                    platf::send(send_info);
+                  }
+                }
+                frame_send_batch_latency_logger.second_point_now_and_log();
+
+                if (batch_info.timed_out) {
+                  BOOST_LOG(warning) << "Abandoning stale video frame after the UDP send deadline expired"sv;
+                  session->video.drop_until_idr = true;
+                  session->video.idr_events->raise(true);
+                  frame_send_timed_out = true;
+                  break;
+                }
+
+                ratecontrol_group_packets_sent += current_batch_size;
+                ratecontrol_frame_packets_sent += current_batch_size;
+                next_shard_to_send += current_batch_size;
+              }
             }
           }
 
-          // remember this in case the next frame comes immediately
-          ratecontrol_next_frame_start = ratecontrol_frame_start +
-                                         std::chrono::duration_cast<std::chrono::nanoseconds>(1ms) *
-                                           ratecontrol_frame_packets_sent / ratecontrol_packets_in_1ms;
+          // Remember this in case this session's next frame comes immediately.
+          const auto frame_pacing_offset = std::chrono::nanoseconds {
+            std::chrono::duration_cast<std::chrono::nanoseconds>(1ms).count() *
+            static_cast<std::chrono::nanoseconds::rep>(ratecontrol_frame_packets_sent) /
+            static_cast<std::chrono::nanoseconds::rep>(ratecontrol_packets_in_1ms)
+          };
+          session->video.ratecontrol_next_frame_start = frame_send_timed_out ?
+                                                          std::chrono::steady_clock::now() :
+                                                          ratecontrol_frame_start + frame_pacing_offset;
 
           frame_network_latency_logger.second_point_now_and_log();
 
@@ -1770,8 +1909,19 @@ namespace stream {
         break;
       }
 
-      TUPLE_2D_REF(channel_data, packet_data, *packet);
-      auto session = (session_t *) channel_data;
+      auto session = (session_t *) packet->channel_data;
+      auto &packet_data = packet->data;
+
+      if (packet->frame_index < session->audio.next_frame_index) {
+        continue;
+      }
+      const auto dropped_frames = packet->frame_index - session->audio.next_frame_index;
+      session->audio.sequenceNumber += static_cast<std::uint16_t>(dropped_frames);
+      session->audio.timestamp += static_cast<std::uint32_t>(dropped_frames * session->config.audio.packetDuration);
+      session->audio.next_frame_index = packet->frame_index + 1;
+      if (dropped_frames != 0) {
+        session->audio.fec_block_valid = false;
+      }
 
       auto sequenceNumber = session->audio.sequenceNumber;
       auto timestamp = session->audio.timestamp;
@@ -1813,10 +1963,11 @@ namespace stream {
         if (sequenceNumber % RTPA_DATA_SHARDS == 0) {
           fec_packet.fecHeader.baseSequenceNumber = util::endian::big(sequenceNumber);
           fec_packet.fecHeader.baseTimestamp = util::endian::big(timestamp);
+          session->audio.fec_block_valid = true;
         }
 
         // generate parity shards at the end of the FEC block
-        if ((sequenceNumber + 1) % RTPA_DATA_SHARDS == 0) {
+        if ((sequenceNumber + 1) % RTPA_DATA_SHARDS == 0 && session->audio.fec_block_valid) {
           reed_solomon_encode(rs.get(), shards_p.begin(), RTPA_TOTAL_SHARDS, bytes);
 
           for (auto x = 0; x < RTPA_FEC_SHARDS; ++x) {

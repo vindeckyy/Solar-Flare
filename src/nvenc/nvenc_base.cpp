@@ -10,6 +10,7 @@
 // standard includes
 #include <algorithm>
 #include <format>
+#include <limits>
 
 // local includes
 #include "src/config.h"
@@ -214,6 +215,7 @@ namespace nvenc {
     }
 
     encoder_params.rfi = get_encoder_cap(NV_ENC_CAPS_SUPPORT_REF_PIC_INVALIDATION);
+    encoder_params.dynamic_bitrate = get_encoder_cap(NV_ENC_CAPS_SUPPORT_DYN_BITRATE_CHANGE);
 
     init_params.presetGUID = quality_preset_guid_from_number(config.quality_preset);
     init_params.tuningInfo = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
@@ -375,7 +377,7 @@ namespace nvenc {
           }
           set_ref_frames(format_config.maxNumRefFrames, format_config.numRefL0, 5);
           if (encoder_params.bframes > 0) {
-            format_config.maxNumRefFrames = std::max<uint32_t>(format_config.maxNumRefFrames, (uint32_t)encoder_params.bframes + 1);
+            format_config.maxNumRefFrames = std::max<uint32_t>(format_config.maxNumRefFrames, (uint32_t) encoder_params.bframes + 1);
           }
           set_minqp_if_enabled(config.min_qp_h264);
           fill_h264_hevc_vui(format_config.h264VUIParameters);
@@ -408,7 +410,7 @@ namespace nvenc {
           }
           set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numRefL0, 5);
           if (encoder_params.bframes > 0) {
-            format_config.maxNumRefFramesInDPB = std::max<uint32_t>(format_config.maxNumRefFramesInDPB, (uint32_t)encoder_params.bframes + 1);
+            format_config.maxNumRefFramesInDPB = std::max<uint32_t>(format_config.maxNumRefFramesInDPB, (uint32_t) encoder_params.bframes + 1);
           }
           set_minqp_if_enabled(config.min_qp_hevc);
           fill_h264_hevc_vui(format_config.hevcVUIParameters);
@@ -451,7 +453,7 @@ namespace nvenc {
           format_config.chromaSamplePosition = buffer_is_yuv444() ? 0 : 1;
           set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numFwdRefs, 8);
           if (encoder_params.bframes > 0) {
-            format_config.maxNumRefFramesInDPB = std::max<uint32_t>(format_config.maxNumRefFramesInDPB, (uint32_t)encoder_params.bframes + 1);
+            format_config.maxNumRefFramesInDPB = std::max<uint32_t>(format_config.maxNumRefFramesInDPB, (uint32_t) encoder_params.bframes + 1);
           }
           set_minqp_if_enabled(config.min_qp_av1);
 
@@ -471,6 +473,11 @@ namespace nvenc {
       BOOST_LOG(error) << "NvEnc: NvEncInitializeEncoder() failed: " << last_nvenc_error_string;
       return false;
     }
+
+    reconfigure_config = enc_config;
+    reconfigure_init_params = init_params;
+    reconfigure_init_params.encodeConfig = &reconfigure_config;
+    current_bitrate_kbps = client_config.bitrate;
 
     if (async_event_handle) {
       NV_ENC_EVENT_PARAMS event_params = {NV_ENC_EVENT_PARAMS_VER};
@@ -713,6 +720,41 @@ namespace nvenc {
       }
     }
 
+    return true;
+  }
+
+  bool nvenc_base::reconfigure_bitrate(int bitrate_kbps) {
+    if (!encoder || !nvenc || !nvenc->nvEncReconfigureEncoder || !encoder_params.dynamic_bitrate || bitrate_kbps <= 0 || current_bitrate_kbps <= 0) {
+      return false;
+    }
+
+    auto next_config = reconfigure_config;
+    next_config.rcParams.averageBitRate = static_cast<uint32_t>(std::min<int64_t>(
+      static_cast<int64_t>(bitrate_kbps) * 1000,
+      std::numeric_limits<uint32_t>::max()
+    ));
+
+    if (next_config.rcParams.vbvBufferSize > 0) {
+      next_config.rcParams.vbvBufferSize = static_cast<uint32_t>(std::min<uint64_t>(
+        static_cast<uint64_t>(next_config.rcParams.vbvBufferSize) * bitrate_kbps / current_bitrate_kbps,
+        std::numeric_limits<uint32_t>::max()
+      ));
+    }
+
+    NV_ENC_RECONFIGURE_PARAMS params = {NV_ENC_RECONFIGURE_PARAMS_VER};
+    params.reInitEncodeParams = reconfigure_init_params;
+    params.reInitEncodeParams.encodeConfig = &next_config;
+    params.forceIDR = 1;
+
+    if (nvenc_failed(nvenc->nvEncReconfigureEncoder(encoder, &params))) {
+      BOOST_LOG(warning) << "NvEnc: NvEncReconfigureEncoder() failed: " << last_nvenc_error_string;
+      return false;
+    }
+
+    reconfigure_config = next_config;
+    reconfigure_init_params = params.reInitEncodeParams;
+    reconfigure_init_params.encodeConfig = &reconfigure_config;
+    current_bitrate_kbps = bitrate_kbps;
     return true;
   }
 

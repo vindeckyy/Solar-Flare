@@ -71,6 +71,21 @@ namespace nvenc {
      */
     bool invalidate_ref_frames(uint64_t first_frame, uint64_t last_frame);
 
+    /**
+     * @brief Change the rate-control bitrate of the running encoder.
+     * @param bitrate_kbps Requested bitrate in kilobits per second.
+     * @return `true` when NVENC accepted the new bitrate, otherwise `false`.
+     */
+    bool reconfigure_bitrate(int bitrate_kbps);
+
+    /**
+     * @brief Check whether the active encoder supports live bitrate changes.
+     * @return `true` when dynamic bitrate reconfiguration is supported.
+     */
+    bool supports_dynamic_bitrate() const {
+      return encoder_params.dynamic_bitrate;
+    }
+
   protected:
     /**
      * @brief Required. Used for loading NvEnc library and setting `nvenc` variable with `NvEncodeAPICreateInstance()`.
@@ -118,6 +133,7 @@ namespace nvenc {
       NV_ENC_BUFFER_FORMAT buffer_format = NV_ENC_BUFFER_FORMAT_UNDEFINED;
       uint32_t ref_frames_in_dpb = 0;
       bool rfi = false;
+      bool dynamic_bitrate = false;  ///< Whether the encoder supports live bitrate reconfiguration.
       uint32_t bframes = 0;  ///< B-frames between P-frames (0-4). 0 = no B-frames.
     } encoder_params;
 
@@ -135,6 +151,9 @@ namespace nvenc {
 
   private:
     NV_ENC_OUTPUT_PTR output_bitstream = nullptr;
+    NV_ENC_INITIALIZE_PARAMS reconfigure_init_params {};  ///< Initialization parameters retained for live reconfiguration.
+    NV_ENC_CONFIG reconfigure_config {};  ///< Encoder configuration retained for live reconfiguration.
+    int current_bitrate_kbps = 0;  ///< Current target bitrate used to scale the VBV buffer.
 
     struct {
       uint64_t last_encoded_frame_index = 0;

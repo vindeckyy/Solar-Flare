@@ -202,26 +202,28 @@ namespace {
 
   TEST_F(NvencTuningTest, LatencyPresetOverridesKnobs) {
     // Latency preset: P1, bframes=0, zerolatency=true, lookahead=0,
-    // twopass=quarter_res, aq off, temporal_aq off, weighted_pred off,
+    // twopass=disabled, aq off, temporal_aq off, weighted_pred off,
     // min_qp off, vbv_increase=0, surfaces=driver default.
     config::video.nv_preset = 0;
-    config::video.nv.quality_preset = 1;
-    config::video.nv.bframes = 0;
-    config::video.nv.zerolatency = true;
-    config::video.nv.rc_lookahead = 0;
-    config::video.nv.two_pass = nvenc::nvenc_two_pass::quarter_resolution;
-    config::video.nv.adaptive_quantization = false;
-    config::video.nv.temporal_aq = false;
-    config::video.nv.weighted_prediction = false;
-    config::video.nv.enable_min_qp = false;
-    config::video.nv.vbv_percentage_increase = 0;
-    config::video.nv.surfaces = -1;
+    config::video.nv.quality_preset = 7;
+    config::video.nv.bframes = 4;
+    config::video.nv.zerolatency = false;
+    config::video.nv.rc_lookahead = 31;
+    config::video.nv.two_pass = nvenc::nvenc_two_pass::full_resolution;
+    config::video.nv.adaptive_quantization = true;
+    config::video.nv.temporal_aq = true;
+    config::video.nv.weighted_prediction = true;
+    config::video.nv.enable_min_qp = true;
+    config::video.nv.vbv_percentage_increase = 100;
+    config::video.nv.surfaces = 8;
+
+    config::apply_nvenc_tuning_preset();
 
     EXPECT_EQ(config::video.nv.quality_preset, 1);
     EXPECT_EQ(config::video.nv.bframes, 0);
     EXPECT_TRUE(config::video.nv.zerolatency);
     EXPECT_EQ(config::video.nv.rc_lookahead, 0);
-    EXPECT_EQ(config::video.nv.two_pass, nvenc::nvenc_two_pass::quarter_resolution);
+    EXPECT_EQ(config::video.nv.two_pass, nvenc::nvenc_two_pass::disabled);
     EXPECT_FALSE(config::video.nv.adaptive_quantization);
     EXPECT_FALSE(config::video.nv.temporal_aq);
     EXPECT_FALSE(config::video.nv.weighted_prediction);

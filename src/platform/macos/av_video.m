@@ -89,6 +89,7 @@
 - (dispatch_semaphore_t)capture:(FrameCallbackBlock)frameCallback {
   @synchronized(self) {
     AVCaptureVideoDataOutput *videoOutput = [[AVCaptureVideoDataOutput alloc] init];
+    videoOutput.alwaysDiscardsLateVideoFrames = YES;
 
     [videoOutput setVideoSettings:@{
       (NSString *) kCVPixelBufferPixelFormatTypeKey: [NSNumber numberWithUnsignedInt:self.pixelFormat],

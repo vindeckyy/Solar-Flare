@@ -327,7 +327,10 @@ namespace egl {
   class img_descriptor_t: public cursor_t {
   public:
     ~img_descriptor_t() {
-      delete[] data;
+      if (data != buffer.data() && data != frame_buffer.data()) {
+        delete[] data;
+      }
+      data = nullptr;
       reset();
     }
 
@@ -342,6 +345,7 @@ namespace egl {
     }
 
     surface_descriptor_t sd;
+    std::vector<std::uint8_t> frame_buffer;  ///< Image-owned storage for immutable system-memory capture frames.
 
     // Increment sequence when new rgb_t needs to be created
     std::uint64_t sequence;

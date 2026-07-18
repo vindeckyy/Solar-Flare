@@ -474,6 +474,7 @@ static std::set<std::string, std::less<>> make_internal_options() {
     "gpu_governor",
     "headless_virtual_display",
     "skip_wayland_correlation",
+    "latency_mode",
     // ponytail: sf_opus_* and sf_audio_* are expert audio tunables, not web UI knobs
     "sf_opus_application",
     "sf_opus_vbr",

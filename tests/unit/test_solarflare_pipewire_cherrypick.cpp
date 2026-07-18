@@ -113,12 +113,19 @@ TEST(SolarflarePipewireCherryPick, ForkLatencyBlockCoexists) {
        "fork's block in ensure_stream (see docs/CONFIGURATION.md "
        "for the ranges).";
 
-  // And it must use the right format (fraction string in nanoseconds).
-  EXPECT_TRUE(contains(content, "ms * 1000000) + \"/1000\""))
+  // And it must use the right format (a fraction representing seconds).
+  EXPECT_TRUE(contains(content, "std::to_string(std::clamp(milliseconds, 1, 40)) + \"/1000\""))
     << "The fork's PW_KEY_NODE_LATENCY format string changed "
-       "unexpectedly. Should be '<ms * 1_000_000>/1000' which gives "
-       "a fraction string like '8192/1000' for 8 ms. Revert to the "
-       "round-1 implementation.";
+       "unexpectedly. It must be '<milliseconds>/1000', which is the "
+       "seconds fraction expected by PipeWire (for example, 8/1000).";
+}
+
+TEST(SolarflarePipewireCherryPick, CaptureIsDrivenByPipewireFrameArrival) {
+  const auto content = read_file("src/platform/linux/pipewire.cpp");
+
+  EXPECT_TRUE(contains(content, "wait_for_frame(deadline)"));
+  EXPECT_FALSE(contains(content, "sleep_until(next_frame)"))
+    << "An independent client-side sleep reintroduces up to one frame of phase latency after PipeWire has already produced a fresh frame.";
 }
 
 // =============================================================================

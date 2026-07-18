@@ -3137,7 +3137,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             One-click NVENC tuning preset for the SolarFlare fork. When set to a value other than
             -1, automatically overrides the individual nvenc_* knobs below with recommended values.
             -1 = manual (use each knob below individually); 0 = latency-optimised (P1, no B-frames,
-            zero-latency tune, no lookahead); 1 = balanced (P4, 2 B-frames, 20-frame lookahead, AQ
+            zero-latency tune, no lookahead, multipass disabled); 1 = balanced (P4, 2 B-frames, 20-frame lookahead, AQ
             on); 2 = quality-optimised (P7, 4 B-frames, 40-frame lookahead, full two-pass, min-QP).
             @note{This option only applies when using NVENC [encoder](#encoder). Setting any preset
             will overwrite the individual nvenc_* values; manually adjust them afterwards if needed.}

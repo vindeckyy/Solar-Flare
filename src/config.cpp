@@ -13,8 +13,8 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <thread>
 #include <sstream>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 
@@ -82,18 +82,42 @@ namespace config {
   }
 
   std::optional<api_scope_t> api_scope_from_string(const std::string &s) {
-    if (s == "config:get")     return api_scope_t::CONFIG_GET;
-    if (s == "config:set")     return api_scope_t::CONFIG_SET;
-    if (s == "apps:get")       return api_scope_t::APPS_GET;
-    if (s == "apps:launch")    return api_scope_t::APPS_LAUNCH;
-    if (s == "apps:close")     return api_scope_t::APPS_CLOSE;
-    if (s == "clients:list")   return api_scope_t::CLIENTS_LIST;
-    if (s == "clients:pair")   return api_scope_t::CLIENTS_PAIR;
-    if (s == "clients:unpair") return api_scope_t::CLIENTS_UNPAIR;
-    if (s == "logs:get")       return api_scope_t::LOGS_GET;
-    if (s == "display:reset")  return api_scope_t::DISPLAY_RESET;
-    if (s == "tokens:manage")  return api_scope_t::TOKENS_MANAGE;
-    if (s == "*")              return api_scope_t::STAR;
+    if (s == "config:get") {
+      return api_scope_t::CONFIG_GET;
+    }
+    if (s == "config:set") {
+      return api_scope_t::CONFIG_SET;
+    }
+    if (s == "apps:get") {
+      return api_scope_t::APPS_GET;
+    }
+    if (s == "apps:launch") {
+      return api_scope_t::APPS_LAUNCH;
+    }
+    if (s == "apps:close") {
+      return api_scope_t::APPS_CLOSE;
+    }
+    if (s == "clients:list") {
+      return api_scope_t::CLIENTS_LIST;
+    }
+    if (s == "clients:pair") {
+      return api_scope_t::CLIENTS_PAIR;
+    }
+    if (s == "clients:unpair") {
+      return api_scope_t::CLIENTS_UNPAIR;
+    }
+    if (s == "logs:get") {
+      return api_scope_t::LOGS_GET;
+    }
+    if (s == "display:reset") {
+      return api_scope_t::DISPLAY_RESET;
+    }
+    if (s == "tokens:manage") {
+      return api_scope_t::TOKENS_MANAGE;
+    }
+    if (s == "*") {
+      return api_scope_t::STAR;
+    }
     return std::nullopt;
   }
 
@@ -1406,13 +1430,17 @@ namespace config {
           // Trim whitespace around the whole entry
           entry.erase(0, entry.find_first_not_of(" \t\r\n"));
           entry.erase(entry.find_last_not_of(" \t\r\n") + 1);
-          if (entry.empty()) continue;
+          if (entry.empty()) {
+            continue;
+          }
 
           // Split on tab into 4 fields. Tab chosen because scopes contain colons.
           std::vector<std::string> parts;
           std::string part;
           std::stringstream ps(entry);
-          while (std::getline(ps, part, '\t')) parts.push_back(part);
+          while (std::getline(ps, part, '\t')) {
+            parts.push_back(part);
+          }
 
           if (parts.size() != 4) {
             BOOST_LOG(warning) << "config: api_tokens entry malformed (expected 4 tab-separated fields, got " << parts.size() << "); skipping";
@@ -1435,7 +1463,9 @@ namespace config {
           while (std::getline(scopes_ss, scope_str, ',')) {
             scope_str.erase(0, scope_str.find_first_not_of(" \t\r\n"));
             scope_str.erase(scope_str.find_last_not_of(" \t\r\n") + 1);
-            if (scope_str.empty()) continue;
+            if (scope_str.empty()) {
+              continue;
+            }
             auto parsed = api_scope_from_string(scope_str);
             if (!parsed) {
               BOOST_LOG(warning) << "config: api_tokens entry '" << token.name << "' has unknown scope '" << scope_str << "'; skipping scope";
@@ -1650,7 +1680,10 @@ namespace config {
       // Moonlight clients send these via the launch session but they are not
       // Sunshine config keys. Suppress the warning to keep logs clean.
       static const std::array<std::string_view, 4> client_keys = {
-        "hevc_bitrate_multiplier"sv, "fps"sv, "bitrate"sv, "gcmap"sv
+        "hevc_bitrate_multiplier"sv,
+        "fps"sv,
+        "bitrate"sv,
+        "gcmap"sv
       };
       for (auto &key : client_keys) {
         vars.erase(std::string(key));
@@ -1810,14 +1843,16 @@ namespace config {
   }
 
   void apply_nvenc_tuning_preset() {
-    if (video.nv_preset < 0 || video.nv_preset > 2) return;
+    if (video.nv_preset < 0 || video.nv_preset > 2) {
+      return;
+    }
     switch (video.nv_preset) {
       case 0:  // latency-optimised
         video.nv.quality_preset = 1;
         video.nv.bframes = 0;
         video.nv.zerolatency = true;
         video.nv.rc_lookahead = 0;
-        video.nv.two_pass = nvenc::nvenc_two_pass::quarter_resolution;
+        video.nv.two_pass = nvenc::nvenc_two_pass::disabled;
         video.nv.adaptive_quantization = false;
         video.nv.temporal_aq = false;
         video.nv.weighted_prediction = false;
@@ -1881,6 +1916,7 @@ namespace config {
     bool_f(vars, "gpu_governor", solarflare.gpu_governor);
     bool_f(vars, "headless_virtual_display", solarflare.headless_virtual_display);
     bool_f(vars, "skip_wayland_correlation", solarflare.skip_wayland_correlation);
+    string_restricted_f(vars, "latency_mode", solarflare.latency_mode, {"safe", "aggressive"});
 
     // audio_fx sub-tunables.
     auto &af = solarflare.audio_fx;
@@ -1934,18 +1970,28 @@ namespace config {
     // is the audio-config struct and would otherwise shadow the audio namespace.
     auto &tuning = ::audio::opus_tuning();
     switch (af.opus_application) {
-      case 1: tuning.application = ::audio::opus_tuning_t::application_e::VOIP; break;
-      case 2: tuning.application = ::audio::opus_tuning_t::application_e::AUDIO; break;
+      case 1:
+        tuning.application = ::audio::opus_tuning_t::application_e::VOIP;
+        break;
+      case 2:
+        tuning.application = ::audio::opus_tuning_t::application_e::AUDIO;
+        break;
       case 0:
       default:
-        tuning.application = ::audio::opus_tuning_t::application_e::LOWDELAY; break;
+        tuning.application = ::audio::opus_tuning_t::application_e::LOWDELAY;
+        break;
     }
     switch (af.opus_vbr) {
-      case 1: tuning.vbr = ::audio::opus_tuning_t::vbr_e::CONSTRAINED; break;
-      case 2: tuning.vbr = ::audio::opus_tuning_t::vbr_e::FULL; break;
+      case 1:
+        tuning.vbr = ::audio::opus_tuning_t::vbr_e::CONSTRAINED;
+        break;
+      case 2:
+        tuning.vbr = ::audio::opus_tuning_t::vbr_e::FULL;
+        break;
       case 0:
       default:
-        tuning.vbr = ::audio::opus_tuning_t::vbr_e::OFF; break;
+        tuning.vbr = ::audio::opus_tuning_t::vbr_e::OFF;
+        break;
     }
     tuning.complexity = af.opus_complexity;
     tuning.enable_fec = af.opus_fec;
@@ -1962,7 +2008,7 @@ namespace config {
   namespace {
     std::atomic<bool> config_watcher_running {false};
     std::thread config_watcher_thread;
-  }
+  }  // namespace
 
   static void reload_solarflare_keys() {
     try {
@@ -1981,7 +2027,9 @@ namespace config {
   }
 
   void start_config_watcher() {
-    if (config_watcher_running.exchange(true)) return;  // already running
+    if (config_watcher_running.exchange(true)) {
+      return;  // already running
+    }
 
     BOOST_LOG(info) << "Config watcher started, monitoring "sv << sunshine.config_file;
 

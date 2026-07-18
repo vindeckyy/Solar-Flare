@@ -15,7 +15,6 @@ extern "C" {
 #include <chrono>
 #include <cmath>
 #include <list>
-#include <thread>
 #include <unordered_map>
 
 // lib includes
@@ -128,6 +127,8 @@ namespace input {
     gamepad_t():
         gamepad_state {},
         back_timeout_id {},
+        home_emulation_generation {},
+        home_emulation_pressed {},
         id {-1},
         back_button_state {button_state_e::NONE} {
     }
@@ -143,6 +144,8 @@ namespace input {
     platf::gamepad_state_t gamepad_state;
 
     thread_pool_util::ThreadPool::task_id_t back_timeout_id;
+    std::uint64_t home_emulation_generation;  ///< Token used to reject stale delayed HOME actions.
+    bool home_emulation_pressed;  ///< Whether HOME is currently held by BACK-button emulation.
 
     int id;
 
@@ -171,6 +174,7 @@ namespace input {
         client_context {platf::allocate_client_input_context(platf_input)},
         touch_port_event {std::move(touch_port_event)},
         feedback_queue {std::move(feedback_queue)},
+        input_drain_pending {},
         mouse_left_button_timeout {},
         touch_port {{0, 0, 0, 0}, 0, 0, 1.0f, 1.0f, 0, 0},
         accumulated_vscroll_delta {},
@@ -191,6 +195,7 @@ namespace input {
 
     std::list<std::vector<uint8_t>> input_queue;
     std::mutex input_queue_lock;
+    bool input_drain_pending;  ///< Whether a single-flight queue drain is scheduled or running.
 
     thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;
 
@@ -465,8 +470,8 @@ namespace input {
   std::optional<std::pair<float, float>> client_to_touchport(std::shared_ptr<input_t> &input, const std::pair<float, float> &val, const std::pair<float, float> &size) {
     auto &touch_port_event = input->touch_port_event;
     auto &touch_port = input->touch_port;
-    if (touch_port_event->peek()) {
-      touch_port = *touch_port_event->pop();
+    if (auto next_touch_port = touch_port_event->try_pop()) {
+      touch_port = *next_touch_port;
     }
     if (!touch_port) {
       BOOST_LOG(verbose) << "Ignoring early absolute input without a touch port"sv;
@@ -1173,6 +1178,12 @@ namespace input {
       gamepad.id = id;
     } else if (!(packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id >= 0) {
       // If this is the final event for a gamepad being removed, free the gamepad and return.
+      ++gamepad.home_emulation_generation;
+      task_pool.cancel(gamepad.back_timeout_id);
+      gamepad.back_timeout_id = nullptr;
+      gamepad.home_emulation_pressed = false;
+      gamepad.gamepad_state.buttonFlags &= ~platf::HOME;
+      gamepad.back_button_state = button_state_e::NONE;
       free_gamepad(platf_input, gamepad.id);
       gamepad.id = -1;
       return;
@@ -1222,8 +1233,12 @@ namespace input {
       if (platf::BACK & bf_new) {
         // Don't emulate home button if timeout < 0
         if (config::input.back_button_timeout >= 0ms) {
-          auto f = [input, controller = packet->controllerNumber]() {
+          const auto home_emulation_generation = ++gamepad.home_emulation_generation;
+          auto f = [input, controller = packet->controllerNumber, home_emulation_generation]() {
             auto &gamepad = input->gamepads[controller];
+            if (gamepad.home_emulation_generation != home_emulation_generation || gamepad.id < 0) {
+              return;
+            }
 
             auto &state = gamepad.gamepad_state;
 
@@ -1235,25 +1250,41 @@ namespace input {
             // Press Home button
             state.buttonFlags |= platf::HOME;
             platf::gamepad_update(platf_input, gamepad.id, state);
+            gamepad.home_emulation_pressed = true;
 
-            // Sleep for a short time to allow the input to be detected
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            auto release_home = [input, controller, home_emulation_generation]() {
+              auto &gamepad = input->gamepads[controller];
+              if (gamepad.home_emulation_generation != home_emulation_generation || gamepad.id < 0) {
+                return;
+              }
+              auto &state = gamepad.gamepad_state;
 
-            // Release Home button
-            state.buttonFlags &= ~platf::HOME;
-            platf::gamepad_update(platf_input, gamepad.id, state);
+              // Release Home button after the minimum detectable hold time.
+              state.buttonFlags &= ~platf::HOME;
+              platf::gamepad_update(platf_input, gamepad.id, state);
+              gamepad.home_emulation_pressed = false;
+              gamepad.back_timeout_id = nullptr;
+            };
 
-            gamepad.back_timeout_id = nullptr;
+            // Schedule the release separately so the sole task worker remains
+            // available for input and other latency-sensitive work.
+            gamepad.back_timeout_id = task_pool.pushDelayed(std::move(release_home), 100ms).task_id;
           };
 
           gamepad.back_timeout_id = task_pool.pushDelayed(std::move(f), config::input.back_button_timeout).task_id;
         }
       } else if (gamepad.back_timeout_id) {
-        task_pool.cancel(gamepad.back_timeout_id);
-        gamepad.back_timeout_id = nullptr;
+        if (!gamepad.home_emulation_pressed) {
+          ++gamepad.home_emulation_generation;
+          task_pool.cancel(gamepad.back_timeout_id);
+          gamepad.back_timeout_id = nullptr;
+        }
       }
     }
 
+    if (gamepad.home_emulation_pressed) {
+      gamepad_state.buttonFlags |= platf::HOME;
+    }
     platf::gamepad_update(platf_input, gamepad.id, gamepad_state);
 
     gamepad.gamepad_state = gamepad_state;
@@ -1276,10 +1307,10 @@ namespace input {
     short deltaY;
 
     // Batching is safe as long as the result doesn't overflow a 16-bit integer
-    if (!__builtin_add_overflow(util::endian::big(dest->deltaX), util::endian::big(src->deltaX), &deltaX)) {
+    if (__builtin_add_overflow(util::endian::big(dest->deltaX), util::endian::big(src->deltaX), &deltaX)) {
       return batch_result_e::terminate_batch;
     }
-    if (!__builtin_add_overflow(util::endian::big(dest->deltaY), util::endian::big(src->deltaY), &deltaY)) {
+    if (__builtin_add_overflow(util::endian::big(dest->deltaY), util::endian::big(src->deltaY), &deltaY)) {
       return batch_result_e::terminate_batch;
     }
 
@@ -1316,7 +1347,7 @@ namespace input {
     short scrollAmt;
 
     // Batching is safe as long as the result doesn't overflow a 16-bit integer
-    if (!__builtin_add_overflow(util::endian::big(dest->scrollAmt1), util::endian::big(src->scrollAmt1), &scrollAmt)) {
+    if (__builtin_add_overflow(util::endian::big(dest->scrollAmt1), util::endian::big(src->scrollAmt1), &scrollAmt)) {
       return batch_result_e::terminate_batch;
     }
 
@@ -1336,7 +1367,7 @@ namespace input {
     short scrollAmt;
 
     // Batching is safe as long as the result doesn't overflow a 16-bit integer
-    if (!__builtin_add_overflow(util::endian::big(dest->scrollAmount), util::endian::big(src->scrollAmount), &scrollAmt)) {
+    if (__builtin_add_overflow(util::endian::big(dest->scrollAmount), util::endian::big(src->scrollAmount), &scrollAmt)) {
       return batch_result_e::terminate_batch;
     }
 
@@ -1542,100 +1573,109 @@ namespace input {
   }
 
   /**
-   * @brief Called on a thread pool thread to process an input message.
+   * @brief Drain queued input messages on the serialized task pool worker.
    * @param input The input context pointer.
    */
-  void passthrough_next_message(std::shared_ptr<input_t> input) {
-    // 'entry' backs the 'payload' pointer, so they must remain in scope together
-    std::vector<uint8_t> entry;
-    PNV_INPUT_HEADER payload;
+  void passthrough_queued_messages(std::shared_ptr<input_t> input) {
+    constexpr std::size_t MAX_MESSAGES_PER_DRAIN = 64;
+    for (std::size_t processed = 0; processed < MAX_MESSAGES_PER_DRAIN; ++processed) {
+      // 'entry' backs the 'payload' pointer, so they must remain in scope together
+      std::vector<uint8_t> entry;
+      PNV_INPUT_HEADER payload;
 
-    // Lock the input queue while batching, but release it before sending
-    // the input to the OS. This avoids potentially lengthy lock contention
-    // in the control stream thread while input is being processed by the OS.
-    {
-      std::lock_guard<std::mutex> lg(input->input_queue_lock);
+      // Lock the input queue while batching, but release it before sending
+      // the input to the OS. This avoids potentially lengthy lock contention
+      // in the control stream thread while input is being processed by the OS.
+      {
+        std::lock_guard<std::mutex> lg(input->input_queue_lock);
 
-      // If all entries have already been processed, nothing to do
-      if (input->input_queue.empty()) {
-        return;
-      }
+        // Clear the single-flight flag while holding the producer lock. A
+        // producer arriving afterwards will schedule the next drain.
+        if (input->input_queue.empty()) {
+          input->input_drain_pending = false;
+          return;
+        }
 
-      // Pop off the first entry, which we will send
-      entry = input->input_queue.front();
-      payload = (PNV_INPUT_HEADER) entry.data();
-      input->input_queue.pop_front();
+        // Pop off the first entry, which we will send. Moving avoids copying
+        // every network packet on the latency-sensitive path.
+        entry = std::move(input->input_queue.front());
+        payload = (PNV_INPUT_HEADER) entry.data();
+        input->input_queue.pop_front();
 
-      // Try to batch with remaining items on the queue
-      auto i = input->input_queue.begin();
-      while (i != input->input_queue.end()) {
-        auto batchable_entry = *i;
-        auto batchable_payload = (PNV_INPUT_HEADER) batchable_entry.data();
+        // Try to batch with remaining items on the queue.
+        auto i = input->input_queue.begin();
+        while (i != input->input_queue.end()) {
+          auto batchable_payload = (PNV_INPUT_HEADER) i->data();
 
-        auto batch_result = batch(payload, batchable_payload);
-        if (batch_result == batch_result_e::terminate_batch) {
-          // Stop batching
-          break;
-        } else if (batch_result == batch_result_e::batched) {
-          // Erase this entry since it was batched
-          i = input->input_queue.erase(i);
-        } else {
-          // We couldn't batch this entry, but try to batch later entries.
-          i++;
+          auto batch_result = batch(payload, batchable_payload);
+          if (batch_result == batch_result_e::terminate_batch) {
+            // Stop batching
+            break;
+          } else if (batch_result == batch_result_e::batched) {
+            // Erase this entry since it was batched
+            i = input->input_queue.erase(i);
+          } else {
+            // We couldn't batch this entry, but try to batch later entries.
+            i++;
+          }
         }
       }
+
+      // Print the final input packet
+      input::print((void *) payload);
+
+      // Send the batched input to the OS
+      switch (util::endian::little(payload->magic)) {
+        case MOUSE_MOVE_REL_MAGIC_GEN5:
+          passthrough(input, (PNV_REL_MOUSE_MOVE_PACKET) payload);
+          break;
+        case MOUSE_MOVE_ABS_MAGIC:
+          passthrough(input, (PNV_ABS_MOUSE_MOVE_PACKET) payload);
+          break;
+        case MOUSE_BUTTON_DOWN_EVENT_MAGIC_GEN5:
+        case MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5:
+          passthrough(input, (PNV_MOUSE_BUTTON_PACKET) payload);
+          break;
+        case SCROLL_MAGIC_GEN5:
+          passthrough(input, (PNV_SCROLL_PACKET) payload);
+          break;
+        case SS_HSCROLL_MAGIC:
+          passthrough(input, (PSS_HSCROLL_PACKET) payload);
+          break;
+        case KEY_DOWN_EVENT_MAGIC:
+        case KEY_UP_EVENT_MAGIC:
+          passthrough(input, (PNV_KEYBOARD_PACKET) payload);
+          break;
+        case UTF8_TEXT_EVENT_MAGIC:
+          passthrough((PNV_UNICODE_PACKET) payload);
+          break;
+        case MULTI_CONTROLLER_MAGIC_GEN5:
+          passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
+          break;
+        case SS_TOUCH_MAGIC:
+          passthrough(input, (PSS_TOUCH_PACKET) payload);
+          break;
+        case SS_PEN_MAGIC:
+          passthrough(input, (PSS_PEN_PACKET) payload);
+          break;
+        case SS_CONTROLLER_ARRIVAL_MAGIC:
+          passthrough(input, (PSS_CONTROLLER_ARRIVAL_PACKET) payload);
+          break;
+        case SS_CONTROLLER_TOUCH_MAGIC:
+          passthrough(input, (PSS_CONTROLLER_TOUCH_PACKET) payload);
+          break;
+        case SS_CONTROLLER_MOTION_MAGIC:
+          passthrough(input, (PSS_CONTROLLER_MOTION_PACKET) payload);
+          break;
+        case SS_CONTROLLER_BATTERY_MAGIC:
+          passthrough(input, (PSS_CONTROLLER_BATTERY_PACKET) payload);
+          break;
+      }
     }
 
-    // Print the final input packet
-    input::print((void *) payload);
-
-    // Send the batched input to the OS
-    switch (util::endian::little(payload->magic)) {
-      case MOUSE_MOVE_REL_MAGIC_GEN5:
-        passthrough(input, (PNV_REL_MOUSE_MOVE_PACKET) payload);
-        break;
-      case MOUSE_MOVE_ABS_MAGIC:
-        passthrough(input, (PNV_ABS_MOUSE_MOVE_PACKET) payload);
-        break;
-      case MOUSE_BUTTON_DOWN_EVENT_MAGIC_GEN5:
-      case MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5:
-        passthrough(input, (PNV_MOUSE_BUTTON_PACKET) payload);
-        break;
-      case SCROLL_MAGIC_GEN5:
-        passthrough(input, (PNV_SCROLL_PACKET) payload);
-        break;
-      case SS_HSCROLL_MAGIC:
-        passthrough(input, (PSS_HSCROLL_PACKET) payload);
-        break;
-      case KEY_DOWN_EVENT_MAGIC:
-      case KEY_UP_EVENT_MAGIC:
-        passthrough(input, (PNV_KEYBOARD_PACKET) payload);
-        break;
-      case UTF8_TEXT_EVENT_MAGIC:
-        passthrough((PNV_UNICODE_PACKET) payload);
-        break;
-      case MULTI_CONTROLLER_MAGIC_GEN5:
-        passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
-        break;
-      case SS_TOUCH_MAGIC:
-        passthrough(input, (PSS_TOUCH_PACKET) payload);
-        break;
-      case SS_PEN_MAGIC:
-        passthrough(input, (PSS_PEN_PACKET) payload);
-        break;
-      case SS_CONTROLLER_ARRIVAL_MAGIC:
-        passthrough(input, (PSS_CONTROLLER_ARRIVAL_PACKET) payload);
-        break;
-      case SS_CONTROLLER_TOUCH_MAGIC:
-        passthrough(input, (PSS_CONTROLLER_TOUCH_PACKET) payload);
-        break;
-      case SS_CONTROLLER_MOTION_MAGIC:
-        passthrough(input, (PSS_CONTROLLER_MOTION_PACKET) payload);
-        break;
-      case SS_CONTROLLER_BATTERY_MAGIC:
-        passthrough(input, (PSS_CONTROLLER_BATTERY_PACKET) payload);
-        break;
-    }
+    // Yield the sole shared worker after a bounded burst so delayed HOME,
+    // key-repeat, reset, and feedback work cannot starve under sustained input.
+    task_pool.pushDelayed(passthrough_queued_messages, 0ms, std::move(input));
   }
 
   /**
@@ -1644,11 +1684,19 @@ namespace input {
    * @param input_data The input message.
    */
   void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data) {
+    bool schedule_drain = false;
     {
       std::lock_guard<std::mutex> lg(input->input_queue_lock);
       input->input_queue.push_back(std::move(input_data));
+      if (!input->input_drain_pending) {
+        input->input_drain_pending = true;
+        schedule_drain = true;
+      }
     }
-    task_pool.push(passthrough_next_message, input);
+
+    if (schedule_drain) {
+      task_pool.push(passthrough_queued_messages, input);
+    }
   }
 
   void reset(std::shared_ptr<input_t> &input) {

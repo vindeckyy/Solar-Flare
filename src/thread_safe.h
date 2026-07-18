@@ -20,6 +20,14 @@
 #include "utility.h"
 
 namespace safe {
+  /**
+   * @brief Select the action taken when a bounded queue reaches capacity.
+   */
+  enum class queue_overflow_e {
+    clear_all,  ///< Clear all queued values before inserting the new value.
+    drop_oldest  ///< Drop only the oldest value before inserting the new value.
+  };
+
   template<class T>
   class event_t {
   public:
@@ -48,7 +56,7 @@ namespace safe {
      */
     status_t try_pop() {
       std::lock_guard lg {_lock};
-      if (!_status) {
+      if (!_continue || !_status) {
         return util::false_v<status_t>;
       }
       auto val = std::move(_status);
@@ -131,7 +139,13 @@ namespace safe {
       return _status;
     }
 
-    bool peek() {
+    /**
+     * @brief Check whether the event currently contains a value.
+     *
+     * @return `true` when the event is running and contains a value.
+     */
+    bool peek() const {
+      std::lock_guard lg {_lock};
       return _continue && (bool) _status;
     }
 
@@ -152,6 +166,7 @@ namespace safe {
     }
 
     [[nodiscard]] bool running() const {
+      std::lock_guard lg {_lock};
       return _continue;
     }
 
@@ -160,7 +175,7 @@ namespace safe {
     status_t _status {util::false_v<status_t>};
 
     std::condition_variable _cv;
-    std::mutex _lock;
+    mutable std::mutex _lock;
   };
 
   template<class T>
@@ -269,10 +284,23 @@ namespace safe {
   public:
     using status_t = util::optional_t<T>;
 
-    queue_t(std::uint32_t max_elements = 32):
-        _max_elements {max_elements} {
+    /**
+     * @brief Construct a bounded queue.
+     *
+     * @param max_elements Maximum queued values, or zero for no limit.
+     * @param overflow_policy Action to take when the queue reaches capacity.
+     */
+    queue_t(std::uint32_t max_elements = 32, queue_overflow_e overflow_policy = queue_overflow_e::clear_all):
+        _max_elements {max_elements},
+        _overflow_policy {overflow_policy} {
     }
 
+    /**
+     * @brief Append a value and apply the configured overflow policy.
+     *
+     * @tparam Args Constructor argument types for the queued value.
+     * @param args Constructor arguments for the queued value.
+     */
     template<class... Args>
     void raise(Args &&...args) {
       std::lock_guard ul {_lock};
@@ -281,8 +309,12 @@ namespace safe {
         return;
       }
 
-      if (_queue.size() == _max_elements) {
-        _queue.clear();
+      if (_max_elements != 0 && _queue.size() >= _max_elements) {
+        if (_overflow_policy == queue_overflow_e::drop_oldest) {
+          _queue.pop_front();
+        } else {
+          _queue.clear();
+        }
       }
 
       _queue.emplace_back(std::forward<Args>(args)...);
@@ -290,8 +322,31 @@ namespace safe {
       _cv.notify_all();
     }
 
-    bool peek() {
+    /**
+     * @brief Check whether the queue currently contains an item.
+     *
+     * @return `true` when the queue is running and is not empty.
+     */
+    bool peek() const {
+      std::lock_guard lg {_lock};
       return _continue && !_queue.empty();
+    }
+
+    /**
+     * @brief Try to remove and return the oldest queued item without waiting.
+     *
+     * @return The oldest queued item, or an empty result when the queue is
+     * stopped or empty.
+     */
+    status_t try_pop() {
+      std::lock_guard lg {_lock};
+      if (!_continue || _queue.empty()) {
+        return util::false_v<status_t>;
+      }
+
+      auto val = std::move(_queue.front());
+      _queue.pop_front();
+      return val;
     }
 
     template<class Rep, class Period>
@@ -348,14 +403,16 @@ namespace safe {
     }
 
     [[nodiscard]] bool running() const {
+      std::lock_guard lg {_lock};
       return _continue;
     }
 
   private:
     bool _continue {true};
     std::uint32_t _max_elements;
+    queue_overflow_e _overflow_policy;
 
-    std::mutex _lock;
+    mutable std::mutex _lock;
     std::condition_variable _cv;
 
     // ponytail: std::deque gives O(1) pop_front instead of std::vector's O(n)
@@ -540,8 +597,26 @@ namespace safe {
       return post;
     }
 
+    /**
+     * @brief Get or create a typed queue for a mail identifier.
+     *
+     * The capacity is applied only when the identifier is first created.
+     * Later calls with the same identifier reuse the existing typed queue.
+     *
+     * @tparam T The queued value type.
+     * @param id The mail queue identifier.
+     * @param max_elements The maximum number of queued values before the
+     * queue applies its overflow policy, or zero for no limit.
+     * @param overflow_policy The overflow action applied only to a newly
+     * created queue.
+     * @return The existing or newly created queue.
+     */
     template<class T>
-    queue_t<T> queue(const std::string_view &id) {
+    queue_t<T> queue(
+      const std::string_view &id,
+      std::uint32_t max_elements = 32,
+      queue_overflow_e overflow_policy = queue_overflow_e::clear_all
+    ) {
       std::lock_guard lg {mutex};
 
       auto it = id_to_post.find(id);
@@ -549,7 +624,7 @@ namespace safe {
         return lock<queue_t<T>>(it->second);
       }
 
-      auto post = std::make_shared<typename queue_t<T>::element_type>(shared_from_this(), 32);
+      auto post = std::make_shared<typename queue_t<T>::element_type>(shared_from_this(), max_elements, overflow_policy);
       id_to_post.emplace(std::pair<std::string, std::weak_ptr<void>> {std::string {id}, post});
 
       return post;

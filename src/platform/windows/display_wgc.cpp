@@ -216,7 +216,7 @@ namespace platf::dxgi {
       return capture_e::error;
     }
     capture_access->GetInterface(IID_ID3D11Texture2D, (void **) out);
-    out_time = consumed_frame.SystemRelativeTime().count();  // raw ticks from query performance counter
+    out_time = consumed_frame.SystemRelativeTime().count();  // 100-nanosecond TimeSpan units in the QPC clock domain
     return capture_e::ok;
   }
 
@@ -265,7 +265,7 @@ namespace platf::dxgi {
       return capture_status;
     }
 
-    auto frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), frame_qpc);
+    auto frame_timestamp = std::chrono::steady_clock::now() - wgc_time_difference(qpc_counter(), frame_qpc);
     D3D11_TEXTURE2D_DESC desc;
     src->GetDesc(&desc);
 

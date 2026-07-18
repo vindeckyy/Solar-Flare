@@ -25,6 +25,7 @@ still supported.
 | `gpu_governor`        | bool   | true | -       | Set GPU to `performance` power profile during stream, restore on disconnect (Linux only). |
 | `headless_virtual_display` | bool | false | -    | If no displays detected, try creating a virtual xrandr output (Linux only, opt-in). |
 | `skip_wayland_correlation` | bool | false | -    | Skip Wayland monitor correlation during KMS display enumeration. Avoids KWin roundtrip hang at the cost of absolute mouse coordinates. |
+| `latency_mode`        | string | safe | safe/aggressive | Select bounded safe defaults or tighter latency-first media/scaling behavior. |
 
 Audio pre-processor and Opus encoder tunables are documented in the
 [Audio FX](#audio-fx-pre-encoder-processing) section below. All 24
@@ -106,9 +107,17 @@ sometimes does, sometimes doesn't.
 - **> 20 ms**: defeats the point; PipeWire's internal buffer is
   already in this range upstream.
 
-Values outside 1-40 are silently rejected. The value is converted to
-nanoseconds (`ms * 1'000'000`) and formatted as `Ns/1000`, which is
-the natural ratio for `pw-top` / `pw-dump` output.
+Values outside 1-40 are silently rejected. The value is formatted as a
+fraction of a second (`ms/1000`), as required by PipeWire. For example,
+the default is sent as `8/1000`.
+
+### `latency_mode`
+
+`safe` keeps the latency reductions that do not intentionally trade visual
+quality or scheduler headroom. `aggressive` tightens the audio capture queue
+from four packet durations to two and uses FFmpeg's fast-bilinear software
+scaler. Hardware scaling and encoding are unchanged. Unknown values are
+ignored and leave the previous valid mode active.
 
 ### `cpu_pinning`
 

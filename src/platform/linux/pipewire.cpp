@@ -49,6 +49,15 @@ namespace {
   constexpr int MAX_PARAMS = 200;
   constexpr int MAX_DMABUF_FORMATS = 200;
   constexpr int MAX_DMABUF_MODIFIERS = 200;
+
+  /**
+   * @brief Format a PipeWire latency hint from milliseconds.
+   * @param milliseconds Requested latency in milliseconds.
+   * @return A PipeWire fraction representing seconds.
+   */
+  std::string pipewire_latency_fraction(int milliseconds) {
+    return std::to_string(std::clamp(milliseconds, 1, 40)) + "/1000";
+  }
 }  // namespace
 
 using namespace std::literals;
@@ -81,6 +90,15 @@ namespace pipewire {
   };
 
   struct stream_data_t {
+    /** @brief Metadata copied from a PipeWire buffer before it is returned. */
+    struct frame_metadata_t {
+      std::chrono::steady_clock::time_point arrival_timestamp {};  ///< Local arrival time of the frame.
+      std::optional<uint64_t> sequence;  ///< PipeWire sequence number, when supplied.
+      std::optional<uint64_t> pts;  ///< PipeWire presentation timestamp, when supplied.
+      std::optional<uint32_t> flags;  ///< PipeWire chunk flags, when supplied.
+      std::optional<bool> damaged;  ///< Whether PipeWire supplied a nonempty damage region.
+    };
+
     struct pw_stream *stream;
     struct spa_hook stream_listener;
     struct spa_video_info format;
@@ -91,6 +109,8 @@ namespace pipewire {
     std::condition_variable frame_cv;
     size_t local_stride = 0;
     bool frame_ready = false;
+    bool current_frame_dmabuf = false;  ///< Whether the published frame retains a PipeWire DMA-BUF.
+    frame_metadata_t frame_metadata;  ///< Metadata belonging to the currently published frame.
     // Two distinct memory pools
     std::vector<uint8_t> buffer_a;
     std::vector<uint8_t> buffer_b;
@@ -169,6 +189,16 @@ namespace pipewire {
       stream_data.frame_ready = ready;
     }
 
+    /**
+     * @brief Check whether the newest producer frame reached a delivery deadline.
+     * @param deadline Absolute deadline used for client-rate decimation.
+     * @return `true` when the frame should be materialized.
+     */
+    bool frame_is_due(std::chrono::steady_clock::time_point deadline) {
+      std::scoped_lock lock(stream_data.frame_mutex);
+      return stream_data.frame_metadata.arrival_timestamp >= deadline;
+    }
+
     int init(const int stream_fd, const uint32_t stream_node, const uint64_t stream_object_serial, std::shared_ptr<shared_state_t> shared_state) {
       fd = stream_fd;
       node = stream_node;
@@ -244,32 +274,25 @@ namespace pipewire {
         // but on CachyOS with Wayland/Mutter + a discrete GPU we usually get
         // what we ask for.
         //
-        // Value is a fraction string in nanoseconds: "8192/1000" = 8.192 ms.
+        // Value is a fraction in seconds: "8/1000" = 8 ms.
         // We pick 8 ms because at 120 fps that's still <1 frame of latency
         // and gives the driver enough headroom to not drop frames.
         //
         // SolarFlare fork knob: `pipewire_latency_ms` (range 1-40, default 8).
 #ifdef PW_KEY_NODE_LATENCY
         {
-          int ms = config::solarflare.pipewire_latency_ms;
-          if (ms < 1) {
-            ms = 1;
-          }
-          if (ms > 40) {
-            ms = 40;
-          }
-          // nanoseconds = ms * 1'000'000; denominator stays 1000 so the
-          // fraction "Ns/1000" reads naturally in pw-top / pw-dump.
-          auto latency_str = std::to_string(ms * 1000000) + "/1000";
+          auto latency_str = pipewire_latency_fraction(config::solarflare.pipewire_latency_ms);
           pw_properties_set(props, PW_KEY_NODE_LATENCY, latency_str.c_str());
         }
 #endif
-        // The PW_KEY_TARGET_OBJECT serial path is handled below in the
-        // ensure_stream connect step, gated by SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL
-        // (see the SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL block at the top of
-        // this file). The old in-place serial set was removed by upstream
-        // commit 4e6e1377 in favour of a try-serial-then-fall-back-to-node-id
-        // pair of pw_stream_connect calls.
+        // Set the target before pw_stream_new() transfers ownership of props.
+        // The connect path below is gated by SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL
+        // and falls back to the legacy node id when necessary.
+
+        const bool has_valid_object_serial = (object_serial & SPA_ID_INVALID) != SPA_ID_INVALID;
+        if (SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL && has_valid_object_serial) {
+          pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%" PRIu64, object_serial);
+        }
 
         BOOST_LOG(debug) << "[pipewire] Create PW stream"sv;
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
@@ -304,13 +327,15 @@ namespace pipewire {
         }
 
         // Connection via pipewire object serial if it is supported and the serial is valid (lower 32-bits != SPA_ID_INVALID, see also PW_KEY_OBJECT_SERIAL docs)
-        if (SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL && (object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {
-          pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%" PRIu64, object_serial);
+        if (SUNSHINE_USE_PIPEWIRE_OBJECT_SERIAL && has_valid_object_serial) {
           BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " object serial: "sv << object_serial;
           result = pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, PW_ID_ANY, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
           if (result < 0) {
-            // Unset object serial for retry with node id
-            pw_properties_set(props, PW_KEY_TARGET_OBJECT, nullptr);
+            // pw_stream_new() owns props. Update the stream's property set for
+            // the legacy retry instead of touching the transferred pointer.
+            const struct spa_dict_item items[] = {{PW_KEY_TARGET_OBJECT, nullptr}};
+            const struct spa_dict properties = SPA_DICT_INIT_ARRAY(items);
+            pw_stream_update_properties(stream_data.stream, &properties);
           }
         } else {
           result = -1;  // Mark failed so we try to connect via node id
@@ -335,25 +360,34 @@ namespace pipewire {
       }
     }
 
-    static void fill_img_metadata(egl::img_descriptor_t *img_descriptor, struct spa_buffer *buf) {
-      img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
-
+    static stream_data_t::frame_metadata_t capture_frame_metadata(struct spa_buffer *buf) {
+      stream_data_t::frame_metadata_t metadata;
+      metadata.arrival_timestamp = std::chrono::steady_clock::now();
       struct spa_meta_header *h = static_cast<struct spa_meta_header *>(
         spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(*h))
       );
       if (h) {
-        img_descriptor->seq = h->seq;
-        img_descriptor->pts = h->pts;
+        metadata.sequence = h->seq;
+        metadata.pts = h->pts;
       }
 
-      if (buf->n_datas > 0) {
-        img_descriptor->pw_flags = buf->datas[0].chunk->flags;
+      if (buf->n_datas > 0 && buf->datas[0].chunk) {
+        metadata.flags = buf->datas[0].chunk->flags;
       }
 
       struct spa_meta_region *damage = static_cast<struct spa_meta_region *>(
         spa_buffer_find_meta_data(buf, SPA_META_VideoDamage, sizeof(*damage))
       );
-      img_descriptor->pw_damage = (damage && damage->region.size.width > 0 && damage->region.size.height > 0) ? std::optional<bool>(true) : std::nullopt;
+      metadata.damaged = (damage && damage->region.size.width > 0 && damage->region.size.height > 0) ? std::optional<bool>(true) : std::nullopt;
+      return metadata;
+    }
+
+    static void fill_img_metadata(egl::img_descriptor_t *img_descriptor, const stream_data_t::frame_metadata_t &metadata) {
+      img_descriptor->frame_timestamp = metadata.arrival_timestamp;
+      img_descriptor->seq = metadata.sequence;
+      img_descriptor->pts = metadata.pts;
+      img_descriptor->pw_flags = metadata.flags;
+      img_descriptor->pw_damage = metadata.damaged;
     }
 
     static void fill_img_dmabuf(egl::img_descriptor_t *img_descriptor, struct spa_buffer *buf, const stream_data_t &d) {
@@ -379,22 +413,24 @@ namespace pipewire {
         return;
       }
 
-      if (!stream_data.current_buffer) {
+      if (stream_data.current_frame_dmabuf && !stream_data.current_buffer) {
         img->data = nullptr;
         pw_thread_loop_unlock(loop);
         return;
       }
 
-      struct spa_buffer *buf = stream_data.current_buffer->buffer;
-      if (buf->datas[0].chunk->size != 0) {
-        auto *img_descriptor = static_cast<egl::img_descriptor_t *>(img);
-        fill_img_metadata(img_descriptor, buf);
-        if (buf->datas[0].type == SPA_DATA_DmaBuf) {
+      auto *img_descriptor = static_cast<egl::img_descriptor_t *>(img);
+      fill_img_metadata(img_descriptor, stream_data.frame_metadata);
+      if (stream_data.current_frame_dmabuf) {
+        struct spa_buffer *buf = stream_data.current_buffer->buffer;
+        if (buf->datas[0].chunk->size != 0) {
           fill_img_dmabuf(img_descriptor, buf, stream_data);
-        } else {
-          img->data = stream_data.front_buffer->data();
-          img->row_pitch = stream_data.local_stride;
         }
+      } else if (!stream_data.front_buffer->empty()) {
+        img_descriptor->frame_buffer.resize(stream_data.front_buffer->size());
+        std::memcpy(img_descriptor->frame_buffer.data(), stream_data.front_buffer->data(), stream_data.front_buffer->size());
+        img->data = img_descriptor->frame_buffer.data();
+        img->row_pitch = stream_data.local_stride;
       }
 
       pw_thread_loop_unlock(loop);
@@ -427,7 +463,7 @@ namespace pipewire {
 
       framerates[0] = SPA_FRACTION(0, 1);  // default; we only want variable rate, thus bypassing compositor pacing
       framerates[1] = SPA_FRACTION(0, 1);  // min
-      framerates[2] = SPA_FRACTION(0, 1);  // max
+      framerates[2] = SPA_FRACTION(std::max(refresh_rate, 1U), 1);  // max
 
       spa_pod_builder_push_object(b, &object_frame, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
       spa_pod_builder_add(b, SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video), 0);
@@ -535,6 +571,8 @@ namespace pipewire {
         return;
       }
 
+      const auto frame_metadata = capture_frame_metadata(b->buffer);
+
       // 2. Fast Path: DMA-BUF
       if (b->buffer->datas[0].type == SPA_DATA_DmaBuf) {
         std::scoped_lock lock(d->frame_mutex);
@@ -542,6 +580,8 @@ namespace pipewire {
           pw_stream_queue_buffer(d->stream, d->current_buffer);
         }
         d->current_buffer = b;
+        d->current_frame_dmabuf = true;
+        d->frame_metadata = frame_metadata;
         d->frame_ready = true;
       }
       // 3. Optimized Path: Software/MemPtr
@@ -557,11 +597,16 @@ namespace pipewire {
         {
           // Lock only for the pointer swap and state update
           std::scoped_lock lock(d->frame_mutex);
+          if (d->current_buffer) {
+            pw_stream_queue_buffer(d->stream, d->current_buffer);
+            d->current_buffer = nullptr;
+          }
           std::swap(d->front_buffer, d->back_buffer);
 
           d->local_stride = b->buffer->datas[0].chunk->stride;
+          d->current_frame_dmabuf = false;
+          d->frame_metadata = frame_metadata;
           d->frame_ready = true;
-          d->current_buffer = b;
         }
 
         // Release the PW buffer immediately after copy
@@ -758,12 +803,12 @@ namespace pipewire {
       framerate = config.framerate;
       if (config.framerateX100 > 0) {
         AVRational fps_strict = ::video::framerateX100_to_rational(config.framerateX100);
-        delay = std::chrono::nanoseconds(
+        delivery_interval = std::chrono::nanoseconds(
           (static_cast<int64_t>(fps_strict.den) * 1'000'000'000LL) / fps_strict.num
         );
         BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps_strict.num << "/" << fps_strict.den << ", approx. " << av_q2d(fps_strict) << " fps]";
       } else {
-        delay = std::chrono::nanoseconds {1s} / framerate;
+        delivery_interval = std::chrono::nanoseconds {1s} / std::max(framerate, 1U);
         BOOST_LOG(info) << "[pipewire] Requested frame rate [" << framerate << "fps]";
       }
       mem_type = hwdevice_type;
@@ -840,7 +885,23 @@ namespace pipewire {
       return 0;
     }
 
-    platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool show_cursor) {
+    /**
+     * @brief Wait for and materialize the newest due PipeWire frame.
+     *
+     * @param pull_free_image_cb Callback that obtains an image from the pool.
+     * @param img_out Receives the materialized image.
+     * @param timeout Maximum time to wait for a frame.
+     * @param show_cursor Whether cursor capture was requested.
+     * @param next_frame_due Optional absolute client-rate delivery deadline.
+     * @return Capture status for the requested snapshot.
+     */
+    platf::capture_e snapshot(
+      const pull_free_image_cb_t &pull_free_image_cb,
+      std::shared_ptr<platf::img_t> &img_out,
+      std::chrono::milliseconds timeout,
+      bool show_cursor,
+      std::optional<std::chrono::steady_clock::time_point> next_frame_due
+    ) {
       // FIXME: show_cursor is ignored
       auto deadline = std::chrono::steady_clock::now() + timeout;
       int retries = 0;
@@ -848,6 +909,11 @@ namespace pipewire {
       while (std::chrono::steady_clock::now() < deadline) {
         if (!wait_for_frame(deadline)) {
           return platf::capture_e::timeout;
+        }
+
+        if (next_frame_due && !pipewire.frame_is_due(*next_frame_due)) {
+          ++retries;
+          continue;
         }
 
         if (!pull_free_image_cb(img_out)) {
@@ -892,14 +958,11 @@ namespace pipewire {
     }
 
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
-      auto next_frame = std::chrono::steady_clock::now();
-
+      std::optional<std::chrono::steady_clock::time_point> next_frame_due;
       if (pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
         BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. capture() failed with error.";
         return platf::capture_e::error;
       }
-      sleep_overshoot_logger.reset();
-
       while (true) {
         // Check if PipeWire signaled a dead stream
         if (shared_state->stream_dead.exchange(false)) {
@@ -912,20 +975,8 @@ namespace pipewire {
           return platf::capture_e::reinit;
         }
 
-        // Advance to (or catch up with) next delay interval
-        auto now = std::chrono::steady_clock::now();
-        while (next_frame < now) {
-          next_frame += delay;
-        }
-
-        if (next_frame > now) {
-          std::this_thread::sleep_until(next_frame);
-          sleep_overshoot_logger.first_point(next_frame);
-          sleep_overshoot_logger.second_point_now_and_log();
-        }
-
         std::shared_ptr<platf::img_t> img_out;
-        switch (const auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor)) {
+        switch (const auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor, next_frame_due)) {
           case platf::capture_e::reinit:
           case platf::capture_e::error:
           case platf::capture_e::interrupted:
@@ -944,6 +995,16 @@ namespace pipewire {
             }
             break;
           case platf::capture_e::ok:
+            {
+              const auto captured_at = img_out->frame_timestamp.value_or(std::chrono::steady_clock::now());
+              if (!next_frame_due) {
+                next_frame_due = captured_at + delivery_interval;
+              } else {
+                do {
+                  *next_frame_due += delivery_interval;
+                } while (*next_frame_due <= captured_at);
+              }
+            }
             if (!push_captured_image_cb(std::move(img_out), true)) {
               BOOST_LOG(debug) << "[pipewire] PipeWire: ok -> !push_captured_image_cb -> ok";
               return platf::capture_e::ok;
@@ -1174,7 +1235,7 @@ namespace pipewire {
     std::array<struct dmabuf_format_info_t, MAX_DMABUF_FORMATS> dmabuf_infos;
     int n_dmabuf_infos;
     bool display_is_nvidia = false;  // Track if display GPU is NVIDIA
-    std::chrono::nanoseconds delay;
+    std::chrono::nanoseconds delivery_interval;  ///< Minimum interval between frames delivered to the encoder.
     std::optional<std::uint64_t> last_pts {};
     std::optional<std::uint64_t> last_seq {};
     std::uint64_t sequence {};

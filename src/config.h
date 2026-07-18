@@ -226,15 +226,15 @@ namespace config {
    * scope (used by the admin token / Basic Auth path).
    */
   enum class api_scope_t {
-    CONFIG_GET,     ///< Read /api/config.
-    CONFIG_SET,     ///< Write /api/config.
-    APPS_GET,       ///< List apps via /api/apps.
-    APPS_LAUNCH,    ///< Launch an app via POST /api/apps.
-    APPS_CLOSE,     ///< Stop a running app via POST /api/apps/close.
-    CLIENTS_LIST,   ///< List paired clients via /api/clients/list.
-    CLIENTS_PAIR,   ///< Pair a new client.
-    CLIENTS_UNPAIR, ///< Unpair one or all clients.
-    LOGS_GET,       ///< Read the log file via /api/logs.
+    CONFIG_GET,  ///< Read /api/config.
+    CONFIG_SET,  ///< Write /api/config.
+    APPS_GET,  ///< List apps via /api/apps.
+    APPS_LAUNCH,  ///< Launch an app via POST /api/apps.
+    APPS_CLOSE,  ///< Stop a running app via POST /api/apps/close.
+    CLIENTS_LIST,  ///< List paired clients via /api/clients/list.
+    CLIENTS_PAIR,  ///< Pair a new client.
+    CLIENTS_UNPAIR,  ///< Unpair one or all clients.
+    LOGS_GET,  ///< Read the log file via /api/logs.
     DISPLAY_RESET,  ///< Reset display-device persistence.
     TOKENS_MANAGE,  ///< Manage API tokens (CRUD via /api/tokens).
     STAR,  ///< Sentinel — matches every scope. Not user-configurable.
@@ -259,9 +259,9 @@ namespace config {
    * Salt is per-token, generated at creation. We do not store the plaintext.
    */
   struct api_token_t {
-    std::string name;        ///< Human-readable label shown in logs and the WebUI.
+    std::string name;  ///< Human-readable label shown in logs and the WebUI.
     std::string token_hash;  ///< Hex SHA-256 of `token:salt`.
-    std::string salt;        ///< Per-token random salt, hex-encoded.
+    std::string salt;  ///< Per-token random salt, hex-encoded.
     std::vector<api_scope_t> scopes;  ///< Granted scopes.
   };
 
@@ -514,6 +514,10 @@ namespace config {
     /// won't hang if the compositor doesn't respond to output queries.
     /// ponytail: skips wl::monitors() call, avoids KWin roundtrip hang.
     bool skip_wayland_correlation = false;
+
+    /// Latency policy for media queues and quality/CPU tradeoffs. Accepted
+    /// values are "safe" (default) and "aggressive".
+    std::string latency_mode = "safe";
   };
 
   /// Backwards-compatible alias so the audio encode helper (declared below)

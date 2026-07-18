@@ -33,6 +33,7 @@
 
 // local includes
 #include "src/config.h"
+
 #include <src/audio.h>
 
 namespace {
@@ -50,6 +51,7 @@ namespace {
     bool gpu_governor;
     bool headless_virtual_display;
     bool skip_wayland_correlation;
+    std::string latency_mode;
 
     SolarflareSnapshot() {
       busy_poll_us = config::solarflare.busy_poll_us;
@@ -61,6 +63,7 @@ namespace {
       gpu_governor = config::solarflare.gpu_governor;
       headless_virtual_display = config::solarflare.headless_virtual_display;
       skip_wayland_correlation = config::solarflare.skip_wayland_correlation;
+      latency_mode = config::solarflare.latency_mode;
     }
 
     void restore() {
@@ -73,6 +76,7 @@ namespace {
       config::solarflare.gpu_governor = gpu_governor;
       config::solarflare.headless_virtual_display = headless_virtual_display;
       config::solarflare.skip_wayland_correlation = skip_wayland_correlation;
+      config::solarflare.latency_mode = latency_mode;
     }
   };
 
@@ -106,6 +110,7 @@ namespace {
     EXPECT_TRUE(config::solarflare.gpu_governor);
     EXPECT_FALSE(config::solarflare.headless_virtual_display);
     EXPECT_FALSE(config::solarflare.skip_wayland_correlation);
+    EXPECT_EQ(config::solarflare.latency_mode, "safe");
   }
 
   // ---------------------------------------------------------------------
@@ -173,6 +178,14 @@ namespace {
     config::solarflare.cpu_pinning = false;
     EXPECT_FALSE(config::solarflare.enet_4mib_buffer);
     EXPECT_FALSE(config::solarflare.cpu_pinning);
+  }
+
+  TEST_F(SolarflareConfigTest, LatencyModeSupportsSafeAndAggressiveValues) {
+    config::solarflare.latency_mode = "aggressive";
+    EXPECT_EQ(config::solarflare.latency_mode, "aggressive");
+
+    config::solarflare.latency_mode = "safe";
+    EXPECT_EQ(config::solarflare.latency_mode, "safe");
   }
 
   // ---------------------------------------------------------------------

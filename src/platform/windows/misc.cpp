@@ -1694,17 +1694,48 @@ namespace platf {
   }
 
   std::chrono::nanoseconds qpc_time_difference(int64_t performance_counter1, int64_t performance_counter2) {
+    if (performance_counter1 <= 0 || performance_counter2 <= 0 || performance_counter1 < performance_counter2) {
+      return {};
+    }
     auto get_frequency = []() {
       LARGE_INTEGER frequency;
       frequency.QuadPart = 0;
       QueryPerformanceFrequency(&frequency);
       return frequency.QuadPart;
     };
-    static const double frequency = get_frequency();
+    static const int64_t frequency = get_frequency();
     if (frequency) {
-      return std::chrono::nanoseconds((int64_t) ((performance_counter1 - performance_counter2) * frequency / std::nano::den));
+      const auto seconds = std::chrono::duration<long double>(
+        static_cast<long double>(performance_counter1 - performance_counter2) / static_cast<long double>(frequency)
+      );
+      return std::chrono::duration_cast<std::chrono::nanoseconds>(seconds);
     }
     return {};
+  }
+
+  std::chrono::nanoseconds wgc_time_difference(int64_t current_performance_counter, int64_t frame_system_relative_time) {
+    if (current_performance_counter <= 0 || frame_system_relative_time <= 0) {
+      return {};
+    }
+    auto get_frequency = []() {
+      LARGE_INTEGER frequency;
+      frequency.QuadPart = 0;
+      QueryPerformanceFrequency(&frequency);
+      return frequency.QuadPart;
+    };
+    static const int64_t frequency = get_frequency();
+    if (!frequency) {
+      return {};
+    }
+
+    constexpr long double system_relative_ticks_per_second = 10'000'000.0L;
+    const auto current_seconds = static_cast<long double>(current_performance_counter) / static_cast<long double>(frequency);
+    const auto frame_seconds = static_cast<long double>(frame_system_relative_time) / system_relative_ticks_per_second;
+    const auto age_seconds = current_seconds - frame_seconds;
+    if (age_seconds < 0.0L || age_seconds > 5.0L) {
+      return {};
+    }
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<long double>(age_seconds));
   }
 
   std::string get_host_name() {

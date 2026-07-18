@@ -105,7 +105,14 @@ namespace audio {
   };
 
   using buffer_t = util::buffer_t<std::uint8_t>;
-  using packet_t = std::pair<void *, buffer_t>;
+
+  /** @brief Encoded audio packet with capture-order metadata. */
+  struct packet_t {
+    void *channel_data;  ///< Owning streaming session.
+    buffer_t data;  ///< Encoded Opus payload.
+    std::uint64_t frame_index;  ///< Monotonic capture index used to preserve RTP gaps after drops.
+  };
+
   using audio_ctx_ref_t = safe::shared_t<audio_ctx_t>::ptr_t;
 
   void capture(safe::mail_t mail, config_t config, void *channel_data);

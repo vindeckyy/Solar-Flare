@@ -260,7 +260,9 @@ namespace video {
       av_dict_set_int(&options, "dstw", sws_output_frame->width, 0);
       av_dict_set_int(&options, "dsth", sws_output_frame->height, 0);
       av_dict_set_int(&options, "dst_format", sws_output_frame->format, 0);
-      av_dict_set_int(&options, "sws_flags", SWS_LANCZOS | SWS_ACCURATE_RND, 0);
+      const auto sws_flags = config::solarflare.latency_mode == "aggressive" ? SWS_FAST_BILINEAR :
+                                                                               SWS_LANCZOS | SWS_ACCURATE_RND;
+      av_dict_set_int(&options, "sws_flags", sws_flags, 0);
       av_dict_set_int(&options, "threads", config::video.min_threads, 0);
 
       auto status = av_opt_set_dict(sws.get(), &options);
@@ -338,6 +340,7 @@ namespace video {
     avcodec_encode_session_t &operator=(avcodec_encode_session_t &&other) {
       device = std::move(other.device);
       avcodec_ctx = std::move(other.avcodec_ctx);
+      receive_packet = std::move(other.receive_packet);
       replacements = std::move(other.replacements);
       sps = std::move(other.sps);
       vps = std::move(other.vps);
@@ -377,6 +380,7 @@ namespace video {
 
     avcodec_ctx_t avcodec_ctx;
     std::unique_ptr<platf::avcodec_encode_device_t> device;
+    packet_raw_avcodec receive_packet;  ///< Reusable packet for encoder receive calls, including terminal EAGAIN results.
 
     std::vector<packet_raw_t::replace_t> replacements;
 
@@ -416,6 +420,23 @@ namespace video {
       if (!device->nvenc->invalidate_ref_frames(first_frame, last_frame)) {
         force_idr = true;
       }
+    }
+
+    bitrate_reconfigure_e reconfigure_bitrate(int bitrate_kbps) override {
+      if (!device || !device->nvenc) {
+        return bitrate_reconfigure_e::unsupported;
+      }
+
+      if (!device->nvenc->supports_dynamic_bitrate()) {
+        return bitrate_reconfigure_e::unsupported;
+      }
+
+      if (!device->nvenc->reconfigure_bitrate(bitrate_kbps)) {
+        return bitrate_reconfigure_e::restart_required;
+      }
+
+      force_idr = true;
+      return bitrate_reconfigure_e::applied;
     }
 
     nvenc::nvenc_encoded_frame encode_frame(uint64_t frame_index) {
@@ -1463,8 +1484,8 @@ namespace video {
           return false;
         }
 
-        while (capture_ctx_queue->peek()) {
-          capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
+        while (auto capture_ctx = capture_ctx_queue->try_pop()) {
+          capture_ctxs.emplace_back(std::move(*capture_ctx));
         }
 
         if (switch_display_event->peek()) {
@@ -1575,15 +1596,17 @@ namespace video {
     }
 
     while (ret >= 0) {
-      auto packet = std::make_unique<packet_raw_avcodec>();
-      auto av_packet = packet.get()->av_packet;
-
+      auto av_packet = session.receive_packet.av_packet;
       ret = avcodec_receive_packet(ctx.get(), av_packet);
       if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
         return 0;
       } else if (ret < 0) {
         return ret;
       }
+
+      auto packet = std::make_unique<packet_raw_avcodec>();
+      av_packet_move_ref(packet->av_packet, av_packet);
+      av_packet = packet->av_packet;
 
       if (av_packet->flags & AV_PKT_FLAG_KEY) {
         BOOST_LOG(debug) << "Frame "sv << frame_nr << ": IDR Keyframe (AV_FRAME_FLAG_KEY)"sv;
@@ -1624,6 +1647,7 @@ namespace video {
 
       packet->replacements = &session.replacements;
       packet->channel_data = channel_data;
+      packet->enqueued_at = std::chrono::steady_clock::now();
       packets->raise(std::move(packet));
     }
 
@@ -1636,18 +1660,12 @@ namespace video {
       // ponytail: one std::string per error site. The log helper
       // takes a string_view; building a string here keeps the macro
       // signature simple and lets us concat frame_nr cleanly.
-      SUN_ERR(sunshine::error_category_e::ENCODER, "nvenc_empty",
-              std::string("NvENC returned empty packet for frame ")
-                  .append(std::to_string(frame_nr)));
+      SUN_ERR(sunshine::error_category_e::ENCODER, "nvenc_empty", std::string("NvENC returned empty packet for frame ").append(std::to_string(frame_nr)));
       return sunshine::encode_error_e::EMPTY_PACKET;
     }
 
     if (frame_nr != encoded_frame.frame_index) {
-      SUN_ERR(sunshine::error_category_e::ENCODER, "nvenc_frame_mismatch",
-              std::string("NvENC frame index mismatch expected=")
-                  .append(std::to_string(frame_nr))
-                  .append(" got=")
-                  .append(std::to_string(encoded_frame.frame_index)));
+      SUN_ERR(sunshine::error_category_e::ENCODER, "nvenc_frame_mismatch", std::string("NvENC frame index mismatch expected=").append(std::to_string(frame_nr)).append(" got=").append(std::to_string(encoded_frame.frame_index)));
       return sunshine::encode_error_e::FRAME_INDEX_MISMATCH;
     }
 
@@ -1655,6 +1673,7 @@ namespace video {
     packet->channel_data = channel_data;
     packet->after_ref_frame_invalidation = encoded_frame.after_ref_frame_invalidation;
     packet->frame_timestamp = frame_timestamp;
+    packet->enqueued_at = std::chrono::steady_clock::now();
     packets->raise(std::move(packet));
 
     return std::nullopt;
@@ -2157,11 +2176,28 @@ namespace video {
       config::video.adaptive_bitrate_min,
       config::video.adaptive_bitrate_max,
     });
+    const int requested_bitrate = config.bitrate;
 
     auto last_encode_time = std::chrono::steady_clock::now();
     int adaptive_bitrate_counter = 0;
+    bool bitrate_reconfigure_warning_logged = false;
+    bool bitrate_reconfigure_disabled = false;
+    bool initial_frame_converted = false;
+    std::optional<std::chrono::steady_clock::time_point> initial_frame_timestamp;
 
-    {
+    // Prefer the first captured frame over allocating and converting a large
+    // dummy image. Keep the wait short so a stalled capture backend still gets
+    // the historical keepalive behavior promptly.
+    if (auto img = images->pop(std::min(max_frametime, std::chrono::duration<double, std::milli> {5.0}))) {
+      initial_frame_timestamp = img->frame_timestamp;
+      if (session->convert(*img)) {
+        BOOST_LOG(error) << "Could not convert initial image"sv;
+        return;
+      }
+      initial_frame_converted = true;
+    }
+
+    if (!initial_frame_converted) {
       // Load a dummy image into the AVFrame to ensure we have something to encode
       // even if we timeout waiting on the first frame. This is a relatively large
       // allocation which can be freed immediately after convert(), so we do this
@@ -2186,15 +2222,12 @@ namespace video {
 
       bool requested_idr_frame = false;
 
-      while (invalidate_ref_frames_events->peek()) {
-        if (auto frames = invalidate_ref_frames_events->pop(0ms)) {
-          session->invalidate_ref_frames(frames->first, frames->second);
-        }
+      if (auto frames = invalidate_ref_frames_events->try_pop()) {
+        session->invalidate_ref_frames(frames->first, frames->second);
       }
 
-      if (idr_events->peek()) {
+      if (idr_events->try_pop()) {
         requested_idr_frame = true;
-        idr_events->pop();
       }
 
       if (requested_idr_frame) {
@@ -2204,7 +2237,10 @@ namespace video {
       std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
 
       // Encode at a minimum FPS to avoid image quality issues with static content
-      if (!requested_idr_frame || images->peek()) {
+      if (initial_frame_converted) {
+        frame_timestamp = initial_frame_timestamp;
+        initial_frame_converted = false;
+      } else if (!requested_idr_frame || images->peek()) {
         if (auto img = images->pop(max_frametime)) {
           frame_timestamp = img->frame_timestamp;
           if (session->convert(*img)) {
@@ -2221,11 +2257,7 @@ namespace video {
         // ponytail: branch on the enum so the user can grep for the
         // specific failure instead of a generic 'Could not encode'
         // that lost the cause deeper in the call stack.
-        SUN_ERR(sunshine::error_category_e::ENCODER, "encode_failed",
-                std::string("Could not encode video packet frame_nr=")
-                    .append(std::to_string(frame_nr - 1))
-                    .append(" cause=")
-                    .append(sunshine::to_string(*enc_err)));
+        SUN_ERR(sunshine::error_category_e::ENCODER, "encode_failed", std::string("Could not encode video packet frame_nr=").append(std::to_string(frame_nr - 1)).append(" cause=").append(sunshine::to_string(*enc_err)));
         return;
       }
       auto encode_end = std::chrono::steady_clock::now();
@@ -2233,10 +2265,8 @@ namespace video {
       session->request_normal_frame();
 
       if (config::video.adaptive_bitrate_enabled) {
-        while (adaptive_bitrate_net_stats_event->peek()) {
-          if (auto stats = adaptive_bitrate_net_stats_event->pop(0ms)) {
-            adaptive_bitrate.update_network_stats(stats->first, stats->second);
-          }
+        if (auto stats = adaptive_bitrate_net_stats_event->try_pop()) {
+          adaptive_bitrate.update_network_stats(stats->first, stats->second);
         }
 
         float encode_time_ms = std::chrono::duration<float, std::milli>(encode_end - encode_start).count();
@@ -2250,14 +2280,32 @@ namespace video {
 
         if (++adaptive_bitrate_counter >= config.framerate) {
           adaptive_bitrate_counter = 0;
-          int target_bitrate = adaptive_bitrate.get_target_bitrate(config.bitrate);
-          config.bitrate = target_bitrate;
+          const int target_bitrate = adaptive_bitrate.get_target_bitrate(requested_bitrate);
+          if (target_bitrate != config.bitrate && !bitrate_reconfigure_disabled) {
+            switch (session->reconfigure_bitrate(target_bitrate)) {
+              case bitrate_reconfigure_e::applied:
+                config.bitrate = target_bitrate;
+                bitrate_reconfigure_warning_logged = false;
+                BOOST_LOG(info) << "Reconfigured encoder bitrate to " << target_bitrate << " kbit/s";
+                break;
+              case bitrate_reconfigure_e::restart_required:
+                bitrate_reconfigure_disabled = true;
+                if (!bitrate_reconfigure_warning_logged) {
+                  BOOST_LOG(warning) << "Encoder bitrate change requires session restart; keeping " << config.bitrate << " kbit/s";
+                  bitrate_reconfigure_warning_logged = true;
+                }
+                break;
+              case bitrate_reconfigure_e::unsupported:
+                bitrate_reconfigure_disabled = true;
+                if (!bitrate_reconfigure_warning_logged) {
+                  BOOST_LOG(warning) << "Encoder does not support live bitrate changes; keeping " << config.bitrate << " kbit/s";
+                  bitrate_reconfigure_warning_logged = true;
+                }
+                break;
+            }
+          }
         }
       }
-
-      // While streaming check to see if the mouse is present and enable Mouse Keys to force the cursor to appear
-      // This is useful for KVM switch scenarios where mouse may disappear during streaming
-      platf::enable_mouse_keys();
     }
   }
 
@@ -2512,11 +2560,7 @@ namespace video {
             // ponytail: same site-1 pattern; here we raise the shutdown
             // event so the stream tears down instead of returning. The
             // cause string is the only thing the Web UI can show.
-            SUN_ERR(sunshine::error_category_e::ENCODER, "encode_failed",
-                    std::string("Could not encode video packet frame_nr=")
-                        .append(std::to_string(ctx->frame_nr - 1))
-                        .append(" cause=")
-                        .append(sunshine::to_string(*enc_err)));
+            SUN_ERR(sunshine::error_category_e::ENCODER, "encode_failed", std::string("Could not encode video packet frame_nr=").append(std::to_string(ctx->frame_nr - 1)).append(" cause=").append(sunshine::to_string(*enc_err)));
             ctx->shutdown_event->raise(true);
 
             continue;
@@ -3339,7 +3383,9 @@ namespace video {
       for (int card = 0; card < 4; ++card) {
         auto path = "/sys/class/drm/card"s + std::to_string(card) + "/device/power_dpm_force_performance_level";
         std::ofstream f(path);
-        if (f) f << "performance";
+        if (f) {
+          f << "performance";
+        }
       }
     }
 #endif
@@ -3368,7 +3414,9 @@ namespace video {
       for (int card = 0; card < 4; ++card) {
         auto path = "/sys/class/drm/card"s + std::to_string(card) + "/device/power_dpm_force_performance_level";
         std::ofstream f(path);
-        if (f) f << "auto";
+        if (f) {
+          f << "auto";
+        }
       }
     }
 #endif

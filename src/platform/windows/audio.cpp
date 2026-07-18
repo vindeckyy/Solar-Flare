@@ -511,9 +511,11 @@ namespace platf::audio {
         return -1;
       }
 
-      REFERENCE_TIME default_latency;
-      audio_client->GetDevicePeriod(&default_latency, nullptr);
-      default_latency_ms = default_latency / 1000;
+      REFERENCE_TIME default_latency = 100000;  // 10 ms fallback in 100-nanosecond units.
+      if (FAILED(audio_client->GetDevicePeriod(&default_latency, nullptr))) {
+        BOOST_LOG(warning) << "GetDevicePeriod() failed; using 10 ms audio wait fallback"sv;
+      }
+      default_latency_ms = std::max<REFERENCE_TIME>(1, default_latency / 10000);
       continuous_audio = continuous;
 
       std::uint32_t frames;

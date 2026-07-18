@@ -111,6 +111,120 @@ TEST(SafeEventTryPop, TryPopIsNonBlocking) {
     << "try_pop() must not block; took " << elapsed_ms << "ms";
 }
 
+TEST(SafeEventTryPop, StoppedEventDoesNotYieldStoredValue) {
+  safe::event_t<int> event;
+  event.raise(7);
+  event.stop();
+
+  EXPECT_FALSE(event.running());
+  EXPECT_FALSE(event.peek());
+  EXPECT_FALSE(bool(event.try_pop()));
+}
+
+TEST(SafeQueueTryPop, PreservesFifoOrder) {
+  safe::queue_t<int> queue;
+  queue.raise(1);
+  queue.raise(2);
+
+  auto first = queue.try_pop();
+  auto second = queue.try_pop();
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(second);
+  EXPECT_EQ(*first, 1);
+  EXPECT_EQ(*second, 2);
+  EXPECT_FALSE(bool(queue.try_pop()));
+}
+
+TEST(SafeQueueTryPop, StoppedQueueDoesNotYieldStoredValues) {
+  safe::queue_t<int> queue;
+  queue.raise(1);
+  queue.stop();
+
+  EXPECT_FALSE(queue.running());
+  EXPECT_FALSE(queue.peek());
+  EXPECT_FALSE(bool(queue.try_pop()));
+}
+
+TEST(SafeMailQueue, AppliesCapacityOnlyOnFirstCreation) {
+  auto mail = std::make_shared<safe::mail_raw_t>();
+  auto queue = mail->queue<int>("bounded", 2);
+  auto reused_queue = mail->queue<int>("bounded", 16);
+
+  EXPECT_EQ(queue, reused_queue);
+  queue->raise(1);
+  queue->raise(2);
+  queue->raise(3);
+
+  auto value = queue->try_pop();
+  ASSERT_TRUE(value);
+  EXPECT_EQ(*value, 3);
+  EXPECT_FALSE(bool(queue->try_pop()));
+}
+
+TEST(SafeQueueOverflow, DropOldestRetainsBoundedFifoHistory) {
+  safe::queue_t<int> queue {2, safe::queue_overflow_e::drop_oldest};
+  queue.raise(1);
+  queue.raise(2);
+  queue.raise(3);
+
+  auto first = queue.try_pop();
+  auto second = queue.try_pop();
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(second);
+  EXPECT_EQ(*first, 2);
+  EXPECT_EQ(*second, 3);
+  EXPECT_FALSE(bool(queue.try_pop()));
+}
+
+TEST(SafeMailQueue, ThreadsOverflowPolicyThroughFirstCreation) {
+  auto mail = std::make_shared<safe::mail_raw_t>();
+  auto queue = mail->queue<int>("drop-oldest", 2, safe::queue_overflow_e::drop_oldest);
+  auto reused_queue = mail->queue<int>("drop-oldest", 1, safe::queue_overflow_e::clear_all);
+
+  EXPECT_EQ(queue, reused_queue);
+  queue->raise(1);
+  queue->raise(2);
+  queue->raise(3);
+
+  auto first = queue->try_pop();
+  auto second = queue->try_pop();
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(second);
+  EXPECT_EQ(*first, 2);
+  EXPECT_EQ(*second, 3);
+}
+
+TEST(SafeQueueConcurrency, ProducerConsumerPreservesAllValues) {
+  safe::queue_t<int> queue {0};
+  constexpr int value_count = 1000;
+
+  std::thread producer([&] {
+    for (int value = 0; value < value_count; ++value) {
+      queue.raise(value);
+    }
+  });
+
+  for (int expected = 0; expected < value_count; ++expected) {
+    auto value = queue.pop();
+    ASSERT_TRUE(value);
+    EXPECT_EQ(*value, expected);
+  }
+  producer.join();
+}
+
+TEST(SafeQueueConcurrency, StopWakesBlockedConsumer) {
+  safe::queue_t<int> queue;
+  std::atomic_bool consumer_finished {false};
+  std::thread consumer([&] {
+    EXPECT_FALSE(bool(queue.pop()));
+    consumer_finished.store(true, std::memory_order_release);
+  });
+
+  queue.stop();
+  consumer.join();
+  EXPECT_TRUE(consumer_finished.load(std::memory_order_acquire));
+}
+
 // =============================================================================
 // Documentation test: the e40d355f regression must never return.
 // This is a build-time assertion that the try_pop() API is in use

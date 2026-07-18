@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <cerrno>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -33,13 +34,14 @@
 #include <pwd.h>
 #include <sys/resource.h>  // For setpriority
 #include <sys/socket.h>
+#include <time.h>
 
 #if !defined(__FreeBSD__)
+  #include <atomic>
   #include <pthread.h>
   #include <sched.h>
   #include <sys/capability.h>
   #include <sys/prctl.h>
-  #include <atomic>
 #endif
 #ifdef __FreeBSD__
   #include <net/if_dl.h>  // For sockaddr_dl, LLADDR, and AF_LINK
@@ -458,6 +460,7 @@ namespace platf {
     if (config::solarflare.cpu_pinning) {
       if (want_realtime && !is_capture_thread) {
         struct sched_param sp {};
+
         sp.sched_priority = 10;  // lowest RT priority that still beats CFS
         if (::pthread_setschedparam(pthread_self(), SCHED_RR, &sp) != 0) {
           BOOST_LOG(debug) << "SCHED_RR not available; falling back to nice only"sv;
@@ -500,13 +503,19 @@ namespace platf {
           // SMT and AMD SMT the value is "N,M" or "N".
           fs::path sibs = entry.path() / "topology" / "thread_siblings_list";
           std::ifstream f {sibs};
-          if (!f) continue;
+          if (!f) {
+            continue;
+          }
           std::string line;
-          if (!std::getline(f, line)) continue;
+          if (!std::getline(f, line)) {
+            continue;
+          }
           // Parse the first sibling number.
           char *e2 = nullptr;
           long first = std::strtol(line.c_str(), &e2, 10);
-          if (e2 == line.c_str()) continue;
+          if (e2 == line.c_str()) {
+            continue;
+          }
           if (first == n) {
             cores.push_back(static_cast<unsigned>(n));
           }
@@ -640,6 +649,44 @@ namespace platf {
   bool send_batch(batched_send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
+
+    // Wait only until the caller's pacing deadline. Returning true with
+    // timed_out set tells the caller that batching was supported but this
+    // stale batch must not be retried through the unbatched fallback.
+    auto wait_for_send_buffer = [&]() {
+      for (;;) {
+        int timeout_ms = -1;
+        if (send_info.deadline != std::chrono::steady_clock::time_point::max()) {
+          auto remaining = send_info.deadline - std::chrono::steady_clock::now();
+          if (remaining <= std::chrono::steady_clock::duration::zero()) {
+            send_info.timed_out = true;
+            return false;
+          }
+
+          timeout_ms = static_cast<int>(std::max<std::int64_t>(
+            1,
+            std::chrono::ceil<std::chrono::milliseconds>(remaining).count()
+          ));
+        }
+
+        struct pollfd pfd;
+        pfd.fd = sockfd;
+        pfd.events = POLLOUT;
+
+        auto result = poll(&pfd, 1, timeout_ms);
+        if (result == 1) {
+          return true;
+        }
+        if (result == 0) {
+          send_info.timed_out = true;
+          return false;
+        }
+        if (errno != EINTR) {
+          BOOST_LOG(warning) << "poll() failed: "sv << errno;
+          return false;
+        }
+      }
+    };
 
     // Convert the target address into a sockaddr
     struct sockaddr_in taddr_v4 = {};
@@ -775,13 +822,10 @@ namespace platf {
         if (bytes_sent < 0) {
           // If there's no send buffer space, wait for some to be available
           if (errno == EAGAIN) {
-            struct pollfd pfd;
-
-            pfd.fd = sockfd;
-            pfd.events = POLLOUT;
-
-            if (poll(&pfd, 1, -1) != 1) {
-              BOOST_LOG(warning) << "poll() failed: "sv << errno;
+            if (!wait_for_send_buffer()) {
+              if (send_info.timed_out) {
+                return true;
+              }
               break;
             }
 
@@ -798,7 +842,10 @@ namespace platf {
 
       // If we sent something, return the status and don't fall back to the non-GSO path.
       if (seg_index != 0) {
-        return seg_index >= send_info.block_count;
+        if (seg_index < send_info.block_count) {
+          send_info.timed_out = true;
+        }
+        return true;
       }
     }
 #endif
@@ -837,14 +884,15 @@ namespace platf {
         if (msgs_sent < 0) {
           // If there's no send buffer space, wait for some to be available
           if (errno == EAGAIN) {
-            struct pollfd pfd;
-
-            pfd.fd = sockfd;
-            pfd.events = POLLOUT;
-
-            if (poll(&pfd, 1, -1) != 1) {
-              BOOST_LOG(warning) << "poll() failed: "sv << errno;
-              break;
+            if (!wait_for_send_buffer()) {
+              if (send_info.timed_out) {
+                return true;
+              }
+              if (blocks_sent != 0) {
+                send_info.timed_out = true;
+                return true;
+              }
+              return false;
             }
 
             // Try to send again
@@ -852,6 +900,10 @@ namespace platf {
           }
 
           BOOST_LOG(warning) << "sendmmsg() failed: "sv << errno;
+          if (blocks_sent != 0) {
+            send_info.timed_out = true;
+            return true;
+          }
           return false;
         }
 
@@ -1183,9 +1235,7 @@ namespace platf {
    *          kernel module isn't loaded.
    */
   std::vector<std::string> hermes_kms_display_names(mem_type_e hwdevice_type);
-  std::shared_ptr<display_t> hermes_kms_display(mem_type_e hwdevice_type,
-                                                const std::string &display_name,
-                                                const video::config_t &config);
+  std::shared_ptr<display_t> hermes_kms_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
   bool verify_hermes_kms();
 
   /**
@@ -1388,10 +1438,40 @@ namespace platf {
 
   class linux_high_precision_timer: public high_precision_timer {
   public:
+    /**
+     * @brief Sleep until an absolute monotonic deadline.
+     *
+     * @param duration Relative duration from the current monotonic time.
+     */
     void sleep_for(const std::chrono::nanoseconds &duration) override {
-      std::this_thread::sleep_for(duration);
+      if (duration <= std::chrono::nanoseconds::zero()) {
+        return;
+      }
+
+      timespec deadline {};
+      if (clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) {
+        std::this_thread::sleep_for(duration);
+        return;
+      }
+
+      const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration);
+      const auto nanoseconds = duration - seconds;
+      deadline.tv_sec += seconds.count();
+      deadline.tv_nsec += nanoseconds.count();
+      if (deadline.tv_nsec >= 1'000'000'000L) {
+        ++deadline.tv_sec;
+        deadline.tv_nsec -= 1'000'000'000L;
+      }
+
+      while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &deadline, nullptr) == EINTR) {
+      }
     }
 
+    /**
+     * @brief Check whether the monotonic timer is available.
+     *
+     * @return Always `true` on supported Linux and FreeBSD builds.
+     */
     operator bool() override {
       return true;
     }

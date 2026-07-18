@@ -12,9 +12,13 @@
  *      the fd via the existing encoder import path; no CPU readback.
  */
 #include "hermes_kms.h"
+
+#include "src/logging.h"
 #include "third-party/hermes-kms/include/uapi/drm/hermes_kms_drm.h"
 
+#include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <cstring>
 #include <fcntl.h>
 #include <filesystem>
@@ -22,8 +26,6 @@
 #include <string>
 #include <sys/ioctl.h>
 #include <unistd.h>
-
-#include "src/logging.h"
 #if defined(SUNSHINE_BUILD_CUDA)
   #include "cuda.h"
 #endif
@@ -54,7 +56,9 @@ namespace platf {
       for (int i = 0; i < 16; ++i) {
         std::string path = "/dev/dri/card" + std::to_string(i);
         int fd = open(path.c_str(), O_RDWR | O_CLOEXEC);
-        if (fd < 0) continue;
+        if (fd < 0) {
+          continue;
+        }
         struct drm_hermes_kms_version ver = {};
         if (ioctl(fd, DRM_IOCTL_HERMES_KMS_GET_VERSION, &ver) == 0) {
           close(fd);
@@ -97,17 +101,14 @@ namespace platf {
       return s;
     }
     s.uapi_version = ver.uapi_version;
-    s.driver_version = std::to_string(ver.driver_major) + "."
-                     + std::to_string(ver.driver_minor) + "."
-                     + std::to_string(ver.driver_patch);
+    s.driver_version = std::to_string(ver.driver_major) + "." + std::to_string(ver.driver_minor) + "." + std::to_string(ver.driver_patch);
 
     // Refuse to load an older UAPI than what this build was compiled against.
     // The header contract: "refuses to load if the kernel module reports an
     // older version." Older structs would have different layouts and silent
     // miscompiles.
     if (s.uapi_version < HERMES_KMS_REQUIRED_UAPI) {
-      s.last_error = "driver UAPI " + std::to_string(s.uapi_version)
-                   + " is older than required " + std::to_string(HERMES_KMS_REQUIRED_UAPI);
+      s.last_error = "driver UAPI " + std::to_string(s.uapi_version) + " is older than required " + std::to_string(HERMES_KMS_REQUIRED_UAPI);
       close(fd);
       return s;
     }
@@ -119,23 +120,21 @@ namespace platf {
       close(fd);
       return s;
     }
-    s.caps.flags           = caps.flags;
-    s.caps.min_width       = caps.min_width;
-    s.caps.min_height      = caps.min_height;
-    s.caps.max_width       = caps.max_width;
-    s.caps.max_height      = caps.max_height;
+    s.caps.flags = caps.flags;
+    s.caps.min_width = caps.min_width;
+    s.caps.min_height = caps.min_height;
+    s.caps.max_width = caps.max_width;
+    s.caps.max_height = caps.max_height;
     s.caps.preferred_width = caps.preferred_width;
-    s.caps.preferred_height= caps.preferred_height;
-    s.caps.max_refresh_hz  = caps.max_refresh_hz;
+    s.caps.preferred_height = caps.preferred_height;
+    s.caps.max_refresh_hz = caps.max_refresh_hz;
 
     close(fd);
 
     // ponytail: check that the device advertises the minimum set of
     // capabilities we need. A real capture implementation needs
     // DMABUF_EXPORT + FRAME_WAIT + FRAME_ACQUIRE.
-    constexpr std::uint64_t NEEDED = HERMES_KMS_CAP_DMABUF_EXPORT
-                                   | HERMES_KMS_CAP_FRAME_WAIT
-                                   | HERMES_KMS_CAP_FRAME_ACQUIRE;
+    constexpr std::uint64_t NEEDED = HERMES_KMS_CAP_DMABUF_EXPORT | HERMES_KMS_CAP_FRAME_WAIT | HERMES_KMS_CAP_FRAME_ACQUIRE;
     if ((s.caps.flags & NEEDED) != NEEDED) {
       s.last_error = "device missing required caps (need DMABUF_EXPORT + FRAME_WAIT + FRAME_ACQUIRE)";
       // ponytail: signal failure by clearing card_index so callers (display_names,
@@ -148,7 +147,9 @@ namespace platf {
 
   std::vector<std::string> hermes_kms_display_names(mem_type_e) {
     auto status = probe_hermes_kms();
-    if (!status.module_loaded || status.card_index < 0) return {};
+    if (!status.module_loaded || status.card_index < 0) {
+      return {};
+    }
     // Hermes-KMS exports exactly one virtual output named "HERMES-1".
     return {"HERMES-1"};
   }
@@ -162,10 +163,13 @@ namespace platf {
    */
   // ponytail: minimal DMA-BUF-backed image. The data pointer is nullptr
   // because pixel data lives in a GPU buffer imported by the encoder.
-  struct hermes_kms_img_t : platf::img_t {
+  struct hermes_kms_img_t: platf::img_t {
     int dma_buf_fd = -1;
+
     ~hermes_kms_img_t() override {
-      if (dma_buf_fd >= 0) close(dma_buf_fd);
+      if (dma_buf_fd >= 0) {
+        close(dma_buf_fd);
+      }
     }
   };
 
@@ -173,14 +177,30 @@ namespace platf {
   // The capture loop is WAIT_FRAME → ACQUIRE_FRAME → push the DMA-BUF
   // as an hermes_kms_img_t. The encoder consumer imports the fd via
   // VAAPI/CUDA — no CPU readback.
-  struct hermes_kms_display_t : platf::display_t {
+  struct hermes_kms_display_t: platf::display_t {
     int card_fd = -1;
     std::uint32_t width;
     std::uint32_t height;
+    std::chrono::nanoseconds frame_interval;  ///< Minimum interval between frames delivered to the encoder.
 
     mem_type_e hwdevice_type {mem_type_e::system};
-    hermes_kms_display_t(int fd, mem_type_e ht, std::uint32_t w, std::uint32_t h)
-      : card_fd(fd), width(w), height(h), hwdevice_type(ht) {}
+
+    /**
+     * @brief Construct a Hermes-KMS capture display.
+     *
+     * @param fd Open Hermes-KMS card descriptor.
+     * @param ht Encoder memory type.
+     * @param w Capture width in pixels.
+     * @param h Capture height in pixels.
+     * @param framerate Maximum client-requested capture rate.
+     */
+    hermes_kms_display_t(int fd, mem_type_e ht, std::uint32_t w, std::uint32_t h, int framerate):
+        card_fd(fd),
+        width(w),
+        height(h),
+        frame_interval(std::chrono::nanoseconds {std::chrono::seconds {1}} / std::max(framerate, 1)),
+        hwdevice_type(ht) {}
+
     ~hermes_kms_display_t() override {
       if (card_fd >= 0) {
         close(card_fd);
@@ -193,8 +213,8 @@ namespace platf {
     }
 
     int dummy_img(platf::img_t *img) override {
-      img->width = (std::int32_t)width;
-      img->height = (std::int32_t)height;
+      img->width = (std::int32_t) width;
+      img->height = (std::int32_t) height;
       img->row_pitch = (std::int32_t)(width * 4);
       img->pixel_pitch = 4;
       img->data = nullptr;  // DMA-BUF images have no CPU data
@@ -206,8 +226,8 @@ namespace platf {
     // kmsgrab.cpp:1270 dispatch pattern (vaapi / cuda / vulkan).
 
     std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
-      BOOST_LOG(info) << "hermes_kms::make_avcodec_encode_device enter hwdevice_type=" << (int)hwdevice_type;
-      (void)pix_fmt;
+      BOOST_LOG(info) << "hermes_kms::make_avcodec_encode_device enter hwdevice_type=" << (int) hwdevice_type;
+      (void) pix_fmt;
 
 #ifdef SUNSHINE_BUILD_VAAPI
       if (hwdevice_type == mem_type_e::vaapi) {
@@ -221,8 +241,8 @@ namespace platf {
           return nullptr;
         }
         file_t card(dev_fd);
-        auto dev = va::make_avcodec_encode_device((int)width, (int)height, std::move(card), 0, 0, false);
-        BOOST_LOG(info) << "hermes_kms: vaapi(AMD) device: " << (dev ? "ok" : "null") << " " << (int)width << "x" << (int)height;
+        auto dev = va::make_avcodec_encode_device((int) width, (int) height, std::move(card), 0, 0, false);
+        BOOST_LOG(info) << "hermes_kms: vaapi(AMD) device: " << (dev ? "ok" : "null") << " " << (int) width << "x" << (int) height;
         return dev;
       }
 #endif
@@ -231,7 +251,7 @@ namespace platf {
       if (hwdevice_type == mem_type_e::vulkan) {
         // ponytail: use the RAM path. RADV Vulkan Video cannot import the
         // hermes_kms DMA-BUF (Mesa bug with the format produced here).
-        auto dev = vk::make_avcodec_encode_device_ram((int)width, (int)height);
+        auto dev = vk::make_avcodec_encode_device_ram((int) width, (int) height);
         BOOST_LOG(info) << "hermes_kms: vulkan device (RAM): " << (dev ? "ok" : "null");
         return dev;
       }
@@ -242,21 +262,20 @@ namespace platf {
         return nullptr;
       }
 
-      BOOST_LOG(info) << "hermes_kms: no encode-device available for hwdevice_type=" << (int)hwdevice_type;
+      BOOST_LOG(info) << "hermes_kms: no encode-device available for hwdevice_type=" << (int) hwdevice_type;
       return std::make_unique<avcodec_encode_device_t>();
     }
 
-
-
-    capture_e capture(const push_captured_image_cb_t &push_captured_image_cb,
-                      const pull_free_image_cb_t &pull_free_image_cb,
-                      bool * /*cursor*/) override {
+    capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool * /*cursor*/) override {
+      auto next_frame_due = std::chrono::steady_clock::now();
       while (true) {
         // WAIT_FRAME — blocks until the compositor pushes a new frame
         struct drm_hermes_kms_wait_frame wait = {};
         wait.timeout_ms = 500;
         if (ioctl(card_fd, DRM_IOCTL_HERMES_KMS_WAIT_FRAME, &wait) < 0) {
-          if (errno == EINTR) continue;
+          if (errno == EINTR) {
+            continue;
+          }
           BOOST_LOG(error) << "hermes_kms: WAIT_FRAME failed: " << strerror(errno);
           return capture_e::error;
         }
@@ -278,30 +297,45 @@ namespace platf {
           return capture_e::error;
         }
 
+        const auto captured_at = std::chrono::steady_clock::now();
+        if (captured_at < next_frame_due) {
+          close(frame.dma_buf_fd[0]);
+          continue;
+        }
+        do {
+          next_frame_due += frame_interval;
+        } while (next_frame_due <= captured_at);
+
         // Pull a free image from the pool
         std::shared_ptr<platf::img_t> img;
         if (!pull_free_image_cb(img) || !img) {
           // Driver gave us a DMA-BUF fd but we're not consuming it now —
           // close it ourselves to avoid leaking the descriptor.
-          if (frame.dma_buf_fd[0] >= 0) close(frame.dma_buf_fd[0]);
+          if (frame.dma_buf_fd[0] >= 0) {
+            close(frame.dma_buf_fd[0]);
+          }
           return capture_e::interrupted;
         }
 
         auto *hk_img = dynamic_cast<hermes_kms_img_t *>(img.get());
         if (!hk_img) {
           BOOST_LOG(error) << "hermes_kms: image pool returned non-Hermes-KMS image";
-          if (frame.dma_buf_fd[0] >= 0) close(frame.dma_buf_fd[0]);
+          if (frame.dma_buf_fd[0] >= 0) {
+            close(frame.dma_buf_fd[0]);
+          }
           return capture_e::error;
         }
 
         // Close any previous DMA-BUF before storing the new one
-        if (hk_img->dma_buf_fd >= 0) close(hk_img->dma_buf_fd);
+        if (hk_img->dma_buf_fd >= 0) {
+          close(hk_img->dma_buf_fd);
+        }
         hk_img->dma_buf_fd = frame.dma_buf_fd[0];  // take ownership
-        hk_img->width = (std::int32_t)frame.width;
-        hk_img->height = (std::int32_t)frame.height;
-        hk_img->row_pitch = (std::int32_t)frame.pitch[0];
+        hk_img->width = (std::int32_t) frame.width;
+        hk_img->height = (std::int32_t) frame.height;
+        hk_img->row_pitch = (std::int32_t) frame.pitch[0];
         hk_img->pixel_pitch = 4;  // ponytail: DRM_FORMAT_XRGB8888 = 4 bytes per pixel
-        hk_img->frame_timestamp = std::chrono::steady_clock::now();
+        hk_img->frame_timestamp = captured_at;
 
         // Push the image to the consumer (encoder)
         if (!push_captured_image_cb(std::move(img), true)) {
@@ -311,9 +345,7 @@ namespace platf {
     }
   };
 
-  std::shared_ptr<display_t> hermes_kms_display(mem_type_e hwdevice_type,
-                                                const std::string &display_name,
-                                                const video::config_t &config) {
+  std::shared_ptr<display_t> hermes_kms_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     auto status = probe_hermes_kms();
     if (!status.module_loaded) {
       BOOST_LOG(error) << "hermes_kms: kernel module not loaded";
@@ -329,12 +361,8 @@ namespace platf {
       BOOST_LOG(error) << "hermes_kms: cannot open " << node_path << ": " << strerror(errno);
       return nullptr;
     }
-    return std::make_shared<hermes_kms_display_t>(fd,
-                                                  hwdevice_type,
-                                                  status.caps.preferred_width,
-                                                  status.caps.preferred_height);
+    return std::make_shared<hermes_kms_display_t>(fd, hwdevice_type, status.caps.preferred_width, status.caps.preferred_height, config.framerate);
   }
-
 
   bool verify_hermes_kms() {
     auto status = probe_hermes_kms();

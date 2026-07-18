@@ -12,9 +12,9 @@
 
 // local includes
 #include "audio.h"
+#include "audio_fx.h"
 #include "config.h"
 #include "globals.h"
-#include "audio_fx.h"
 #include "logging.h"
 #include "platform/common.h"
 #include "thread_safe.h"
@@ -23,7 +23,14 @@
 namespace audio {
   using namespace std::literals;
   using opus_t = util::safe_ptr<OpusMSEncoder, opus_multistream_encoder_destroy>;
-  using sample_queue_t = std::shared_ptr<safe::queue_t<std::vector<float>>>;
+
+  /** @brief Captured PCM samples and their monotonic capture index. */
+  struct captured_samples_t {
+    std::vector<float> samples;  ///< Interleaved PCM samples.
+    std::uint64_t frame_index;  ///< Capture order before any queue drops.
+  };
+
+  using sample_queue_t = std::shared_ptr<safe::queue_t<captured_samples_t>>;
 
   static int start_audio_control(audio_ctx_t &ctx);
   static void stop_audio_control(audio_ctx_t &);
@@ -182,9 +189,8 @@ namespace audio {
     BOOST_LOG(info) << "Opus initialized: "sv << stream.sampleRate / 1000 << " kHz, "sv
                     << stream.channelCount << " channels, "sv
                     << stream.bitrate / 1000 << " kbps (total), "
-                    << (opus_app == OPUS_APPLICATION_VOIP ? "VOIP"
-                        : opus_app == OPUS_APPLICATION_AUDIO ? "AUDIO"
-                                                              : "LOWDELAY")
+                    << (opus_app == OPUS_APPLICATION_VOIP ? "VOIP" : opus_app == OPUS_APPLICATION_AUDIO ? "AUDIO" :
+                                                                                                          "LOWDELAY")
                     << ", vbr=" << vbr_mode << " constraint=" << vbr_constraint
                     << ", fec=" << (g_opus_tuning.enable_fec ? "on" : "off")
                     << ", complexity=" << complexity;
@@ -201,22 +207,29 @@ namespace audio {
     pp_cfg.enable_noise_gate = sfx_cfg.enable_noise_gate;
     pp_cfg.noise_gate_threshold_db = sfx_cfg.noise_gate_threshold_db;
     pp_cfg.agc = fx::AGC::config_t {
-      sfx_cfg.agc_target_rms_db, sfx_cfg.agc_max_gain_db, sfx_cfg.agc_min_gain_db,
-      sfx_cfg.agc_attack_ms, sfx_cfg.agc_hold_ms, sfx_cfg.agc_release_ms,
+      sfx_cfg.agc_target_rms_db,
+      sfx_cfg.agc_max_gain_db,
+      sfx_cfg.agc_min_gain_db,
+      sfx_cfg.agc_attack_ms,
+      sfx_cfg.agc_hold_ms,
+      sfx_cfg.agc_release_ms,
       static_cast<float>(stream.sampleRate)
     };
     pp_cfg.vad = fx::VAD::config_t {
-      sfx_cfg.vad_threshold_db, sfx_cfg.vad_hysteresis_db,
-      sfx_cfg.vad_min_speech_ms, sfx_cfg.vad_min_silence_ms,
+      sfx_cfg.vad_threshold_db,
+      sfx_cfg.vad_hysteresis_db,
+      sfx_cfg.vad_min_speech_ms,
+      sfx_cfg.vad_min_silence_ms,
       static_cast<float>(stream.sampleRate)
     };
     pp_cfg.ducker = fx::Ducker::config_t {
       sfx_cfg.ducker_target_attenuation_db,
-      sfx_cfg.ducker_attack_ms, sfx_cfg.ducker_release_ms,
+      sfx_cfg.ducker_attack_ms,
+      sfx_cfg.ducker_release_ms,
       static_cast<float>(stream.sampleRate)
     };
     const bool any_fx_enabled =
-        pp_cfg.enable_agc || pp_cfg.enable_vad || pp_cfg.enable_ducking || pp_cfg.enable_noise_gate;
+      pp_cfg.enable_agc || pp_cfg.enable_vad || pp_cfg.enable_ducking || pp_cfg.enable_noise_gate;
     fx::PreProcessor pre_processor {pp_cfg};
 
     auto frame_size = config.packetDuration * stream.sampleRate / 1000;
@@ -229,10 +242,10 @@ namespace audio {
       // are tiny (240 samples per frame at 48 kHz / 5 ms), so the cost is
       // negligible — measured < 1% CPU at 1080p60 streams.
       if (any_fx_enabled) {
-        pre_processor.process(sample->data(), frame_size, stream.channelCount);
+        pre_processor.process(sample->samples.data(), frame_size, stream.channelCount);
       }
 
-      int bytes = opus_multistream_encode_float(opus.get(), sample->data(), frame_size, std::begin(packet), (opus_int32) packet.size());
+      int bytes = opus_multistream_encode_float(opus.get(), sample->samples.data(), frame_size, std::begin(packet), (opus_int32) packet.size());
       if (bytes < 0) {
         BOOST_LOG(error) << "Couldn't encode audio: "sv << opus_strerror(bytes);
         packets->stop();
@@ -241,7 +254,7 @@ namespace audio {
       }
 
       packet.fake_resize(bytes);
-      packets->raise(channel_data, std::move(packet));
+      packets->raise(packet_t {channel_data, std::move(packet), sample->frame_index});
     }
   }
 
@@ -324,7 +337,10 @@ namespace audio {
     // Capture takes place on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
-    auto samples = std::make_shared<sample_queue_t::element_type>(30);
+    // Four packets bound capture-to-encode backlog to 20 ms with the default
+    // 5 ms packet duration while still absorbing short scheduler stalls.
+    const auto sample_queue_depth = config::solarflare.latency_mode == "aggressive" ? 2U : 4U;
+    auto samples = std::make_shared<sample_queue_t::element_type>(sample_queue_depth, safe::queue_overflow_e::drop_oldest);
     std::thread thread {encodeThread, samples, config, channel_data};
 
     auto fg = util::fail_guard([&]() {
@@ -335,6 +351,7 @@ namespace audio {
     });
 
     int samples_per_frame = frame_size * stream.channelCount;
+    std::uint64_t capture_frame_index = 0;
 
     while (!shutdown_event->peek()) {
       std::vector<float> sample_buffer;
@@ -360,7 +377,7 @@ namespace audio {
           return;
       }
 
-      samples->raise(std::move(sample_buffer));
+      samples->raise(captured_samples_t {std::move(sample_buffer), capture_frame_index++});
     }
   }
 

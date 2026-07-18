@@ -8,6 +8,11 @@
 
 #include <src/video.h>
 
+static_assert(std::is_move_constructible_v<video::packet_raw_avcodec>);
+static_assert(std::is_move_assignable_v<video::packet_raw_avcodec>);
+static_assert(!std::is_copy_constructible_v<video::packet_raw_avcodec>);
+static_assert(!std::is_copy_assignable_v<video::packet_raw_avcodec>);
+
 struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void SetUp() override {
     auto &encoder = *GetParam();

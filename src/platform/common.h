@@ -8,6 +8,7 @@
 
 // standard includes
 #include <bitset>
+#include <chrono>
 #include <filesystem>
 #include <functional>
 #include <mutex>
@@ -690,6 +691,12 @@ namespace platf {
     uint16_t target_port;
     boost::asio::ip::address &source_address;
 
+    /// Deadline after which a blocked batch should be abandoned.
+    std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::time_point::max();
+
+    /// Set by the platform implementation when the batch deadline expires.
+    bool timed_out = false;
+
     /**
      * @brief Returns a payload buffer descriptor for the given payload offset.
      * @param offset The offset in the total payload data (bytes).
@@ -710,6 +717,14 @@ namespace platf {
     }
   };
 
+  /**
+   * @brief Send a batch of datagrams when the platform supports batching.
+   *
+   * @param send_info Description of the datagrams and their send deadline.
+   * @return `true` when the platform handled the batch, including a deadline
+   * timeout reported through `timed_out`; `false` when the caller should use
+   * unbatched sends.
+   */
   bool send_batch(batched_send_info_t &send_info);
 
   struct send_info_t {

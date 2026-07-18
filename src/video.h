@@ -6,6 +6,9 @@
  */
 #pragma once
 
+// standard includes
+#include <utility>
+
 // local includes
 #include "input.h"
 #include "platform/common.h"
@@ -211,16 +214,46 @@ namespace video {
     uint32_t flags;
   };
 
+  /** @brief Result of a live encoder bitrate reconfiguration request. */
+  enum class bitrate_reconfigure_e {
+    applied,  ///< The running encoder accepted the new bitrate.
+    restart_required,  ///< The backend can use the bitrate only after recreation.
+    unsupported,  ///< The backend cannot change bitrate during this session.
+  };
+
+  /** @brief Common interface for a running video encoder session. */
   struct encode_session_t {
+    /** @brief Destroy the running encoder session. */
     virtual ~encode_session_t() = default;
 
+    /**
+     * @brief Convert a captured image into the encoder input format.
+     * @param img Captured image to convert.
+     * @return Zero on success, or a negative value on failure.
+     */
     virtual int convert(platf::img_t &img) = 0;
 
+    /** @brief Request that the next encoded frame is an IDR frame. */
     virtual void request_idr_frame() = 0;
 
+    /** @brief Clear a pending explicit IDR request. */
     virtual void request_normal_frame() = 0;
 
+    /**
+     * @brief Invalidate a range of reference frames.
+     * @param first_frame First frame in the invalid range.
+     * @param last_frame Last frame in the invalid range.
+     */
     virtual void invalidate_ref_frames(int64_t first_frame, int64_t last_frame) = 0;
+
+    /**
+     * @brief Reconfigure the bitrate of the running encoder.
+     * @param bitrate_kbps Requested bitrate in kilobits per second.
+     * @return The backend-specific reconfiguration result.
+     */
+    virtual bitrate_reconfigure_e reconfigure_bitrate(int bitrate_kbps) {
+      return bitrate_reconfigure_e::unsupported;
+    }
   };
 
   // encoders
@@ -271,13 +304,40 @@ namespace video {
     void *channel_data = nullptr;
     bool after_ref_frame_invalidation = false;
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+    std::chrono::steady_clock::time_point enqueued_at;  ///< Time the encoded frame entered the network queue.
   };
 
   struct packet_raw_avcodec: packet_raw_t {
+    /** @brief Allocate an empty FFmpeg packet. */
     packet_raw_avcodec() {
       av_packet = av_packet_alloc();
     }
 
+    packet_raw_avcodec(const packet_raw_avcodec &) = delete;
+    packet_raw_avcodec &operator=(const packet_raw_avcodec &) = delete;
+
+    /**
+     * @brief Transfer ownership of an FFmpeg packet.
+     * @param other Packet owner to move from.
+     */
+    packet_raw_avcodec(packet_raw_avcodec &&other) noexcept:
+        av_packet {std::exchange(other.av_packet, nullptr)} {
+    }
+
+    /**
+     * @brief Replace this packet with another owner's packet.
+     * @param other Packet owner to move from.
+     * @return This packet owner.
+     */
+    packet_raw_avcodec &operator=(packet_raw_avcodec &&other) noexcept {
+      if (this != &other) {
+        av_packet_free(&av_packet);
+        av_packet = std::exchange(other.av_packet, nullptr);
+      }
+      return *this;
+    }
+
+    /** @brief Release the owned FFmpeg packet. */
     ~packet_raw_avcodec() {
       av_packet_free(&this->av_packet);
     }
