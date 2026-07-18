@@ -2,8 +2,7 @@
 
 /**
  * @file tests/unit/test_solarflare_submodule_shas.cpp
- * @brief Simple regression guard for the round-6 submodule-pointer
- *        cherry-picks (9cdf44ea, c2a74487, 5dcf3f08).
+ * @brief Regression guard for SolarFlare's expected submodule pointers.
  */
 #include "../tests_common.h"
 
@@ -56,21 +55,24 @@ namespace {
     return out;
   }
 
+  /**
+   * @brief Identifies a submodule and the commit prefix expected on disk.
+   */
   struct SubmodulePointer {
-    const char *name;
-    const char *path;
-    const char *round6_sha_prefix;
+    const char *name;  ///< Human-readable submodule name.
+    const char *path;  ///< Path relative to the source root.
+    const char *expected_sha_prefix;  ///< Prefix of the pinned commit SHA.
   };
 
   constexpr std::array<SubmodulePointer, 3> kSubmodules = {{
-    {"lizardbyte-common", "third-party/lizardbyte-common", "8d7dcc9"},
-    {"moonlight-common-c", "third-party/moonlight-common-c", "47b4d33"},
+    {"lizardbyte-common", "third-party/lizardbyte-common", "06cd442"},
+    {"moonlight-common-c", "third-party/moonlight-common-c", "82e2514"},
     {"nvapi", "third-party/nvapi", "cd6918f"},
   }};
 
 }  // namespace
 
-TEST(SolarflareSubmoduleShas, OnDiskShasAreRound6Bumped) {
+TEST(SolarflareSubmoduleShas, OnDiskShasMatchExpectedPins) {
   const std::string source_root = find_source_root();
   EXPECT_FALSE(source_root.empty())
     << "Could not find source root (.gitmodules) by walking up.";
@@ -102,10 +104,10 @@ TEST(SolarflareSubmoduleShas, OnDiskShasAreRound6Bumped) {
     }
     EXPECT_GE(line.size(), 40u) << "Line too short for " << sm.name << ": '" << line << "'";
     const std::string sha = line.substr(0, 40);
-    EXPECT_EQ(sha.substr(0, 7), std::string(sm.round6_sha_prefix))
+    EXPECT_EQ(sha.substr(0, 7), std::string(sm.expected_sha_prefix))
       << "Submodule " << sm.name << " SHA '" << sha
-      << "' does not start with expected round-6 prefix '"
-      << sm.round6_sha_prefix << "'. The pointer has been reverted. "
-                                 "Re-apply the round-6 cherry-pick.";
+      << "' does not start with expected prefix '"
+      << sm.expected_sha_prefix << "'. Synchronize the checkout with "
+                                   "the submodule pointer recorded by this commit.";
   }
 }

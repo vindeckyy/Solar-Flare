@@ -12,7 +12,10 @@
 #include "../tests_common.h"
 
 #include <src/platform/linux/hermes_kms.h>
-#include <src/platform/linux/kmsgrab.h>
+
+#ifdef SUNSHINE_BUILD_DRM
+  #include <src/platform/linux/kmsgrab.h>
+#endif
 
 #include <filesystem>
 #include <fstream>
@@ -54,6 +57,7 @@ TEST(HermesKmsTest, DisplayNamesContract) {
 // correlation step is skipped and no CRTC planes are active).
 // ---------------------------------------------------------------------------
 
+#ifdef SUNSHINE_BUILD_DRM
 namespace {
   // Build a fake /sys/class/drm tree: one cardN directory plus a few
   // cardN-CONNECTOR subdirs each containing a `modes` file with a single
@@ -111,3 +115,4 @@ TEST(KmsgrabSysfsTest, MissingDirectoryReportsNoMode) {
   EXPECT_EQ(w, 0);
   EXPECT_EQ(h, 0);
 }
+#endif

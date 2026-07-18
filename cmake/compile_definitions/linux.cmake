@@ -80,9 +80,10 @@ if(CUDA_FOUND)
     add_compile_definitions(SUNSHINE_BUILD_CUDA)
 endif()
 
-# libdrm is required for DRM (KMS). Only the headers are required for Wayland,
-# Vulkan, and PipeWire (KWin, Portal).
-if(${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_WAYLAND} OR ${SUNSHINE_ENABLE_VULKAN}
+# libdrm is required for DRM (KMS). Only the headers are required for Hermes-KMS,
+# Wayland, Vulkan, and PipeWire (KWin, Portal). Hermes-KMS is always built on
+# Linux, so its headers must also be available in X11-only builds.
+if(NOT FREEBSD OR ${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_WAYLAND} OR ${SUNSHINE_ENABLE_VULKAN}
    OR ${SUNSHINE_ENABLE_KWIN} OR ${SUNSHINE_ENABLE_PORTAL})
     find_package(LIBDRM REQUIRED)
 else()
