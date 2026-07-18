@@ -1,9 +1,14 @@
 # Guides
 
-@admonition{Community | A collection of guides written by the community is available on our
-[blog](https://app.lizardbyte.dev/blog).
-Feel free to contribute your own tips and trips by making a PR to
-[LizardByte.github.io](https://github.com/LizardByte/LizardByte.github.io).}
+@admonition{SolarFlare | Start with the [SolarFlare README](../README.md),
+[fork configuration reference](CONFIGURATION.md), and [porting guide](PORTING.md).
+For corrections to this repository, follow [CONTRIBUTING](../CONTRIBUTING.md).}
+
+@admonition{Upstream community | The
+[LizardByte community blog](https://app.lizardbyte.dev/blog) contains Sunshine
+guides that may also apply because SolarFlare retains protocol and
+configuration compatibility. Those articles are maintained independently and
+may describe upstream packaging or interface behavior.}
 
 <div class="section_buttons">
 

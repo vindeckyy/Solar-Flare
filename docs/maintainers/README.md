@@ -1,13 +1,13 @@
 # Maintainer Documentation
 
-This directory contains documentation intended for Sunshine maintainers only. These documents cover internal processes,
+This directory contains documentation intended for SolarFlare maintainers only. These documents cover internal processes,
 workflows, and procedures that are not relevant to end users or general contributors.
 
 ## Available Documentation
 
 ### [Release Process](release.md)
-Instructions for creating and managing Sunshine releases, including the steps to convert pre-releases to stable releases
-and an overview of the automated workflows that are triggered during the release process.
+Instructions for creating, verifying, and publishing clean chronological
+SolarFlare releases.
 
 ---
 

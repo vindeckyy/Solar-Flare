@@ -1,6 +1,6 @@
 # App Examples
 Since not all applications behave the same, we decided to create some examples to help you get started adding games
-and applications to Sunshine.
+and applications to SolarFlare.
 
 > [!TIP]
 > Throughout these examples, any fields not shown are left blank. You can enhance your experience by
@@ -329,7 +329,7 @@ unmaintained and do not support newer Mutter features such as HDR and VRR.
 | Undo      | @code{}displayplacer "id:<screenId> res:3840x2160 hz:120 scaling:on origin:(0,0) degree:0"@endcode                                                                       |
 
 ##### Windows
-Sunshine has built-in support for changing the resolution and refresh rate on Windows. If you prefer to use a
+SolarFlare has built-in support for changing the resolution and refresh rate on Windows. If you prefer to use a
 third-party tool, you can use *QRes* as an example.
 
 ###### QRes
@@ -349,12 +349,12 @@ third-party tool, you can use *QRes* as an example.
 
 > [!CAUTION]
 > Because Flatpak packages run in a sandboxed environment and do not normally have access to the
-> host, the Flatpak of Sunshine requires commands to be prefixed with `flatpak-spawn --host`.
+> host, the upstream Flatpak requires commands to be prefixed with `flatpak-spawn --host`.
 
 #### Windows
 **Elevating Commands (Windows)**
 
-If you've installed Sunshine as a service (default), you can specify if a command should be elevated with
+If you've installed SolarFlare as a service (default), you can specify if a command should be elevated with
 administrative privileges. Simply enable the elevated option in the WEB UI, or add it to the JSON configuration.
 This is an option for both prep-cmd and regular commands and will launch the process with the current user without a
 UAC prompt.

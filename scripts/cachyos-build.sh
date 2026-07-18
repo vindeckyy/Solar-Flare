@@ -2,7 +2,7 @@
 #
 # scripts/cachyos-build.sh
 #
-# Build Sunshine (CachyOS / Linux local-LAN fast path) on a fresh
+# Build SolarFlare (CachyOS / Linux local-LAN fast path) on a fresh
 # CachyOS (or Arch / Manjaro / EndeavourOS) install in one shot.
 #
 # What it does:
@@ -12,9 +12,9 @@
 #      (e.g. transient network) and retries them.
 #   3. Installs the build dependencies via pacman --needed.
 #   4. Runs cmake with the CachyOS fast-path flags (auto-detects
-#      Zen 1/2/3/4 from /proc/cpuinfo, enables LTO, drops docs/tests).
+#      Zen 1/2/3/4/5 from /proc/cpuinfo, enables LTO, drops docs/tests).
 #   5. Builds with ninja.
-#   6. Runs `sudo cmake --install build` and reloads the user
+#   6. Runs `sudo cmake --install cmake-build-cachyos` and reloads the user
 #      systemd manager.
 #   7. Verifies that `sunshine` is on $PATH and prints a "what's
 #      next" with the exact next commands.
@@ -34,7 +34,7 @@
 set -uo pipefail   # NB: NOT -e. We want to keep going through non-fatal errors.
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="${REPO_ROOT}/build"
+BUILD_DIR="${REPO_ROOT}/cmake-build-cachyos"
 CLEAN=0
 RUN_PACMAN=1
 
@@ -162,7 +162,7 @@ say "Submodule check: ✓"
 # ---------------------------------------------------------------------------
 step "3/7  Build dependencies"
 if [[ "$RUN_PACMAN" -eq 0 ]]; then
-  say "Skipping package install (--no-pacman / --no-install)."
+  say "Skipping package install (--no-pacman)."
 elif [[ "$IS_BAZZITE" -eq 1 ]]; then
   say "Bazzite uses rpm-ostree for package layering. This process is non-destructive but requires a reboot to take effect."
   say "Installing build dependencies..."
@@ -216,7 +216,7 @@ else
             libudev-dev libcap-dev libnatpmp-dev \
             vulkan-tools glslang-tools spirv-tools \
             libboost-all-dev libminiupnpc-dev nlohmann-json3-dev \
-            libpng-dev libxext-dev libxtst-dev; then
+            libpng-dev libxext-dev libxtst-dev nodejs npm; then
         warn "apt-get returned non-zero. Continuing. The build will tell us if anything's actually missing."
       fi
       ;;
@@ -231,7 +231,7 @@ else
             wayland-devel wayland-protocols-devel \
             systemd-devel libcap-devel \
             vulkan-devel glslang-devel \
-            miniupnpc-devel; then
+            miniupnpc-devel nodejs npm; then
         warn "dnf returned non-zero. Continuing. The build will tell us if anything's actually missing."
       fi
       ;;
@@ -247,38 +247,34 @@ else
             libudev-devel libcap-devel libnatpmp-devel \
             vulkan-devel shaderc glslang-devel \
             boost-devel libminiupnpc-devel nlohmann_json-devel \
-            libpng-devel libXext-devel libXtst-devel; then
+            libpng-devel libXext-devel libXtst-devel nodejs npm; then
         warn "zypper returned non-zero. Continuing. The build will tell us if anything's actually missing."
       fi
       ;;
     *)
       warn "Unknown distro '${DISTRO_ID}'. Skipping automatic package install."
-      warn "Either install the packages manually and re-run with --no-install,"
+      warn "Either install the packages manually and re-run with --no-pacman,"
       warn "or open an issue with your distro's package names."
-      warn "See README.md > 'Heads up: this fork was made for one person's rig'"
-      warn "for the package name translation table."
+      warn "See docs/PORTING.md for the package-name translation table."
       ;;
   esac
 fi
 say "Dependencies: assuming OK (build will fail loudly if not)."
 
 # ---------------------------------------------------------------------------
-# 3.5  Web UI build (vite)
+# 3.5  Web UI dependencies
 # ---------------------------------------------------------------------------
-# The C++ binary serves the web UI from build/assets/web/, which is produced
-# by `npm run build` (vite). If we skip this, the installed binary will have
-# a missing or stale web UI (the fork's web UI changes, plus the upstream
-# tabs, will be empty).
+# The CMake `web-ui` target writes directly to
+# cmake-build-cachyos/assets/web. Install dependencies here; the main CMake
+# build invokes Vite with the correct destination later.
 if command -v npm >/dev/null 2>&1; then
-  step "4/7  Web UI (npm install + vite build)"
+  step "4/7  Web UI dependencies"
   if [[ ! -d "$REPO_ROOT/node_modules" ]]; then
     say "Installing npm dependencies (one-time)..."
     (cd "$REPO_ROOT" && npm install --no-audit --no-fund 2>&1 | tail -5)
   fi
-  say "Building web UI with vite..."
-  (cd "$REPO_ROOT" && npm run build 2>&1 | tail -5) || warn "vite build failed; web UI may be stale."
 else
-  warn "npm not found. Skipping web UI build. The web UI will be empty until you run 'npm install && npm run build' manually."
+  die "npm not found. Install Node.js and npm so CMake can build the Web UI."
 fi
 
 # ---------------------------------------------------------------------------
@@ -360,7 +356,7 @@ build_rc=$?
 set -u
 
 if [[ $build_rc -ne 0 ]]; then
-  die "Build failed (exit $build_rc). Run 'cmake --build build' manually to see the full error."
+  die "Build failed (exit $build_rc). Run 'cmake --build $BUILD_DIR' manually to see the full error."
 fi
 say "Build: ✓"
 
@@ -368,7 +364,7 @@ say "Build: ✓"
 # 6. Install + final check
 # ---------------------------------------------------------------------------
 step "7/7  Install + verification"
-say "sudo cmake --install build..."
+say "sudo cmake --install $BUILD_DIR..."
 
 # If a previous install (e.g. from a distro package) set the immutable
 # flag on any install-path file, cmake --install will fail with
@@ -465,7 +461,7 @@ if command -v sunshine >/dev/null 2>&1; then
     warn "  Re-run ./scripts/cachyos-build.sh --clean to force a rebuild."
   fi
 
-  # Check 2: the 5 fork config keys must parse without "Unrecognized".
+  # Check 2: representative fork config keys must parse without "Unrecognized".
   # Use a test config that exercises both bool + int parsing and
   # intentionally uses values INSIDE the documented ranges so that
   # the apply_config() int_between_f / bool_f helpers accept them
@@ -488,7 +484,7 @@ SFEOF
   timeout 1 "$_sf_bin" "$_sf_tmpconf" > "$_sf_log" 2>&1
   _sf_rc=$?
   if grep -qE "config: '(busy_poll_us|rate_cap_pct|enet_4mib_buffer|pipewire_latency_ms|cpu_pinning)'" "$_sf_log"; then
-    say "Fork config keys parse cleanly (✓ all 5 keys recognised)"
+    say "Representative fork config keys parse cleanly (✓ recognised)"
 
     # Check 3: the parsed values must equal what we set. This catches
     # the case where the binary is older than the source and silently
@@ -511,7 +507,7 @@ SFEOF
     fi
   else
     warn "Fork config keys did NOT appear in the parse log -- something is wrong."
-    warn "  Expected 5 'config: ...' lines for busy_poll_us / rate_cap_pct /"
+    warn "  Expected 'config: ...' lines for busy_poll_us / rate_cap_pct /"
     warn "  enet_4mib_buffer / pipewire_latency_ms / cpu_pinning."
   fi
   if grep -iE 'Unrecognized.*(busy_poll_us|rate_cap_pct|enet_4mib_buffer|pipewire_latency_ms|cpu_pinning)' "$_sf_log" >/dev/null; then
@@ -533,7 +529,7 @@ cat <<'EOF'
 
   Quick start:
 
-    systemctl --user enable --now sunshine
+    systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
     # Or, for one-off runs without systemd:
     sunshine
 

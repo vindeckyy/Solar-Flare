@@ -27,7 +27,7 @@ if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}))  # cmake-lint: disabl
         set(CMAKE_PROJECT_VERSION ${PROJECT_VERSION})  # cpack will use this to set the binary versions
     endif()
 else()
-    # Generate Sunshine Version based of the git tag
+    # Generate the SolarFlare version from the compatible git tag format.
     # https://github.com/nocnokneo/cmake-git-versioning-example/blob/master/LICENSE
     find_package(Git)
     if(GIT_EXECUTABLE)
@@ -88,7 +88,7 @@ else()
                 OUTPUT_STRIP_TRAILING_WHITESPACE
         )
         if(NOT GIT_DESCRIBE_ERROR_CODE)
-            MESSAGE("Sunshine Branch: ${GIT_DESCRIBE_BRANCH}")
+            MESSAGE("SolarFlare Branch: ${GIT_DESCRIBE_BRANCH}")
 
             # Use the git commit count as the version base so each commit
             # produces a unique, sortable version number. The short SHA is
@@ -96,18 +96,18 @@ else()
             # re-tagged release) still differ. Format:
             #   <count>-<short-sha>             # clean
             #   <count>-<short-sha>-dirty       # uncommitted changes
-            # The default fallback (no git) is the hard-coded 2026.999.2
-            # from CMakeLists.txt.
+            # The default fallback (no git) is the project version declared in
+            # CMakeLists.txt.
             if(NOT GIT_DESCRIBE_LONG_ERROR AND NOT "${GIT_DESCRIBE_RELEASE}" STREQUAL "")
                 # Use the tag-based version. Format: YYYY.DDD.N or YYYY.DDD.N-M-g<sha>.
                 set(PROJECT_VERSION "${GIT_DESCRIBE_RELEASE}")
-                MESSAGE("Sunshine Version: ${PROJECT_VERSION} (tag-based)")
+                MESSAGE("SolarFlare Version: ${PROJECT_VERSION} (tag-based)")
             elseif(NOT GIT_REV_COUNT_ERROR AND NOT "${GIT_REV_COUNT}" STREQUAL "")
                 set(PROJECT_VERSION "${GIT_REV_COUNT}-${GIT_DESCRIBE_VERSION}")
-                MESSAGE("Sunshine Version: ${PROJECT_VERSION} (commit count ${GIT_REV_COUNT})")
+                MESSAGE("SolarFlare Version: ${PROJECT_VERSION} (commit count ${GIT_REV_COUNT})")
             else()
                 set(PROJECT_VERSION "${GIT_DESCRIBE_VERSION}")
-                MESSAGE("Sunshine Version: ${PROJECT_VERSION} (rev-list failed, short SHA only)")
+                MESSAGE("SolarFlare Version: ${PROJECT_VERSION} (rev-list failed, short SHA only)")
             endif()
 
             if(GIT_IS_DIRTY)
@@ -119,7 +119,7 @@ else()
         endif()
         # Fall back to git HEAD when COMMIT/GITHUB_COMMIT env vars aren't set
         # (local builds don't have them). PROJECT_VERSION_COMMIT is exposed in
-        # src/main.cpp via the "Sunshine version: ... commit: ..." log line,
+        # src/main.cpp via the version and commit log line,
         # so leaving it blank prints a bare "commit: " which looks broken.
         if(NOT GIT_COMMIT_FULL_ERROR AND NOT "${GIT_COMMIT_FULL}" STREQUAL "")
             set(GITHUB_COMMIT "${GIT_COMMIT_FULL}")
@@ -136,7 +136,10 @@ set(PROJECT_DAY "01")
 
 # Extract year, month, and day (do this AFTER version parsing)
 # Note: Cmake doesn't support "{}" regex syntax
-if(PROJECT_VERSION MATCHES "^([0-9][0-9][0-9][0-9])\\.([0-9][0-9][0-9][0-9]?)\\.([0-9]+)$")
+# `git describe --long` appends `-<distance>-g<sha>` even when HEAD is on the
+# tag, and dirty builds add another suffix. Accept that metadata while reading
+# the date from the chronological version prefix.
+if(PROJECT_VERSION MATCHES "^([0-9][0-9][0-9][0-9])\\.([0-9][0-9][0-9][0-9]?)\\.([0-9]+)(-.*)?$")
     message("Extracting year and month/day from PROJECT_VERSION: ${PROJECT_VERSION}")
     # First capture group is the year
     set(PROJECT_YEAR "${CMAKE_MATCH_1}")

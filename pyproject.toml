@@ -3,9 +3,9 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Sunshine"
+name = "SolarFlare"
 version = "2026.718.5"
-description = "Python tooling for Sunshine"
+description = "Python tooling for SolarFlare"
 requires-python = ">=3.14"
 license = {text = "GPL-3.0-only"}
 authors = [

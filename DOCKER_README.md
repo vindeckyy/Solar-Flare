@@ -1,10 +1,19 @@
 # Docker
 
-## Important note
-Starting with v0.18.0, tag names have changed. You may no longer use `latest`, `master`, `vX.X.X`.
+> [!IMPORTANT]
+> SolarFlare does not currently publish a container image. This document covers
+> inherited upstream Sunshine images, which do not contain SolarFlare's fork
+> tuning or observatory Web UI. Build SolarFlare from source for the supported
+> fork experience.
+
+## Image tags
+
+Container tags combine a version channel and operating-system suffix. Bare
+tags such as `latest`, `master`, or `vX.X.X` are not complete image tags;
+use forms such as `latest-ubuntu-24.04`.
 
 ## Build your own containers
-This image provides a method for you to easily use the latest Sunshine release in your own docker projects. It is not
+The upstream image provides a method to use a Sunshine release in other Docker projects. It is not
 intended to use as a standalone container at this point, and should be considered experimental.
 
 ```dockerfile

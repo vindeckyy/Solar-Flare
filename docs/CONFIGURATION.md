@@ -28,7 +28,8 @@ still supported.
 
 Audio pre-processor and Opus encoder tunables are documented in the
 [Audio FX](#audio-fx-pre-encoder-processing) section below. All 24
-`sf_audio_*` / `sf_opus_*` keys default to upstream-compatible values.
+`sf_audio_*` / `sf_opus_*` keys default to upstream-compatible values and are
+available in the Web UI's Audio/Video configuration tab.
 
 Each one is opt-out — setting it back to its "fall back to upstream"
 choice (`busy_poll_us = 0`, `rate_cap_pct = 80` is already upstream's
@@ -125,7 +126,8 @@ still applies.
 If `false`, only the upstream `nice -15` is applied. Use this if:
 
 - You're running under `systemd-run --user --scope` and the SCHED_RR
-  call is producing noisy warnings in `journalctl --user -u sunshine`.
+  call is producing noisy warnings in
+  `journalctl --user -u app-dev.lizardbyte.app.Sunshine.service`.
 - You're on a Zen 1 / Bulldozer-era CPU where pinning to a single
   physical core actually hurts throughput more than it helps.
 
@@ -377,23 +379,19 @@ sunshine /tmp/sf-test.conf
 
 ## Verification on an existing install
 
-After pulling a new SolarFlare build:
+After installing a new SolarFlare build:
 
-1. `sunshine --version` — should still exit 0 and show
-   `Sunshine version: ... commit: ...` plus the publisher metadata.
-   No `FATAL` lines.
-2. `grep -c solarflare_t src/config.h` — should print `4` (the struct
-   definition, the `audio_fx_t` typedef, the doc reference, and the
-   `extern` declaration) with at least `30` field declarations across both
-   `solarflare_t` and `audio_fx_t`. `grep -c
-   config::solarflare src/network.cpp src/stream.cpp
-   src/platform/linux/misc.cpp src/platform/linux/pipewire.cpp
-   src/audio.cpp` should total at least `6`.
-3. The web UI at `https://localhost:47990` should NOT show the fork
-   tunables (they're intentionally not exposed; edit
-   `~/.config/sunshine/sunshine.conf` directly if you want to change
-   them). Everything else in the Configuration tab should look
-   identical to upstream.
+1. Start `app-dev.lizardbyte.app.Sunshine.service` and inspect its user journal.
+   The startup log should show a clean version/commit, SolarFlare publisher
+   metadata, and no fatal configuration errors.
+2. Confirm the installed binary contains the fork identity with
+   `strings /usr/local/bin/sunshine | grep -m1 SolarFlare`.
+3. Open `https://localhost:47990`. Audio FX and Opus controls should appear in
+   the Audio/Video tab. The nine lower-level network, scheduling, and capture
+   tunables remain file-only controls in `~/.config/sunshine/sunshine.conf`.
+4. Run `tests/unit/test_config_fork_keys.cpp` through `test_sunshine` when
+   changing these keys; the test owns the source/default/documentation
+   consistency contract.
 
 ## See also
 

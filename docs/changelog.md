@@ -1,4 +1,8 @@
-# Changelog
+# Upstream Changelog
+
+This embedded feed is the LizardByte/Sunshine changelog and covers the
+inherited streaming foundation. SolarFlare-specific releases and changes are
+tracked in the [SolarFlare changelog](CHANGELOG-SolarFlare.md).
 
 @htmlonly
 <script type="module" src="https://md-block.verou.me/md-block.js"></script>

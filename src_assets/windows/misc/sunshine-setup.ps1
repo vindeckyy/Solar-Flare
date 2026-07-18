@@ -1,5 +1,5 @@
-﻿# Sunshine Setup Script
-# This script orchestrates the installation and uninstallation of Sunshine
+﻿# SolarFlare Setup Script
+# This script orchestrates the installation and uninstallation of SolarFlare.
 # Usage: sunshine-setup.ps1 -Action [install|uninstall] [-Silent]
 
 param(
@@ -15,7 +15,7 @@ param(
 )
 
 # Constants
-$DocsUrl = "https://docs.lizardbyte.dev/projects/sunshine"
+$DocsUrl = "https://github.com/vindeckyy/Solar-Flare#readme"
 
 # Set preference variables for output streams
 $InformationPreference = 'Continue'
@@ -204,7 +204,7 @@ function Write-LogFile {
 # If Action is not provided, prompt the user
 if (-not $Action) {
     Write-Information ""
-    Write-FramedText -Message "🔅 Sunshine Setup Script" -Level "Information" -Color "Cyan"
+    Write-FramedText -Message "🔅 SolarFlare Setup Script" -Level "Information" -Color "Cyan"
     Write-Information ""
     Write-LogMessage -Message "Please select an action:" -Level "Information" -Color "Yellow"
     Write-LogMessage -Message "  1. Install Sunshine" -Level "Information" -Color "Green"

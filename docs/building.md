@@ -1,4 +1,9 @@
 # Building
+
+> [!NOTE]
+> This document retains inherited cross-platform build details. SolarFlare
+> build directories use the `cmake-build-` prefix; the maintained Linux path is
+> documented in [Porting SolarFlare](PORTING.md).
 Sunshine binaries are built using [CMake](https://cmake.org) and requires `cmake` > 3.25.
 
 ## Building Locally
@@ -187,14 +192,14 @@ Ensure [git](https://git-scm.com) is installed on your system, then clone the re
 ```bash
 git clone https://github.com/lizardbyte/sunshine.git --recurse-submodules
 cd sunshine
-mkdir build
+mkdir cmake-build-release
 ```
 
 ### Build
 
 ```bash
-cmake -B build -G Ninja -S .
-ninja -C build
+cmake -B cmake-build-release -G Ninja -S .
+ninja -C cmake-build-release -j2
 ```
 
 > [!TIP]

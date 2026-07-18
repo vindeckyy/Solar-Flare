@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   SolarFlare logo.
-  A sun (parent: Sunshine) emitting a horizontal flare burst (the speed/fast-path idea).
+  A solar disc emitting a horizontal flare burst (the speed/fast-path idea).
   Pure SVG, scales to any size, recolored via CSS currentColor.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 45" fill="none">
@@ -32,7 +32,7 @@
   <!-- Horizontal flare burst (the "fast" part of the brand) -->
   <ellipse cx="22.5" cy="22.5" rx="22" ry="3.5" fill="url(#sf-flare)"/>
 
-  <!-- Sun body (the "solar" part, parent to Sunshine) -->
+  <!-- Solar disc -->
   <circle cx="22.5" cy="22.5" r="10" fill="url(#sf-core)"/>
 
   <!-- Sun rays (subtle, 8-fold) -->

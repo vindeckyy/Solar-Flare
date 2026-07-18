@@ -22,12 +22,12 @@
 # doxygen -x_noenv [configFile]
 
 # project metadata
-DOCSET_BUNDLE_ID = dev.lizardbyte.Sunshine
-DOCSET_PUBLISHER_ID = dev.lizardbyte.Sunshine.documentation
+DOCSET_BUNDLE_ID = io.github.vindeckyy.SolarFlare
+DOCSET_PUBLISHER_ID = io.github.vindeckyy.SolarFlare.documentation
 PROJECT_BRIEF = "Self-hosted game stream host for Moonlight."
 PROJECT_ICON = ../sunshine.ico
-PROJECT_LOGO = ../sunshine.png
-PROJECT_NAME = Sunshine
+PROJECT_LOGO = ../src_assets/common/assets/web/public/images/logo-solarflare-45.svg
+PROJECT_NAME = SolarFlare
 
 # project specific settings
 DOT_GRAPH_MAX_NODES = 60

@@ -1,9 +1,9 @@
-# Porting the SolarFlare fork to other distros
+# Porting SolarFlare to other Linux distributions
 
 The SolarFlare fork ([vindeckyy/Solar-Flare](https://github.com/vindeckyy/Solar-Flare))
 is developed against CachyOS but is portable to any Arch-family or
 Debian/Ubuntu/Fedora/openSUSE-based distro. The CMake / build-system
-patches (Zen 1/2/3/4 auto-detection, `-march`/`-mtune`/`-flto`/`-O3`,
+patches (Zen 1/2/3/4/5 auto-detection, `-march`/`-mtune`/`-flto`/`-O3`,
 Linux-only `__linux__`-guarded source patches) work everywhere; only
 the package names change between distros.
 
@@ -20,14 +20,14 @@ Three things stack here:
 1. **CachyOS ships GCC 14+ with `-march=x86-64-v3` baselines.** Older
    toolchains (Debian 12 ships GCC 12) can still build, but won't
    produce the AVX2/BMI2/FMA code paths that the CachyOS build of
-   Sunshine targets. You can build on Debian 12; you just won't get
+   SolarFlare targets. You can build on Debian 12; you just won't get
    the inliner unrolling the BGR->NV12 color-conversion loop.
 2. **CachyOS's BBRv3 + CachyOS-tuned kernel** gives better congestion
    behaviour on Wi-Fi 7 out of the box than mainline kernels. If you
    switch to a generic distro kernel, run `sudo sysctl -w
    net.ipv4.tcp_congestion_control=bbr` after install to compensate.
 3. **CachyOS packages** `pipewire`, `wayland`, `wlroots`, etc. with the
-   patches and protocol versions Sunshine expects. On other distros you
+   patches and protocol versions SolarFlare expects. On other distros you
    may need to also `git submodule update --init --recursive` to make
    sure the bundled `wlr-protocols` and `wayland-protocols` submodules
    take precedence.
@@ -35,15 +35,15 @@ Three things stack here:
 The CMake flag set is the same on every distro:
 
 ```bash
-cmake -B build -G Ninja \
+cmake -S . -B cmake-build-release -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DSUNSHINE_ENABLE_TRAY=OFF \
     -DSUNSHINE_ENABLE_DBUS=OFF \
     -DBUILD_DOCS=OFF \
     -DBUILD_TESTS=OFF \
     -DFFMPEG_PREBUILT=ON
-cmake --build build
-sudo cmake --install build
+cmake --build cmake-build-release -j2
+sudo cmake --install cmake-build-release
 ```
 
 The optional `-DSUNSHINE_CACHYOS_NATIVE=OFF` switch disables the Zen
@@ -112,7 +112,7 @@ The columns below mirror the case blocks in
   `src/audio.cpp`. The `cachyos-build.sh` defaults to the system
   compiler. If `gcc --version` reports anything below 13, install
   `gcc-13 g++-13` and either `update-alternatives` to point at it or
-  pass `CC=gcc-13 CXX=g++-13` to the `cmake -B build` line.
+  pass `CC=gcc-13 CXX=g++-13` to the CMake configure command.
 - **PipeWire 0.3 dev headers** are split out as
   `libpipewire-0.3-dev` on Debian; on Ubuntu they're inside
   `libpipewire-dev`. Don't install both.
@@ -160,28 +160,28 @@ package names above.
 
 ## Verifying a successful port
 
-After `cmake --install build`:
+After `cmake --install cmake-build-release`:
 
 ```bash
-sunshine --version
-# Expected: a few info-level 'config: ...' lines, no errors, exit 0.
+systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
+systemctl --user --no-pager status app-dev.lizardbyte.app.Sunshine.service
 
-sunshine --help
-# Expected: usage block, exit 0.
+journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -n 50 --no-pager
+# Expected: a SolarFlare version/commit line and an available encoder.
 
 curl -sS https://localhost:47990 -k -o /dev/null -w '%{http_code}\n'
-# Expected: 200 (after `systemctl --user start sunshine` and the
-# initial PIN prompt).
+# Expected: 401 before HTTP authentication, proving the HTTPS UI is serving.
 ```
 
-If any of the five SolarFlare-specific tunables doesn't appear in
-`sunshine --version` (with `min_log_level = 1` set), check that:
+If the SolarFlare publisher/version banner or expected fork configuration does
+not appear in the service log, check that:
 
 1. The binary at `/usr/local/bin/sunshine` was installed after the
    `cmake --install` step (not the upstream-distro package).
-2. The fork source actually contains the keys: `grep -c solarflare_t
-   src/config.h` should print `1`.
+2. The source checkout is at the intended SolarFlare commit or release tag.
+3. `strings /usr/local/bin/sunshine | grep -m1 SolarFlare` finds the fork
+   identity in the installed executable.
 
-If both check out but the keys still don't appear, you're probably
+If these checks pass but the fork identity still does not appear, you are probably
 running a stale install from `pacman -S sunshine` upstream. Uninstall
 that first: `sudo pacman -Rns sunshine` (or distro equivalent).

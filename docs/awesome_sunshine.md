@@ -1,4 +1,9 @@
-# Awesome-Sunshine
+# Upstream Sunshine Ecosystem
+
+SolarFlare remains compatible with Moonlight and much of the surrounding
+Sunshine ecosystem. The directory below is loaded from the independent
+`LizardByte/awesome-sunshine` project; entries are not maintained or endorsed
+by SolarFlare and may assume upstream packages or UI behavior.
 
 @htmlonly
 <script type="module" src="https://md-block.verou.me/md-block.js"></script>

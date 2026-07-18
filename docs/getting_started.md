@@ -1,5 +1,11 @@
 # Getting Started
 
+> [!IMPORTANT]
+> This is the inherited cross-platform Sunshine installation reference.
+> SolarFlare's maintained Linux release path, capabilities, assets, and service
+> commands are documented in the repository [README](../README.md#install).
+> Upstream package links below install Sunshine, not the SolarFlare fork.
+
 The recommended method for running Sunshine is to use the [binaries](#binaries) included in the
 [latest release][latest-release], unless otherwise specified.
 
@@ -35,8 +41,8 @@ See [Docker](../DOCKER_README.md) for more information.
 
    | Architecture  | Package                                                                                                                                |
    |---------------|----------------------------------------------------------------------------------------------------------------------------------------|
-   | amd64/x86_64  | [Sunshine-FreeBSD-14.4-amd64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-amd64.pkg)     |
-   | arm64/aarch64 | [Sunshine-FreeBSD-14.4-aarch64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-aarch64.pkg) |
+   | amd64/x86_64  | [Sunshine-FreeBSD-14.4-amd64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.4-amd64.pkg)     |
+   | arm64/aarch64 | [Sunshine-FreeBSD-14.4-aarch64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.4-aarch64.pkg) |
 
 2. Open terminal and run the following command.
    ```sh
@@ -517,7 +523,7 @@ ssh <user>@<ip_address> 'export DISPLAY=:0; sunshine'
 ```
 
 If you are logged into the host with only a tty (teletypewriter), you can use `startx` to start the X server prior to
-executing Sunshine. You nay need to add `sleep` between `startx` and `sunshine` to allow more time for the display to
+executing Sunshine. You may need to add `sleep` between `startx` and `sunshine` to allow more time for the display to
 be ready.
 
 ```bash

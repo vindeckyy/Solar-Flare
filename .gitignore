@@ -74,7 +74,7 @@ node_modules/
 .venv/
 venv/
 
-# Test artifacts (produced by ./build/tests/test_sunshine, not for tracking)
+# Test artifacts (produced by cmake-build-*/tests/test_sunshine, not for tracking)
 test_sunshine.log
 sunshine_state.json
 write_file_test_*.txt

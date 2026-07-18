@@ -60,12 +60,12 @@ set(CPACK_NSIS_DELETE_ICONS_EXTRA
 # Checking for previous installed versions
 set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")
 
-set(CPACK_NSIS_HELP_LINK "https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html")
+set(CPACK_NSIS_HELP_LINK "https://github.com/vindeckyy/Solar-Flare#readme")
 set(CPACK_NSIS_URL_INFO_ABOUT "${CMAKE_PROJECT_HOMEPAGE_URL}")
-set(CPACK_NSIS_CONTACT "${CMAKE_PROJECT_HOMEPAGE_URL}/support")
+set(CPACK_NSIS_CONTACT "https://github.com/vindeckyy/Solar-Flare/issues")
 
 set(CPACK_NSIS_MENU_LINKS
-        "https://docs.lizardbyte.dev/projects/sunshine" "Sunshine documentation"
-        "https://app.lizardbyte.dev" "LizardByte Web Site"
-        "https://app.lizardbyte.dev/support" "LizardByte Support")
+        "https://github.com/vindeckyy/Solar-Flare#readme" "SolarFlare documentation"
+        "https://github.com/vindeckyy/Solar-Flare" "SolarFlare on GitHub"
+        "https://github.com/vindeckyy/Solar-Flare/issues" "SolarFlare support")
 set(CPACK_NSIS_MANIFEST_DPI_AWARE true)

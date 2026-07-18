@@ -1,6 +1,9 @@
 # Performance Tuning
+
 In addition to the options available in the [Configuration](configuration.md) section, there are a few additional
-system options that can be used to help improve the performance of Sunshine.
+system options that can improve SolarFlare performance. Fork-specific network,
+scheduling, capture, and audio controls are documented in
+[SolarFlare Configuration](CONFIGURATION.md).
 
 ## AMD
 

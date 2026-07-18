@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Sunshine UI - Modern Design System
+   SolarFlare Observatory UI - Shared Design System
    ========================================================================== */
 
 /* Hide pages while localization is loading */
@@ -754,7 +754,7 @@
     --navbar-text-muted: rgba(255, 255, 255, 0.9);
 }
 
-/* Sunshine Theme - Warm and bright inspired by sunlight */
+/* SolarFlare Daylight theme - warm and bright, inspired by sunlight. */
 [data-theme="sunshine"] {
     --color-primary: #F59E0B;
     --color-primary-hover: #D97706;

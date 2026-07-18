@@ -306,7 +306,7 @@ class Sunshine < Formula
       Thanks for installing @PROJECT_NAME@!
 
       To get started, review the documentation at:
-        https://docs.lizardbyte.dev/projects/sunshine
+        https://github.com/vindeckyy/Solar-Flare#readme
     EOS
   end
 

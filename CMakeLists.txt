@@ -21,10 +21,9 @@ set(PROJECT_FQDN "dev.lizardbyte.app.Sunshine")
 
 set(PROJECT_BRIEF_DESCRIPTION "GameStream host for Moonlight")  # must be <= 35 characters
 
-set(PROJECT_LONG_DESCRIPTION "Offering low latency, cloud gaming server capabilities with support for AMD, Intel, \
-and Nvidia GPUs for hardware encoding. Software encoding is also available. You can connect to Sunshine from any \
-Moonlight client on a variety of devices. A web UI is provided to allow configuration, and client pairing, from \
-your favorite web browser. Pair from the local server or any mobile device.")
+set(PROJECT_LONG_DESCRIPTION "SolarFlare is a self-hosted game-streaming host for Moonlight with hardware encoding \
+support for AMD, Intel, and Nvidia GPUs plus a software-encoding fallback. Its observatory Web UI manages host \
+configuration, applications, diagnostics, and client pairing from desktop and mobile browsers.")
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to 'Release' as none was specified.")

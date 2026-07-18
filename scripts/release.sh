@@ -6,7 +6,7 @@
 # the legacy hard-coded version badge that this script knows how to update.
 #
 # Usage:
-#   ./scripts/release.sh <version>            # e.g. 2026.999.2
+#   ./scripts/release.sh <version>            # e.g. 2026.719.1
 #   ./scripts/release.sh <version> --dry-run # preview without writing
 #
 # Side effects (in order):
@@ -33,21 +33,34 @@ done
 
 if [ -z "$VERSION" ]; then
   echo "usage: $0 <version> [--dry-run] [--no-push]" >&2
-  echo "  e.g. $0 2026.999.2" >&2
+  echo "  e.g. $0 2026.718.5" >&2
   exit 1
 fi
 
-# Validate version shape: YYYY.MAJOR.MINOR (dots only, all digits)
+# Validate version shape: YYYY.MDD.REVISION (dots only, all digits).
 if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "bad version: '$VERSION' — expected YYYY.MAJOR.MINOR" >&2
+  echo "bad version: '$VERSION' — expected YYYY.MDD.REVISION" >&2
   exit 1
 fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# Refuse if there are uncommitted changes — release must be clean
-if ! git diff --quiet HEAD 2>/dev/null; then
+# Refuse duplicate or out-of-order SolarFlare tags. Upstream-compatible tags
+# without the -solarflare suffix are intentionally excluded from this check.
+LATEST_TAG="$(git tag --list 'v*-solarflare' --sort=-version:refname | head -n 1)"
+if [ -n "$LATEST_TAG" ]; then
+  LATEST_VERSION="${LATEST_TAG#v}"
+  LATEST_VERSION="${LATEST_VERSION%-solarflare}"
+  if [ "$VERSION" = "$LATEST_VERSION" ] ||
+     [ "$(printf '%s\n' "$LATEST_VERSION" "$VERSION" | sort -V | tail -n 1)" != "$VERSION" ]; then
+    echo "version '$VERSION' must be newer than $LATEST_VERSION" >&2
+    exit 1
+  fi
+fi
+
+# Refuse tracked or untracked changes — release input must be reproducible.
+if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
   echo "working tree dirty — commit or stash before releasing" >&2
   exit 1
 fi
@@ -65,8 +78,6 @@ if [ -z "$(git config user.email)" ]; then
   fi
 fi
 
-# shields.io needs double-dash escaped to -- in the URL
-BADGE_VER="${VERSION//--/--}"
 BADGE_URL="https://img.shields.io/badge/version-v${VERSION}--solarflare-orange?style=flat-square"
 
 echo "→ setting version to $VERSION (badge: $BADGE_URL)"
@@ -120,7 +131,7 @@ for i, l in enumerate(lines):
         break
 else:
     insert_at = len(lines)
-lines.insert(insert_at, '\n## $TODAY — v${VERSION}-solarflare\n\nRelease notes TBD. Run \`git log v<prev>..HEAD --oneline\` to enumerate.\n\n')
+lines.insert(insert_at, '\n## $TODAY — v${VERSION}-solarflare\n\nRelease notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.\n\n')
 p.write_text(''.join(lines))
 "
 fi

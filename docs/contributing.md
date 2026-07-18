@@ -1,214 +1,105 @@
-# Contributing
-Read our contribution guide in our organization level
-[docs](https://docs.lizardbyte.dev/latest/developers/contributing.html).
+# Development Guide
 
-## Recommended Tools
+The repository-level [contribution policy](../CONTRIBUTING.md) is the source of
+truth for scope, review expectations, and fork boundaries. This page covers
+the local development loop.
 
-| Tool                                                                                                                                                                           | Description                                                             |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
-| <a href="https://www.jetbrains.com/clion/"><img src="https://resources.jetbrains.com/storage/products/company/brand/logos/CLion_icon.svg" width="30" height="30"></a><br>CLion | Recommended IDE for C and C++ development. Free for non-commercial use. |
+## Toolchain
 
-## Project Patterns
+SolarFlare uses CMake, Ninja, C++23, Node.js, Vue, Vite, and GoogleTest. The
+platform dependency reference is in [Building](building.md). Keep all build
+trees under a `cmake-build-` prefix.
 
-### Web UI
-* The Web UI uses [Vite](https://vitejs.dev) as its build system.
-* The HTML pages used by the Web UI are found in `./src_assets/common/assets/web`.
-* The shared observatory interface is intentionally implemented without a
-  client-side router: `Navbar.vue` owns the semantic navigation rail,
-  `sunshine.css` owns the responsive design system, and `init.js` initializes
-  theme and locale state for every Vite entry point. Keep endpoint behavior
-  and form serialization independent from the visual shell.
-* Motion must explain an interaction or state change. Do not add ambient
-  looping animation; provide a static state under `prefers-reduced-motion`
-  for any necessary transition.
-* [EJS](https://www.npmjs.com/package/vite-plugin-ejs) is used as a templating system for the pages
-  (check `template_header.html` and `template_header_main.html`).
-* The Style System is provided by [Bootstrap](https://getbootstrap.com).
-* Icons are provided by [Lucide](https://lucide.dev) and [Simple Icons](https://simpleicons.org).
-* The JS framework used by the more interactive pages is [Vue.js](https://vuejs.org).
+On Windows, run build commands from MSYS2 UCRT64:
 
-#### Building
-
-@tabs{
-  @tab{CMake | ```bash
-    cmake -B build -G Ninja -S . --target web-ui
-    ninja -C build web-ui
-    ```}
-  @tab{Manual | ```bash
-    npm run dev
-    ```}
-}
-
-### Localization
-Sunshine and related LizardByte projects are being localized into various languages.
-The default language is `en` (English).
-
-![](https://app.lizardbyte.dev/dashboard/crowdin/LizardByte_graph.svg)
-
-@admonition{Community | We are looking for language coordinators to help approve translations.
-The goal is to have the bars above filled with green!
-If you are interested, please reach out to us on our Discord server.}
-
-#### CrowdIn
-The translations occur on [CrowdIn][crowdin-url].
-Anyone is free to contribute to the localization there.
-
-##### Translation Basics
-* The brand names *LizardByte* and *Sunshine* should never be translated.
-* Other brand names should never be translated. Examples include *AMD*, *Intel*, and *NVIDIA*.
-
-##### CrowdIn Integration
-How does it work?
-
-When a change is made to Sunshine source code, a workflow generates new translation templates
-that get pushed to CrowdIn automatically.
-
-When translations are updated on CrowdIn, a push gets made to the *l10n_master* branch and a PR is made against the
-*master* branch. Once the PR is merged, all updated translations are part of the project and will be included in the
-next release.
-
-#### Extraction
-
-##### Web UI
-Sunshine uses [Vue I18n](https://vue-i18n.intlify.dev) for localizing the UI.
-The following is a simple example of how to use it.
-
-* Add the string to the `./src_assets/common/assets/web/public/assets/locale/en.json` file, in English.
-  ```json
-  {
-   "index": {
-     "welcome": "Hello, Sunshine!"
-   }
-  }
-  ```
-
-  > [!NOTE]
-  > The JSON keys should be sorted alphabetically. You can use [jsonabc](https://novicelab.org/jsonabc)
-  > to sort the keys.
-
-  > [!IMPORTANT]
-  > Due to the integration with Crowdin, it is important to only add strings to the *en.json* file,
-  > and to not modify any other language files. After the PR is merged, the translations can take place
-  > on [CrowdIn][crowdin-url]. Once the translations are complete, a PR will be made
-  > to merge the translations into Sunshine.
-
-* Use the string in the Vue component.
-  ```html
-  <template>
-    <div>
-      <p>{{ $t('index.welcome') }}</p>
-    </div>
-  </template>
-  ```
-
-  > [!TIP]
-  > More formatting examples can be found in the
-  > [Vue I18n guide](https://kazupon.github.io/vue-i18n/guide/formatting.html).
-
-##### C++
-
-There should be minimal cases where strings need to be extracted from C++ source code; however it may be necessary in
-some situations. For example the system tray icon could be localized as it is user interfacing.
-
-* Wrap the string to be extracted in a function as shown.
-  ```cpp
-  #include <boost/locale.hpp>
-  #include <string>
-
-  std::string msg = boost::locale::translate("Hello world!");
-  ```
-
-> [!TIP]
-> More examples can be found in the documentation for
-> [boost locale](https://www.boost.org/doc/libs/1_70_0/libs/locale/doc/html/messages_formatting.html).
-
-> [!WARNING]
-> The below is for information only. Contributors should never include manually updated template files, or
-> manually compiled language files in Pull Requests.
-
-Strings are automatically extracted from the code to the `locale/sunshine.po` template file. The generated file is
-used by CrowdIn to generate language specific template files. The file is generated using the
-`.github/workflows/localize.yml` workflow and is run on any push event into the `master` branch. Jobs are only run if
-any of the following paths are modified.
-
-```yaml
-- 'src/**'
+```powershell
+C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "<command>"
 ```
 
-When testing locally, it may be desirable to manually extract, initialize, update, and compile strings. Python and
-uv are required for this, along with the Python dependencies in the Sunshine `pyproject.toml`. From the repository
-root, install these with the following command.
+## Web UI
+
+The Web UI lives in `src_assets/common/assets/web`.
+
+- `Navbar.vue` owns the shared desktop rail and compact mobile navigation.
+- `sunshine.css` is the shared SolarFlare design system; its filename remains
+  a compatibility path.
+- `init.js` initializes the shared theme and locale state for every Vite entry.
+- Vue components own interactive configuration surfaces.
+- EJS templates provide the static page shells.
+
+The interface deliberately avoids a client-side router. Keep endpoints and
+form serialization independent from the visual shell. Motion must communicate
+an interaction or state change, and every transition needs a usable
+`prefers-reduced-motion` state.
+
+Build the production bundle through CMake:
 
 ```bash
-uv sync --locked
+cmake -S . -B cmake-build-web -G Ninja -DBUILD_DOCS=OFF
+cmake --build cmake-build-web --target web-ui -j2
 ```
 
-Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed.
-
-* Extract, initialize, and update
-  ```bash
-  uv run --locked --no-sync lb-localize --root-dir . --extract --init --update
-  ```
-
-* Compile
-  ```bash
-  uv run --locked --no-sync lb-localize --root-dir . --compile
-  ```
-
-> [!IMPORTANT]
-> Due to the integration with CrowdIn, it is important to not include any extracted or compiled files in
-> Pull Requests. The files are automatically generated and updated by the workflow. Once the PR is merged, the
-> translations can take place on [CrowdIn][crowdin-url]. Once the translations are
-> complete, a PR will be made to merge the translations into Sunshine.
-
-### Testing
-
-#### Clang Format
-Source code is tested against the `.clang-format` file for linting errors.
-
-From the repository root, apply clang-format locally with the installed lizardbyte-common script. This will modify
-files in place.
+For the Vite development server:
 
 ```bash
-uv sync --locked
-uv run --locked --no-sync lb-update-clang-format
+npm install
+npm run dev
 ```
 
-#### Unit Testing
-Sunshine uses [Google Test](https://github.com/google/googletest) for unit testing. Google Test is included in the
-repo as a submodule. The test sources are located in the `./tests` directory.
+## Localization
 
-The tests need to be compiled into an executable, and then run. The tests are built using the normal build process, but
-can be disabled by setting the `BUILD_TESTS` CMake option to `OFF`.
+English source strings belong only in
+`src_assets/common/assets/web/public/assets/locale/en.json`. Do not edit
+`en_US`, `en_GB`, or any other locale as part of an English UI change.
 
-To run the tests, execute the following command.
+Use stable, descriptive keys. Product copy should say SolarFlare; internal
+keys such as `sunshine_name` remain unchanged where renaming would break
+configuration or translation compatibility.
+
+## C++ Style and Documentation
+
+Apply the repository `.clang-format` rules to changed C and C++ files. Every
+new or modified function, type, member, and public constant must have Doxygen
+documentation. Use the project form for primary comments:
+
+```cpp
+/**
+ * @brief Describe the symbol.
+ *
+ * @param value Describe the parameter.
+ * @return Describe the result.
+ */
+```
+
+Use `///< ...` for inline member documentation.
+
+## Tests
+
+Add or update GoogleTest coverage for changed behavior and target full coverage
+of new branches. Configure, build, and run the test executable with:
 
 ```bash
-./build/tests/test_sunshine
+cmake -S . -B cmake-build-tests -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DBUILD_TESTS=ON \
+  -DBUILD_DOCS=OFF
+cmake --build cmake-build-tests --target test_sunshine -j2
+./cmake-build-tests/tests/test_sunshine --gtest_brief=1
 ```
 
-To see all available options, run the tests with the `--help` flag.
+The `test_sunshine` filename is retained for build compatibility.
+
+## Before Submitting
 
 ```bash
-./build/tests/test_sunshine --help
+git diff --check
+npm run build
+./cmake-build-tests/tests/test_sunshine --gtest_brief=1
 ```
 
-> [!TIP]
-> See the googletest [FAQ](https://google.github.io/googletest/faq.html) for more information on how to use Google Test.
-
-We use [gcovr](https://www.gcovr.com) to generate code coverage reports,
-and [Codecov](https://about.codecov.io) to analyze the reports for all PRs and commits.
-
-Codecov will fail a PR if the total coverage is reduced too much, or if not enough of the diff is covered by tests.
-In some cases, the code cannot be covered when running the tests inside of GitHub runners. For example, any test that
-needs access to the GPU will not be able to run. In these cases, the coverage can be omitted by adding comments to the
-code. See the [gcovr documentation](https://gcovr.com/en/stable/guide/exclusion-markers.html#exclusion-markers) for
-more information.
-
-Even if your changes cannot be covered in the CI, we still encourage you to write the tests for them. This will allow
-maintainers to run the tests locally.
-
-[crowdin-url]: https://translate.lizardbyte.dev
+Document user-visible behavior and operational changes in the appropriate
+SolarFlare guide. Submit changes to the `vindeckyy/Solar-Flare` repository;
+do not open SolarFlare work in the LizardByte organization.
 
 <div class="section_buttons">
 

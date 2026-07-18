@@ -32,6 +32,6 @@ jobs:
       - name: No-op (fork)
         run: |
           echo "SolarFlare fork does not run this upstream workflow."
-          echo "Reason: Bumps the version on flathub/github.com/LizardByte/Sunshine. The fork does not ship a Flatpak build path (see docs/PORTING.md > 'What this fork IS NOT')."
+          echo "Reason: The upstream workflow publishes to LizardByte-owned infrastructure; SolarFlare does not publish a Flatpak image. See docs/PORTING.md."
           echo "Owner: ${{ github.repository_owner }} (expected 'LizardByte')."
           echo "This workflow is intentionally disabled. See the file's header comment."

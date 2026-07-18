@@ -76,8 +76,9 @@ mutex-unlock mismatches, null-pointer derefs, test_config_fork_keys coverage):
 clean — no new issues.
 
 
-> **Note:** Commit is local-only. Push requires a `.netrc`-hosting host — not
-> on today's cron slot. Next cron on a populated host will push it.
+> **Historical note:** this repair was initially produced on an offline
+> maintenance run and was pushed afterward. The referenced submodule pointer is
+> present in the public repository.
 
 ---
 

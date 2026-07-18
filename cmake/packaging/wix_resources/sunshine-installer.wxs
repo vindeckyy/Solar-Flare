@@ -4,19 +4,19 @@
     <StandardDirectory Id="ProgramMenuFolder">
         <Component Id="ApplicationShortcutRoot" Guid="*">
             <Shortcut Id="ApplicationStartMenuShortcutRoot"
-                      Name="Sunshine"
-                      Description="Sunshine Game Stream Host"
+                      Name="SolarFlare"
+                      Description="SolarFlare Game Stream Host"
                       Target="[INSTALL_ROOT]sunshine.exe"
                       Arguments="--shortcut"
                       WorkingDirectory="INSTALL_ROOT"/>
             <RegistryValue Root="HKCU" Key="Software\LizardByte\Sunshine" Name="installed_root" Type="integer" Value="1" KeyPath="yes"/>
         </Component>
-        <Directory Id="ProgramMenuSubfolder" Name="LizardByte">
-            <Directory Id="ProgramMenuSunshineFolder" Name="Sunshine">
+        <Directory Id="ProgramMenuSubfolder" Name="SolarFlare">
+            <Directory Id="ProgramMenuSunshineFolder" Name="SolarFlare">
                 <Component Id="ApplicationShortcut" Guid="*">
                     <Shortcut Id="ApplicationStartMenuShortcut"
-                              Name="Sunshine"
-                              Description="Sunshine Game Stream Host"
+                              Name="SolarFlare"
+                              Description="SolarFlare Game Stream Host"
                               Target="[INSTALL_ROOT]sunshine.exe"
                               Arguments="--shortcut"
                               WorkingDirectory="INSTALL_ROOT"/>
@@ -26,24 +26,24 @@
                 </Component>
                 <Component Id="DocumentationShortcut" Guid="*">
                     <util:InternetShortcut Id="DocumentationLink"
-                                           Name="Sunshine Documentation"
-                                           Target="https://docs.lizardbyte.dev/projects/sunshine"
+                                           Name="SolarFlare Documentation"
+                                           Target="https://github.com/vindeckyy/Solar-Flare#readme"
                                            Type="url"/>
                     <RemoveFolder Id="CleanUpDocsShortCut" Directory="ProgramMenuSunshineFolder" On="uninstall"/>
                     <RegistryValue Root="HKCU" Key="Software\LizardByte\Sunshine" Name="docs_shortcut" Type="integer" Value="1" KeyPath="yes"/>
                 </Component>
                 <Component Id="WebsiteShortcut" Guid="*">
                     <util:InternetShortcut Id="WebsiteLink"
-                                           Name="LizardByte Web Site"
-                                           Target="https://app.lizardbyte.dev"
+                                           Name="SolarFlare on GitHub"
+                                           Target="https://github.com/vindeckyy/Solar-Flare"
                                            Type="url"/>
                     <RemoveFolder Id="CleanUpWebsiteShortCut" Directory="ProgramMenuSunshineFolder" On="uninstall"/>
                     <RegistryValue Root="HKCU" Key="Software\LizardByte\Sunshine" Name="website_shortcut" Type="integer" Value="1" KeyPath="yes"/>
                 </Component>
                 <Component Id="SupportShortcut" Guid="*">
                     <util:InternetShortcut Id="SupportLink"
-                                           Name="LizardByte Support"
-                                           Target="https://app.lizardbyte.dev/support"
+                                           Name="SolarFlare Support"
+                                           Target="https://github.com/vindeckyy/Solar-Flare/issues"
                                            Type="url"/>
                     <RemoveFolder Id="CleanUpSupportShortCut" Directory="ProgramMenuSunshineFolder" On="uninstall"/>
                     <RegistryValue Root="HKCU" Key="Software\LizardByte\Sunshine" Name="support_shortcut" Type="integer" Value="1" KeyPath="yes"/>

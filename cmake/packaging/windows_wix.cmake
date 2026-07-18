@@ -60,10 +60,10 @@ set(CPACK_WIX_ROOT "${WIX_TOOL_PATH}")
 set(CPACK_WIX_UPGRADE_GUID "512A3D1B-BE16-401B-A0D1-59BBA3942FB8")
 
 # Installer metadata
-set(CPACK_WIX_HELP_LINK "https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html")
+set(CPACK_WIX_HELP_LINK "https://github.com/vindeckyy/Solar-Flare#readme")
 set(CPACK_WIX_PRODUCT_ICON "${SUNSHINE_ICON_PATH}")
 set(CPACK_WIX_PRODUCT_URL "${CMAKE_PROJECT_HOMEPAGE_URL}")
-set(CPACK_WIX_PROGRAM_MENU_FOLDER "LizardByte")
+set(CPACK_WIX_PROGRAM_MENU_FOLDER "SolarFlare")
 
 set(CPACK_WIX_EXTENSIONS
         "WixToolset.UI.wixext"

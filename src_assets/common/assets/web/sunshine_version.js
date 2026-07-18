@@ -36,7 +36,7 @@ class SunshineVersion {
     }
     const parts = v.split('.').map(Number);
     // Only return if we got at least one numeric part. Non-numeric strings
-    // (like the literal "2026.999.2" fall-through) parse cleanly; "abc"
+    // (like the literal "2026.718.5" fall-through) parse cleanly; "abc"
     // would yield [NaN] which we treat as "unparseable".
     if (parts.length === 0 || parts.some(Number.isNaN)) {
       return null;

@@ -1,135 +1,144 @@
 # Contributing to SolarFlare
 
-Thanks for your interest in the SolarFlare fork of
-[LizardByte/Sunshine](https://github.com/LizardByte/Sunshine). This
-document covers the fork's contribution policy. For day-to-day
-development workflow (building, testing, code style, etc.) please
-read the upstream
-[docs/contributing.md](docs/contributing.md) — most of what applies
-to Sunshine applies to the fork too.
+SolarFlare accepts focused, testable changes that improve the Linux streaming
+path, host operations, or observatory interface without breaking Moonlight
+compatibility.
 
-## TL;DR
+This document defines fork policy. The detailed C++ style, localization,
+documentation, and development conventions live in
+[docs/contributing.md](docs/contributing.md).
 
-- **Small fixes that only touch fork-specific files** (the 5 fork
-  config keys, the CachyOS native build flags, the `scripts/cachyos-build.sh`
-  multi-distro logic, the SolarFlare web UI rebrand, `docs/PORTING.md`,
-  `docs/CONFIGURATION.md`, `docs/CHANGELOG-SolarFlare.md`,
-  `tests/unit/test_config_fork_keys.cpp`): open a PR on this fork.
-- **Anything that touches upstream code that we haven't modified**
-  (`src/crypto.cpp`, `src/audio.cpp`, `src/nvenc/*`, etc.): open a
-  PR on [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine)
-  first, then optionally cherry-pick onto this fork.
-- **Anything that touches the upstream UI** (`src_assets/...`):
-  check that the change doesn't undo the fork's SolarFlare rebrand
-  before opening a PR upstream; re-apply the fork branding after the
-  upstream merge.
+## Before opening a change
 
-## What this fork IS
+1. Search existing issues and recent commits for overlapping work.
+2. Separate SolarFlare-specific behavior from inherited Sunshine behavior.
+3. Keep protocol identifiers, configuration paths, and executable/service
+   compatibility intact unless the change includes a migration plan.
+4. Add or update tests for every modified behavior.
+5. Update Doxygen and user documentation in the same change.
 
-SolarFlare is a derivative of upstream LizardByte/Sunshine focused on
-zero-latency local-LAN game streaming on CachyOS x86_64 + GNOME/Wayland
-+ PipeWire + an NVIDIA Turing (or any modern) GPU. The fork's primary
-contributions are:
+SolarFlare-specific work belongs in this repository. A defect that reproduces
+unchanged in upstream Sunshine should normally be reported upstream first;
+fork integrations or regressions should be reported here.
 
-1. **Zen microarchitecture auto-detection + LTO + native flags** in
-   `cmake/compile_definitions/common.cmake`, gated by the cmake option
-   `SUNSHINE_CACHYOS_NATIVE` (default ON on Linux).
-2. **Five fork-specific Linux-only tunables** that can be set in
-   `~/.config/sunshine/sunshine.conf`:
-   - `busy_poll_us`       — `SO_BUSY_POLL` on the ENet socket
-   - `rate_cap_pct`       — rate-control pacer, % of link speed
-   - `enet_4mib_buffer`   — grow ENet UDP buffers to 4 MiB
-   - `pipewire_latency_ms`— `PW_KEY_NODE_LATENCY` hint to compositor
-   - `cpu_pinning`        — `SCHED_RR` + core affinity for capture
-   See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for ranges and
-   behaviour.
-3. **A multi-distro build script** (`scripts/cachyos-build.sh`) that
-   auto-detects Arch / Debian / Fedora / openSUSE families and
-   installs the right package set.
-4. **A web UI rebrand** — fork logo, fork wordmark, fork footer,
-   fork version banner, "SolarFlare" theme — see
-   `src_assets/common/assets/web/Navbar.vue` and
-   `src_assets/common/assets/web/index.html`.
-5. **Fork-specific docs**: `docs/PORTING.md` (multi-distro build),
-   `docs/CONFIGURATION.md` (fork config keys),
-   `docs/CHANGELOG-SolarFlare.md` (fork changelog), and a new
-   `## SolarFlare Fork` section appended to `docs/configuration.md`.
-6. **Fork-specific CI** (`.github/workflows/ci-solarflare.yml`) that
-   runs `scripts/cachyos-build.sh` on an Arch container, verifies the
-   fork banner + 5 config keys, and runs the full test suite.
+## Areas maintained by SolarFlare
 
-## What this fork IS NOT
+- Linux transport tuning: pacing, busy polling, socket buffers, QoS, and
+  adaptive bitrate.
+- Capture and scheduling: CPU affinity, GPU governor behavior, headless paths,
+  native compiler tuning, and optional performance services.
+- Video and audio controls: NVENC presets, per-application overrides, Audio FX,
+  and Opus configuration.
+- Host access: scoped API tokens, trusted-subnet pairing, and security
+  hardening around network-reachable surfaces.
+- The SolarFlare observatory Web UI and its responsive design system.
+- Multi-distribution build, install, release, and verification tooling.
+- Fork documentation and regression contracts.
 
-- **Not a general-purpose Sunshine fork**. If you want a Sunshine
-  build for a non-Linux distro, non-Zen CPU, or non-LAN target, the
-  upstream build (or your distro's Sunshine package) is what you
-  want.
-- **Not a security-focused fork**. We cherry-pick upstream security
-  fixes when they don't conflict with our modifications, but we
-  don't track CVEs ourselves. For the latest security patches,
-  check upstream.
-- **Not a long-term support branch**. The fork tracks upstream's
-  `master` branch. There's no `release/X` branches here.
+The authoritative fork-control inventory is
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md); do not copy hard-coded setting
+counts into new documents.
 
-## How to submit a PR
+## Development workflow
 
-1. Fork this repo on GitHub.
-2. Create a branch from `master` with a descriptive name
-   (`fix/<short-desc>`, `feat/<short-desc>`, `docs/<short-desc>`, etc.).
-3. Make your changes. Follow the
-   [upstream code style](https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2contributing.html)
-   and run `clang-format -i` on any C/C++ you touched before
-   committing.
-4. Run the test suite locally:
-   ```bash
-   cmake -B build -G Ninja \
-       -DCMAKE_BUILD_TYPE=Release \
-       -DBUILD_TESTS=ON \
-       -DSUNSHINE_ENABLE_TRAY=OFF \
-       -DSUNSHINE_ENABLE_CUDA=OFF \
-       -DCUDA_FAIL_ON_MISSING=OFF \
-       -DFFMPEG_PREBUILT=ON
-   cmake --build build -j$(($(nproc) / 2))
-   ./build/tests/test_sunshine --gtest_brief=1
-   ```
-   Tests should report `0 FAILED`. The pre-existing 5 skipped tests
-   are Windows-specific or TODO inputtino and not your concern.
-5. Run `clang-format --dry-run --Werror` on the files you touched:
-   ```bash
-   clang-format --dry-run --Werror src/<your-changed-file>.cpp
-   ```
-6. Push the branch and open a PR against `vindeckyy/Solar-Flare@master`.
-7. The PR template will ask you to:
-   - Describe what the change does and why.
-   - List the files you touched.
-   - Confirm you ran the test suite and clang-format.
-   - Note any upstream PRs you cherry-picked (if any).
+Create a topic branch from `master` and keep each commit scoped to one logical
+change. Use conventional commit subjects where practical, for example:
 
-## Reporting issues
+```text
+feat(web-ui): add encoder health telemetry
+fix(network): preserve pacing fallback on unknown links
+docs(readme): clarify binary-only updates
+```
 
-- **Fork-specific issues** (the 5 config keys, the build script, the
-  web UI rebrand, the docs): open a GitHub issue on
-  [vindeckyy/Solar-Flare](https://github.com/vindeckyy/Solar-Flare/issues).
-- **Generic Sunshine issues** (anything that would also happen on
-  upstream): open an issue on
-  [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine/issues)
-  first. If it turns out to be a fork-only regression, we'll close
-  the upstream one and re-open here.
+### Configure and build
 
-## Code of conduct
+Build directory names must start with `cmake-build-`.
 
-This fork follows the same code of conduct as the upstream project.
-Be kind, be helpful, and remember that the maintainer
-([@vindeckyy](https://github.com/vindeckyy)) runs this fork for their
-own CachyOS box; if you want to add a major feature, propose it in
-an issue first so we can agree on scope.
+```bash
+git submodule update --init --recursive
 
-## See also
+cmake -S . -B cmake-build-dev -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DBUILD_TESTS=ON \
+  -DBUILD_DOCS=OFF
+cmake --build cmake-build-dev --target test_sunshine -j2
+```
 
-- [README.md](README.md) — fork entry point
-- [docs/PORTING.md](docs/PORTING.md) — multi-distro build instructions
-- [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — fork config keys
-- [docs/CHANGELOG-SolarFlare.md](docs/CHANGELOG-SolarFlare.md) — fork
-  changelog
-- [docs/contributing.md](docs/contributing.md) — upstream contribution
-  guide (most of it applies here too)
+Platform-specific options and dependencies are documented in
+[docs/building.md](docs/building.md) and [docs/PORTING.md](docs/PORTING.md).
+
+### Test
+
+```bash
+./cmake-build-dev/tests/test_sunshine --gtest_brief=1
+```
+
+Run the narrowest relevant test filter while iterating, then run the complete
+suite before requesting review. Hardware-dependent tests may skip when their
+capture, encoder, audio, or input device is unavailable; failures must be
+resolved or explained.
+
+### Format and document
+
+```bash
+clang-format --dry-run --Werror src/path/to/changed_file.cpp
+git diff --check
+```
+
+Every new or modified C/C++ declaration requires Doxygen. Primary comments use
+the project `/** ... */` format; inline member documentation uses `///<`.
+
+When changing localization, update only the `en` catalog. Do not edit `en_US`,
+`en_GB`, or other translations in fork changes.
+
+## Web UI changes
+
+The Web UI is a multi-entry Vite application rather than a client-side routed
+SPA. Preserve these contracts:
+
+- `Navbar.vue` owns the semantic navigation shell.
+- `init.js` initializes theme and locale state for every entry point.
+- `sunshine.css` owns the shared responsive design system.
+- Network endpoints and form serialization must remain independent from the
+  visual layer.
+- Motion must communicate interaction or state; avoid ambient looping effects.
+- User-facing product copy should say SolarFlare. Compatibility identifiers
+  and upstream links may retain Sunshine where technically required.
+
+Build the Web UI through CMake so assets land in the correct build tree:
+
+```bash
+cmake --build cmake-build-dev --target web-ui -j2
+```
+
+If the navigation or page layout changes, refresh all six README screenshots
+with `scripts/screenshot-ui.sh`.
+
+## Pull request checklist
+
+- The change has a clear problem statement and bounded scope.
+- New or changed behavior has tests.
+- Doxygen and user documentation are current.
+- C/C++ files pass `.clang-format`.
+- `git diff --check` passes.
+- The Web UI builds when frontend files change.
+- No generated build output, credentials, local state, or unrelated submodule
+  changes are included.
+- Upstream commits or issues are linked when relevant.
+
+Open changes against
+[`vindeckyy/Solar-Flare`](https://github.com/vindeckyy/Solar-Flare), not the
+LizardByte organization.
+
+## Reporting problems
+
+- Product defects and feature requests:
+  [SolarFlare issues](https://github.com/vindeckyy/Solar-Flare/issues).
+- SolarFlare-specific vulnerabilities:
+  [private security advisory](https://github.com/vindeckyy/Solar-Flare/security/advisories/new).
+- Defects reproduced in an unmodified upstream build:
+  [LizardByte/Sunshine issues](https://github.com/LizardByte/Sunshine/issues).
+
+Be precise, include reproduction steps and logs with secrets removed, and state
+the host distribution, desktop session, GPU, capture backend, encoder, and
+Moonlight client version.
