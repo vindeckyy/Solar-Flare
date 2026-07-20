@@ -1195,8 +1195,13 @@ namespace platf {
   std::vector<std::string> kms_display_names(mem_type_e hwdevice_type);
   std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
+  /**
+   * @brief Check whether KMS capture is available.
+   * @return true if the DRI device has outputs AND the process holds CAP_SYS_ADMIN
+   *         (required for DRM framebuffer access).
+   */
   bool verify_kms() {
-    return !kms_display_names(mem_type_e::unknown).empty();
+    return has_elevated_privileges(false) && !kms_display_names(mem_type_e::unknown).empty();
   }
 #endif
 
@@ -1301,7 +1306,12 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_DRM
     if (sources[source::KMS]) {
       BOOST_LOG(info) << "Screencasting with KMS"sv;
-      return kms_display(hwdevice_type, display_name, config);
+      auto kms = kms_display(hwdevice_type, display_name, config);
+      if (kms) {
+        return kms;
+      }
+      BOOST_LOG(warning) << "KMS capture failed, falling back to next available source"sv;
+      sources[source::KMS] = false;
     }
 #endif
 
