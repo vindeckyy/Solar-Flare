@@ -6,6 +6,16 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+## 2026-07-20
+
+### KMS capability check and capture fallback
+
+KMS capture now checks for `CAP_SYS_ADMIN` before advertising the backend. If
+KMS initialization fails at runtime, SolarFlare logs the failure and falls
+through to the next available capture source instead of returning a dead
+capture path.
+
+
 ## 2026-07-18 — v2026.718.5-solarflare
 
 SolarFlare's Web UI is now a responsive observatory console with a persistent
@@ -28,7 +38,59 @@ configuration serialization, theme variants, and the keyboard command palette.
 All localized presentation copy now normalizes the upstream product name to
 SolarFlare at runtime while protocol identifiers remain compatible.
 
+### Event-driven latency pipeline
+
+Reworked the streaming hot path around event-driven capture and bounded
+queues. PipeWire capture is driven by frame arrival instead of phase-based
+sleeps, with frame metadata and client-rate decimation for PipeWire and
+Hermes-KMS. Per-session pacing now bounds batches, tracks queue age, rejects
+stale frames, honors send deadlines, and parses per-frame FEC status for
+adaptive network stats. The encoder can apply live NVENC bitrate changes when
+supported, and the first-frame path avoids dummy allocation when a real frame
+arrives quickly.
+
+Input delivery now uses single-flight batching with bounded drains and stale
+HOME timer protection. Audio tracks frame gaps and repairs RTP
+sequence/timestamps around dropped frames. Packet ownership is explicit
+through move-only encoded packets and queue timestamps, reducing copies and
+making queue-age decisions safe.
+
+Added the `latency_mode` setting with `safe` and `aggressive` policies.
+Aggressive mode tightens audio and scaler latency tradeoffs, and the latency
+NVENC preset disables two-pass encoding. Added six new test files and expanded
+regression coverage for queue overflow, input batching, pacing, FEC parsing,
+video packet ownership, PipeWire behavior, and configuration consistency.
+
 ---
+
+## 2026-07-16
+
+### Portal and PipeWire capture reliability
+
+Hardened portal capture by requesting an embedded cursor only when advertised,
+falling back from zero physical monitor dimensions to logical or stream
+dimensions, bounding portal D-Bus waits to 15 seconds, subscribing before the
+proxy call, validating request paths, and cleaning up response subscriptions
+and variants. This keeps absolute input and cursor capture usable and prevents
+a stalled portal from wedging the HTTPS control plane.
+
+### v2026.708.4-solarflare
+
+Published the follow-up SolarFlare release with the fork's version and binary
+packaging paths aligned after the initial Linux binary release.
+
+
+## 2026-07-15
+
+### Audio controls and packet hardening
+
+Documented the remaining `sf_audio_*` controls: `sf_audio_vad_hysteresis_db`,
+`sf_audio_vad_min_speech_ms`, `sf_audio_vad_min_silence_ms`,
+`sf_audio_ducker_attack_ms`, `sf_audio_ducker_release_ms`, and
+`sf_audio_noise_gate_db`. Added a size guard for short
+`IDX_INVALIDATE_REF_FRAMES` packets so malformed clients cannot trigger an
+out-of-bounds read.
+
 
 ## 2026-07-13/14
 
@@ -36,7 +98,10 @@ SolarFlare at runtime while protocol identifiers remain compatible.
 
 General cleanup batch post-release: fixed the CONFIGURATION.md drift caught by the docs-drift agent (tunable count, `virtual_display_resolution` claim, stale file refs), added a `release.sh` script as the single source of truth for version bumps, fixed an RTSP OOB-read in the frame parser (fuzzer find), and patched a GVariant-interned string double-free in the heap path. Also probed for ccache/mold/lld during cmake, added GPL license headers, released capture resources on teardown, and documented the linux resource cleanup.
 
+Also fixed KDE headless detection when `XDG_CURRENT_DESKTOP=plasma`.
 
+
+---
 ---
 
 ## 2026-07-12
@@ -306,7 +371,7 @@ Bug audit pass on the Jul 3 feature batch plus the Reddit portal/KMS report. Fix
 
 ## See also
 
-- [docs/CONFIGURATION.md](CONFIGURATION.md) — the 9 fork-specific latency/display toggles (`busy_poll_us`, `rate_cap_pct`, `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`, `dscp_qos`, `gpu_governor`, `headless_virtual_display`, `skip_wayland_correlation`).
+- [docs/CONFIGURATION.md](CONFIGURATION.md) — the 10 fork-specific latency/display toggles (`busy_poll_us`, `rate_cap_pct`, `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`, `dscp_qos`, `gpu_governor`, `headless_virtual_display`, `skip_wayland_correlation`, `latency_mode`).
 - [docs/PORTING.md](PORTING.md) — per-distro package translation table for the build script.
 - [README.md](../README.md) — fork entry point.
 - [cachyos-fastpath.patch](../cachyos-fastpath.patch) — the original 7-file latency-tuning patch (kept as a historical artifact).
