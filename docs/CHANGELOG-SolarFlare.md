@@ -30,6 +30,15 @@ SolarFlare at runtime while protocol identifiers remain compatible.
 
 ---
 
+## 2026-07-13/14
+
+### Morning sweep (Jul 13–14)
+
+General cleanup batch post-release: fixed the CONFIGURATION.md drift caught by the docs-drift agent (tunable count, `virtual_display_resolution` claim, stale file refs), added a `release.sh` script as the single source of truth for version bumps, fixed an RTSP OOB-read in the frame parser (fuzzer find), and patched a GVariant-interned string double-free in the heap path. Also probed for ccache/mold/lld during cmake, added GPL license headers, released capture resources on teardown, and documented the linux resource cleanup.
+
+
+---
+
 ## 2026-07-12
 
 ### Security sweep
@@ -94,138 +103,6 @@ to "nine" tunables, and expanded the A/B test section to cover all fork keys.
 
 
 ---
-
-## 2026-07-03
-
-### Initial SolarFlare fork setup
-
-Established the fork as a standalone build with its own branding, build script, and config keys. Includes the issue-template `LizardByte` → `Solar-Flare` link rewrite and a CPU microarch detection fix for Zen 2 and Zen 5.
-
-
-### Headless streaming backends
-
-Added three headless streaming backends for environments without a display server: labwc (default), krfb-virtualmonitor (KDE), and gamescope (Steam Deck). The adaptive bitrate section in the Web UI is relabelled as a SolarFlare feature so users can find it.
-
-
-### Web UI for new config keys
-
-Exposed all new config options in the Web UI and provided defaults for `/api/config`. Updated the README with accurate counts and clarified the headless sections.
-
-
-### Issue template + build dep cleanup
-
-Replaced LizardByte links in bug-report templates and added the libnuma cmake check.
-
-
-### Daily bug check (Jul 3)
-
-Bug audit pass on the Jul 3 feature batch plus the Reddit portal/KMS report. Fixed the adaptive bitrate first-sample clamp, the `get_target_bitrate` floor clobber, the headless teardown string-match, the `start_krfb` swallowed-output silent failure, the `stop_labwc` / `stop_gamescope` discarded exit status, the Steam scanner missing Flatpak and Snap installs, the Lutris `.yml`-as-launcher bug, the KMS non-numeric monitor-index garbage, the KMS segfault on hot-swap, and the XDG portal dropping caps before init.
-
-
-
-## 2026-07-04
-
-### Daily bug check (Jul 4)
-
-Bug audit pass covering the Adaptive Bitrate, headless compositor, Steam/Lutris scanner, and KMS paths. All `test_sunshine` runs (464 tests) pass with zero failures. Also collapsed the duplicate `Quick install` block in the README into one.
-
-
-
-## 2026-07-05
-
-### Morning sweep (Jul 5)
-
-Daily sweep pass two: dead-state removal, naming cleanups, diagnostic logs. Hermes-KMS fd-safety: don't close the FD if `acquire_hermes_kms()` failed; adaptive bitrate recovery arming via a "recovery mode" that ramps the bitrate back up after sustained low packet loss.
-
-
-### Hermes-KMS kernel module
-
-Vendored Hermes-KMS from `github.com/MrOz59/Hermes-KMS` at `third-party/hermes-kms` (git submodule, GPL-2.0+). `scripts/cachyos-build.sh` runs `packaging/linux/redesign/install-hermes-kms.sh` after `cmake --install`; the script DKMS-installs `hermes_kms.ko` and loads it with `initial_enabled=1` so `HERMES-1` appears in the source selector. Requires kernel-headers + dkms. Removed the duplicate `src/platform/linux/hermes_kms_drm.h`; the C++ capture backend now includes the upstream UAPI header directly.
-
-
-### Hermes-KMS Web UI + README
-
-Exposed Hermes-KMS in the Linux capture-backend dropdown, surfaced probe failure reason in `verify_hermes_kms`, and updated the README §19 capture-loop description to match the wired implementation (probe + WAIT_FRAME + ACQUIRE_FRAME + DMA-BUF push to encoder).
-
-
-### Tier-1 low-latency encoder changes
-
-Vulkan encoder perf work exposing `vk_min_qp` / `vk_max_qp` in the web UI; small `power_dpm_force_performance_level` value copy fix in KMS monitor correlation; `portalgrab` no longer hardcodes `cursor_mode=2`.
-
-
-### Config HTTP API + auth refactor
-
-Added scoped bearer tokens for the config HTTP API and an HTTP control surface for the adaptive bitrate controller. Moved `auth_result_t` full definition into `confighttp.h`. Updated `test_confighttp.cpp` for the new return type. Doxygen for all new public types to satisfy `BUILD_WERROR=ON`.
-
-
-### Fork redesign services
-
-Ship the boot-time tuning systemd units (`cpu-performance`, `nic-tuning`, `nvidia-clock-lock`) from the repo via an idempotent `install-redesign-services.sh` installer. Drops each `.sh` helper into `/usr/local/sbin/` and each `.service` into `/etc/systemd/system/`.
-
-
-### screenshot helper script
-
-New `scripts/screenshot-ui.sh` for capturing README screenshots from a live web UI session.
-
-
-### README + changelog
-
-Synced README badges, version, and changelog with the actual fork state. Updated the changelog entry for the July 4 bug-fix batch and the July 5 features batch.
-
-
-
-## 2026-07-06
-
-### Stream port alignment + audio socket
-
-Aligned stream port offsets with what Moonlight actually expects relative to `https_port`. `VIDEO_STREAM_PORT` 9→16, `CONTROL_PORT` 10→26, `AUDIO_STREAM_PORT` 11→27, dropping the now-unneeded `HTTPS_PORT_OFFSET`. Empty `nvhttp.cert` defaults + removed the blocking `set_options(no_tlsv1, no_tlsv1_1)` on the TLS context (was preventing the SSL_CTX from completing a handshake).
-
-
-### Pairing session + PIN handling
-
-Reset stale pairing session on retry, safe `pin()` lookup, `not_found()` double-write fix, and held PIN response sets `close_connection_after_response`.
-
-
-### Video capture threading
-
-Dropped `SCHED_RR` from the video capture thread to reduce scheduling overhead on multi-core hosts.
-
-
-### X11 touchscreen
-
-Added a udev rule to ensure the touchscreen device is recognized on X11; reverted after it broke touch on real hardware; the touch input path no longer sets `INPUT_PROP_DIRECT` on the uinput device, restoring X11 pointer emulation.
-
-
-### Process detach
-
-Detached app sessions now stay alive indefinitely (removed the 5-second disconnect loop).
-
-
-### README + issue #6
-
-Added Solar-Flare update instructions to the README (closes #6), synced badges, fixed the install command, and documented the loading-screen workaround.
-
-
-### Version bump to 2026.999.2
-
-Bumped stale `2026.999.0` references.
-
-
-
-## 2026-07-07
-
-### Morning sweep (Jul 7)
-
-Daily sweep pass: removed PUSH-INSTRUCTIONS.md from the repo, gitignored `crush.db`, and fixed submodule drift.
-
-
-
-## 2026-07-08
-
-### Morning sweep (Jul 8)
-
-Daily sweep pass: synced README version + test badges after the niri PR; added niri (Smithay) Wayland compositor support with auto-detect; fixed `search_path` false-positive in compositor detection (niri / gamescope / kwin_wayland presence on `$PATH` no longer implies a running session).
-
 
 ## 2026-07-09
 
@@ -295,14 +172,137 @@ The CachyOS-only COPR integration workflow had no secrets on the fork, failed on
 
 ---
 
-## 2026-07-13/14
+## 2026-07-08
 
-### Morning sweep (Jul 13–14)
+### Morning sweep (Jul 8)
 
-General cleanup batch post-release: fixed the CONFIGURATION.md drift caught by the docs-drift agent (tunable count, `virtual_display_resolution` claim, stale file refs), added a `release.sh` script as the single source of truth for version bumps, fixed an RTSP OOB-read in the frame parser (fuzzer find), and patched a GVariant-interned string double-free in the heap path. Also probed for ccache/mold/lld during cmake, added GPL license headers, released capture resources on teardown, and documented the linux resource cleanup.
+Daily sweep pass: synced README version + test badges after the niri PR; added niri (Smithay) Wayland compositor support with auto-detect; fixed `search_path` false-positive in compositor detection (niri / gamescope / kwin_wayland presence on `$PATH` no longer implies a running session).
 
 
----
+## 2026-07-07
+
+### Morning sweep (Jul 7)
+
+Daily sweep pass: removed PUSH-INSTRUCTIONS.md from the repo, gitignored `crush.db`, and fixed submodule drift.
+
+
+
+## 2026-07-06
+
+### Stream port alignment + audio socket
+
+Aligned stream port offsets with what Moonlight actually expects relative to `https_port`. `VIDEO_STREAM_PORT` 9→16, `CONTROL_PORT` 10→26, `AUDIO_STREAM_PORT` 11→27, dropping the now-unneeded `HTTPS_PORT_OFFSET`. Empty `nvhttp.cert` defaults + removed the blocking `set_options(no_tlsv1, no_tlsv1_1)` on the TLS context (was preventing the SSL_CTX from completing a handshake).
+
+
+### Pairing session + PIN handling
+
+Reset stale pairing session on retry, safe `pin()` lookup, `not_found()` double-write fix, and held PIN response sets `close_connection_after_response`.
+
+
+### Video capture threading
+
+Dropped `SCHED_RR` from the video capture thread to reduce scheduling overhead on multi-core hosts.
+
+
+### X11 touchscreen
+
+Added a udev rule to ensure the touchscreen device is recognized on X11; reverted after it broke touch on real hardware; the touch input path no longer sets `INPUT_PROP_DIRECT` on the uinput device, restoring X11 pointer emulation.
+
+
+### Process detach
+
+Detached app sessions now stay alive indefinitely (removed the 5-second disconnect loop).
+
+
+### README + issue #6
+
+Added Solar-Flare update instructions to the README (closes #6), synced badges, fixed the install command, and documented the loading-screen workaround.
+
+
+### Version bump to 2026.999.2
+
+Bumped stale `2026.999.0` references.
+
+
+
+## 2026-07-05
+
+### Morning sweep (Jul 5)
+
+Daily sweep pass two: dead-state removal, naming cleanups, diagnostic logs. Hermes-KMS fd-safety: don't close the FD if `acquire_hermes_kms()` failed; adaptive bitrate recovery arming via a "recovery mode" that ramps the bitrate back up after sustained low packet loss.
+
+
+### Hermes-KMS kernel module
+
+Vendored Hermes-KMS from `github.com/MrOz59/Hermes-KMS` at `third-party/hermes-kms` (git submodule, GPL-2.0+). `scripts/cachyos-build.sh` runs `packaging/linux/redesign/install-hermes-kms.sh` after `cmake --install`; the script DKMS-installs `hermes_kms.ko` and loads it with `initial_enabled=1` so `HERMES-1` appears in the source selector. Requires kernel-headers + dkms. Removed the duplicate `src/platform/linux/hermes_kms_drm.h`; the C++ capture backend now includes the upstream UAPI header directly.
+
+
+### Hermes-KMS Web UI + README
+
+Exposed Hermes-KMS in the Linux capture-backend dropdown, surfaced probe failure reason in `verify_hermes_kms`, and updated the README §19 capture-loop description to match the wired implementation (probe + WAIT_FRAME + ACQUIRE_FRAME + DMA-BUF push to encoder).
+
+
+### Tier-1 low-latency encoder changes
+
+Vulkan encoder perf work exposing `vk_min_qp` / `vk_max_qp` in the web UI; small `power_dpm_force_performance_level` value copy fix in KMS monitor correlation; `portalgrab` no longer hardcodes `cursor_mode=2`.
+
+
+### Config HTTP API + auth refactor
+
+Added scoped bearer tokens for the config HTTP API and an HTTP control surface for the adaptive bitrate controller. Moved `auth_result_t` full definition into `confighttp.h`. Updated `test_confighttp.cpp` for the new return type. Doxygen for all new public types to satisfy `BUILD_WERROR=ON`.
+
+
+### Fork redesign services
+
+Ship the boot-time tuning systemd units (`cpu-performance`, `nic-tuning`, `nvidia-clock-lock`) from the repo via an idempotent `install-redesign-services.sh` installer. Drops each `.sh` helper into `/usr/local/sbin/` and each `.service` into `/etc/systemd/system/`.
+
+
+### screenshot helper script
+
+New `scripts/screenshot-ui.sh` for capturing README screenshots from a live web UI session.
+
+
+### README + changelog
+
+Synced README badges, version, and changelog with the actual fork state. Updated the changelog entry for the July 4 bug-fix batch and the July 5 features batch.
+
+
+
+## 2026-07-04
+
+### Daily bug check (Jul 4)
+
+Bug audit pass covering the Adaptive Bitrate, headless compositor, Steam/Lutris scanner, and KMS paths. All `test_sunshine` runs (464 tests) pass with zero failures. Also collapsed the duplicate `Quick install` block in the README into one.
+
+
+
+## 2026-07-03
+
+### Initial SolarFlare fork setup
+
+Established the fork as a standalone build with its own branding, build script, and config keys. Includes the issue-template `LizardByte` → `Solar-Flare` link rewrite and a CPU microarch detection fix for Zen 2 and Zen 5.
+
+
+### Headless streaming backends
+
+Added three headless streaming backends for environments without a display server: labwc (default), krfb-virtualmonitor (KDE), and gamescope (Steam Deck). The adaptive bitrate section in the Web UI is relabelled as a SolarFlare feature so users can find it.
+
+
+### Web UI for new config keys
+
+Exposed all new config options in the Web UI and provided defaults for `/api/config`. Updated the README with accurate counts and clarified the headless sections.
+
+
+### Issue template + build dep cleanup
+
+Replaced LizardByte links in bug-report templates and added the libnuma cmake check.
+
+
+### Daily bug check (Jul 3)
+
+Bug audit pass on the Jul 3 feature batch plus the Reddit portal/KMS report. Fixed the adaptive bitrate first-sample clamp, the `get_target_bitrate` floor clobber, the headless teardown string-match, the `start_krfb` swallowed-output silent failure, the `stop_labwc` / `stop_gamescope` discarded exit status, the Steam scanner missing Flatpak and Snap installs, the Lutris `.yml`-as-launcher bug, the KMS non-numeric monitor-index garbage, the KMS segfault on hot-swap, and the XDG portal dropping caps before init.
+
+
 
 ## See also
 
