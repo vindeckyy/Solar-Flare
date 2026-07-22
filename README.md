@@ -260,6 +260,11 @@ Platform-specific dependencies and compiler requirements are documented in
   from [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine). Internal
   compatibility names are retained where changing them would break clients,
   configuration, packaging, or update paths.
+- **Acknowledgment:** SolarFlare's Linux capture, compositor, and stream-health
+  design was informed by reviewing [papi-ux/polaris](https://github.com/papi-ux/polaris).
+  We appreciate the work from its contributors. SolarFlare remains a
+  Sunshine-derived project, and this acknowledgment distinguishes design
+  inspiration from incorporated source code.
 
 ---
 

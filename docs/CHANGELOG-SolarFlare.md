@@ -15,6 +15,15 @@ KMS initialization fails at runtime, SolarFlare logs the failure and falls
 through to the next available capture source instead of returning a dead
 capture path.
 
+## 2026-07-21
+
+### Polaris acknowledgment
+
+Added an explicit acknowledgment that SolarFlare's Linux capture, compositor,
+and stream-health design was informed by reviewing the
+[papi-ux/polaris](https://github.com/papi-ux/polaris) source. SolarFlare remains
+a Sunshine-derived project; this records design inspiration separately from
+source-code attribution.
 
 ## 2026-07-18 — v2026.718.5-solarflare
 
