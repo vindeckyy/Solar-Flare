@@ -1185,10 +1185,9 @@ namespace config {
       return;
     }
 
-    int x = 0;
-    while (x < list.size()) {
-      auto key = list[x++];
-      auto val = list[x++];
+    for (std::size_t x = 0; x < list.size(); x += 2) {
+      auto key = list[x];
+      auto val = list[x + 1];
 
       input.emplace(key, val);
     }

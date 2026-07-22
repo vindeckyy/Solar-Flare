@@ -652,7 +652,7 @@ namespace stream {
     }
 
     // Slow path - process new session
-    TUPLE_2D(peer_port, peer_addr, platf::from_sockaddr_ex((sockaddr *) &peer->address.address));
+    auto [peer_port, peer_addr] = platf::from_sockaddr_ex((sockaddr *) &peer->address.address);
     auto lg = _sessions.lock();
     for (auto pos = std::begin(*_sessions); pos != std::end(*_sessions); ++pos) {
       auto session_p = *pos;
@@ -1052,7 +1052,7 @@ namespace stream {
     }
 
     if (session->broadcast_ref->control_server.send(payload, session->control.peer)) {
-      TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
+      auto [port, addr] = platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address);
       BOOST_LOG(warning) << "Couldn't send gamepad feedback to ["sv << addr << ':' << port << ']';
 
       return -1;
@@ -1080,7 +1080,7 @@ namespace stream {
 
     auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
     if (session->broadcast_ref->control_server.send(payload, session->control.peer)) {
-      TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
+      auto [port, addr] = platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address);
       BOOST_LOG(warning) << "Couldn't send HDR mode to ["sv << addr << ':' << port << ']';
 
       return -1;
@@ -1364,7 +1364,7 @@ namespace stream {
         auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
 
         if (server->send(payload, session->control.peer)) {
-          TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
+          auto [port, addr] = platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address);
           BOOST_LOG(warning) << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
         }
       }

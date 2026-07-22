@@ -104,6 +104,7 @@ protected:
   std::string saved_salt;
   std::string saved_locale;
   std::vector<std::string> saved_csrf_allowed_origins;
+  std::vector<config::api_token_t> saved_api_tokens;
   std::filesystem::path test_web_dir;
   std::filesystem::path cert_file;
   std::filesystem::path key_file;
@@ -123,7 +124,9 @@ protected:
     saved_salt = config::sunshine.salt;
     saved_locale = config::sunshine.locale;
     saved_csrf_allowed_origins = config::sunshine.csrf_allowed_origins;
+    saved_api_tokens = config::nvhttp.api_tokens;
     saved_config_file = config::sunshine.config_file;
+    config::nvhttp.api_tokens.clear();
 
     // Create a fresh on-disk config that saveConfig will write into. The
     // file is intentionally pre-populated so the empty-payload tests can
@@ -397,6 +400,7 @@ protected:
     config::sunshine.salt = saved_salt;
     config::sunshine.locale = saved_locale;
     config::sunshine.csrf_allowed_origins = saved_csrf_allowed_origins;
+    config::nvhttp.api_tokens = saved_api_tokens;
     config::sunshine.config_file = saved_config_file;
 
     // Clean up test HTML file from WEB_DIR
@@ -432,7 +436,7 @@ protected:
    * @param body The JSON body to send verbatim.
    */
   std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response>
-  post_save_config(const std::string &body);
+    post_save_config(const std::string &body);
 
   /**
    * @brief Read the current on-disk test config file as a string.
@@ -506,6 +510,42 @@ TEST_F(ConfigHttpTest, AuthenticateCaseInsensitiveUsername) {
   headers.emplace("Authorization", create_auth_header("TESTUSER", "testpass"));
 
   const auto response = client->request("GET", "/auth-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+}
+
+// Test: scoped bearer tokens cannot use endpoints outside their scope.
+TEST_F(ConfigHttpTest, BearerTokenRejectsMissingEndpointScope) {
+  const std::string plaintext = "apps-only-token";
+  const std::string salt = "testsalt";
+  config::nvhttp.api_tokens.push_back(config::api_token_t {
+    "apps-only",
+    util::hex(crypto::hash(plaintext + ":" + salt)).to_string(),
+    salt,
+    {config::api_scope_t::APPS_GET}
+  });
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", "Bearer " + plaintext);
+
+  const auto response = client->request("GET", "/browse-test", "", headers);
+  ASSERT_EQ(response->status_code, "403 Forbidden");
+}
+
+// Test: bearer tokens can use endpoints matching their scope.
+TEST_F(ConfigHttpTest, BearerTokenAcceptsEndpointScope) {
+  const std::string plaintext = "config-token";
+  const std::string salt = "testsalt";
+  config::nvhttp.api_tokens.push_back(config::api_token_t {
+    "config-reader",
+    util::hex(crypto::hash(plaintext + ":" + salt)).to_string(),
+    salt,
+    {config::api_scope_t::CONFIG_GET}
+  });
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", "Bearer " + plaintext);
+
+  const auto response = client->request("GET", "/browse-test", "", headers);
   ASSERT_EQ(response->status_code, "200 OK");
 }
 
@@ -854,7 +894,7 @@ std::string ConfigHttpTest::fetch_csrf_token() {
  *        the test user/pass and a freshly-fetched CSRF token.
  */
 std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response>
-ConfigHttpTest::post_save_config(const std::string &body) {
+  ConfigHttpTest::post_save_config(const std::string &body) {
   SimpleWeb::CaseInsensitiveMultimap headers;
   headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
   headers.emplace("Content-Type", "application/json");
@@ -974,7 +1014,11 @@ TEST_F(ConfigHttpTest, SaveConfig_RequiresJsonContentType) {
   headers.emplace("X-CSRF-Token", fetch_csrf_token());
 
   const auto response = client->request(
-    "POST", "/save-config-test", "{\"sunshine_name\":\"X\"}", headers);
+    "POST",
+    "/save-config-test",
+    "{\"sunshine_name\":\"X\"}",
+    headers
+  );
   ASSERT_EQ(response->status_code, "400 Bad Request");
   EXPECT_EQ(read_test_config_file(), pristine_config_contents());
 }
@@ -990,7 +1034,11 @@ TEST_F(ConfigHttpTest, SaveConfig_RequiresCsrfToken) {
   headers.emplace("Origin", "https://evil.example");
 
   const auto response = client->request(
-    "POST", "/save-config-test", "{\"sunshine_name\":\"HIJACKED\"}", headers);
+    "POST",
+    "/save-config-test",
+    "{\"sunshine_name\":\"HIJACKED\"}",
+    headers
+  );
   ASSERT_EQ(response->status_code, "400 Bad Request");
   EXPECT_EQ(read_test_config_file(), pristine_config_contents())
     << "CSRF-blocked save must NOT have written the file";

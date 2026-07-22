@@ -238,7 +238,7 @@ namespace util {
       'F'
     };
 
-    char _hex[sizeof(elem_type) * 2];
+    char _hex[sizeof(elem_type) * 2] {};
 
   public:
     Hex(const elem_type &elem, bool rev) {

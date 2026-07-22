@@ -225,6 +225,30 @@ TEST(SafeQueueConcurrency, StopWakesBlockedConsumer) {
   EXPECT_TRUE(consumer_finished.load(std::memory_order_acquire));
 }
 
+TEST(SafeShared, FirstRefConstructsObjectOnce) {
+  int construct_count = 0;
+  int destruct_count = 0;
+  auto shared = safe::make_shared<int>(
+    [&construct_count](int &value) {
+      ++construct_count;
+      value = 7;
+      return 0;
+    },
+    [&destruct_count](int &) {
+      ++destruct_count;
+    }
+  );
+
+  {
+    auto ref = shared.ref();
+    ASSERT_TRUE(ref);
+    EXPECT_EQ(*ref.get(), 7);
+    EXPECT_EQ(construct_count, 1);
+  }
+
+  EXPECT_EQ(destruct_count, 1);
+}
+
 // =============================================================================
 // Documentation test: the e40d355f regression must never return.
 // This is a build-time assertion that the try_pop() API is in use

@@ -151,6 +151,7 @@ namespace confighttp {
     std::chrono::steady_clock::time_point window_start {std::chrono::steady_clock::now()};
     int failures {0};
   };
+
   static std::mutex g_rate_mutex;
   static std::unordered_map<std::string, rate_bucket_t> g_login_failures;
   static constexpr int LOGIN_FAIL_LIMIT = 10;
@@ -211,7 +212,9 @@ namespace confighttp {
   auth_result_t authenticate_bearer(const req_https_t &request) {
     auth_result_t result;
     const auto auth = request->header.find("authorization");
-    if (auth == request->header.end()) return result;
+    if (auth == request->header.end()) {
+      return result;
+    }
 
     const auto &raw = auth->second;
     constexpr std::string_view BEARER = "Bearer "sv;
@@ -222,7 +225,9 @@ namespace confighttp {
     std::string presented = raw.substr(BEARER.size());
     presented.erase(0, presented.find_first_not_of(" \t\r\n"));
     presented.erase(presented.find_last_not_of(" \t\r\n") + 1);
-    if (presented.empty()) return result;
+    if (presented.empty()) {
+      return result;
+    }
 
     for (const auto &token : config::nvhttp.api_tokens) {
       std::string composite = presented + ":" + token.salt;
@@ -232,7 +237,9 @@ namespace confighttp {
         result.token_name = token.name;
         result.granted_scopes = token.scopes;
         for (auto s : token.scopes) {
-          if (s == config::api_scope_t::STAR) result.is_admin = true;
+          if (s == config::api_scope_t::STAR) {
+            result.is_admin = true;
+          }
         }
         BOOST_LOG(info) << "Web UI: API token '"sv << token.name << "' authenticated request"sv;
         return result;
@@ -253,20 +260,20 @@ namespace confighttp {
     if (const auto ip_type = net::from_address(address); ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
-      return auth_result_t{};
+      return auth_result_t {};
     }
 
     // ponytail: M-4 rate-limit gate before doing any hash work.
     if (!rate_limit_allow(address)) {
       BOOST_LOG(warning) << "Web UI: ["sv << address << "] -- rate limited"sv;
       response->write(SimpleWeb::StatusCode::client_error_too_many_requests);
-      return auth_result_t{};
+      return auth_result_t {};
     }
 
     // If credentials are shown, redirect the user to a /welcome page
     if (config::sunshine.username.empty()) {
       send_redirect(response, request, "/welcome");
-      return auth_result_t{};
+      return auth_result_t {};
     }
 
     auto fg = util::fail_guard([&]() {
@@ -285,7 +292,7 @@ namespace confighttp {
     // Fall back to Basic Auth (admin).
     const auto auth = request->header.find("authorization");
     if (auth == request->header.end()) {
-      return auth_result_t{};
+      return auth_result_t {};
     }
 
     const auto &rawAuth = auth->second;
@@ -293,14 +300,14 @@ namespace confighttp {
 
     const auto index = static_cast<int>(authData.find(':'));
     if (index >= authData.size() - 1) {
-      return auth_result_t{};
+      return auth_result_t {};
     }
 
     const auto username = authData.substr(0, index);
     const auto password = authData.substr(index + 1);
 
     if (const auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string(); !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
-      return auth_result_t{};
+      return auth_result_t {};
     }
 
     rate_limit_reset(address);
@@ -316,10 +323,16 @@ namespace confighttp {
    *        Admin (Basic Auth or STAR-scope token) always passes.
    */
   bool has_scope(const auth_result_t &auth, config::api_scope_t scope) {
-    if (!auth.authenticated) return false;
-    if (auth.is_admin) return true;
+    if (!auth.authenticated) {
+      return false;
+    }
+    if (auth.is_admin) {
+      return true;
+    }
     for (auto s : auth.granted_scopes) {
-      if (s == scope || s == config::api_scope_t::STAR) return true;
+      if (s == scope || s == config::api_scope_t::STAR) {
+        return true;
+      }
     }
     return false;
   }
@@ -342,6 +355,25 @@ namespace confighttp {
       {"Content-Security-Policy", "frame-ancestors 'none';"}
     };
     response->write(code, tree.dump(), headers);
+  }
+
+  /**
+   * @brief Authenticate a request and enforce a single API scope.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param scope The required API scope for this endpoint.
+   * @return true when the request is authenticated and authorized.
+   */
+  bool require_scope(const resp_https_t &response, const req_https_t &request, config::api_scope_t scope) {
+    const auto auth = authenticate(response, request);
+    if (!auth.authenticated) {
+      return false;
+    }
+    if (!has_scope(auth, scope)) {
+      send_forbidden(response, request);
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -735,7 +767,7 @@ namespace confighttp {
    * @api_examples{/api/apps| GET| null}
    */
   void getApps(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::APPS_GET)) {
       return;
     }
 
@@ -795,7 +827,7 @@ namespace confighttp {
    * @api_examples{/api/games/scan| GET| null}
    */
   void scanGames(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::APPS_GET)) {
       return;
     }
 
@@ -855,7 +887,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CONFIG_SET)) {
       return;
     }
 
@@ -927,7 +959,7 @@ namespace confighttp {
    * @api_examples{/api/apps/close| POST| null}
    */
   void closeApp(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::APPS_CLOSE)) {
       return;
     }
 
@@ -953,7 +985,7 @@ namespace confighttp {
    * @api_examples{/api/apps/9999| DELETE| null}
    */
   void deleteApp(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CONFIG_SET)) {
       return;
     }
 
@@ -1004,7 +1036,7 @@ namespace confighttp {
    * @api_examples{/api/clients/list| GET| null}
    */
   void getClients(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CLIENTS_LIST)) {
       return;
     }
 
@@ -1036,7 +1068,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::STAR)) {
       return;
     }
     std::string client_id = get_client_id(request);
@@ -1090,7 +1122,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CLIENTS_UNPAIR)) {
       return;
     }
 
@@ -1131,7 +1163,7 @@ namespace confighttp {
    * @api_examples{/api/clients/unpair-all| POST| null}
    */
   void unpairAll(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CLIENTS_UNPAIR)) {
       return;
     }
 
@@ -1158,7 +1190,7 @@ namespace confighttp {
    * @api_examples{/api/config| GET| null}
    */
   void getConfig(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CONFIG_GET)) {
       return;
     }
 
@@ -1279,7 +1311,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CONFIG_SET)) {
       return;
     }
 
@@ -1366,7 +1398,7 @@ namespace confighttp {
    * @api_examples{/api/covers/9999 | GET| null}
    */
   void getCover(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::APPS_GET)) {
       return;
     }
 
@@ -1439,7 +1471,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CONFIG_SET)) {
       return;
     }
 
@@ -1499,8 +1531,8 @@ namespace confighttp {
    */
   struct minted_token_t {
     std::string plaintext;  ///< The 64-char hex plaintext to display once.
-    std::string hash;       ///< Hex SHA-256 of `plaintext:salt`.
-    std::string salt;       ///< Per-token random salt, hex-encoded.
+    std::string hash;  ///< Hex SHA-256 of `plaintext:salt`.
+    std::string salt;  ///< Per-token random salt, hex-encoded.
   };
 
   /**
@@ -1547,11 +1579,7 @@ namespace confighttp {
    * @api_examples{/api/stream/network-stats| POST| {"packet_loss_pct":0.5,"rtt_ms":23.4}}
    */
   void postNetworkStats(const resp_https_t &response, const req_https_t &request) {
-    auto auth = authenticate(response, request);
-    if (!auth.authenticated) return;
-    // Scoped: only callers with LOGS_GET can push stats (loose, matches "read-side" feel).
-    if (!has_scope(auth, config::api_scope_t::LOGS_GET)) {
-      send_forbidden(response, request);
+    if (!require_scope(response, request, config::api_scope_t::LOGS_GET)) {
       return;
     }
     print_req(request);
@@ -1589,10 +1617,7 @@ namespace confighttp {
    * @api_examples{/api/stream/bitrate| GET| null}
    */
   void getBitrate(const resp_https_t &response, const req_https_t &request) {
-    auto auth = authenticate(response, request);
-    if (!auth.authenticated) return;
-    if (!has_scope(auth, config::api_scope_t::CONFIG_GET)) {
-      send_forbidden(response, request);
+    if (!require_scope(response, request, config::api_scope_t::CONFIG_GET)) {
       return;
     }
     print_req(request);
@@ -1617,10 +1642,7 @@ namespace confighttp {
    * @api_examples{/api/errors| GET| null}
    */
   void getErrors(const resp_https_t &response, const req_https_t &request) {
-    auto auth = authenticate(response, request);
-    if (!auth.authenticated) return;
-    if (!has_scope(auth, config::api_scope_t::LOGS_GET)) {
-      send_forbidden(response, request);
+    if (!require_scope(response, request, config::api_scope_t::LOGS_GET)) {
       return;
     }
     print_req(request);
@@ -1634,10 +1656,10 @@ namespace confighttp {
     tree["network"] = c.network.load();
     tree["session"] = c.session.load();
     tree["process"] = c.process.load();
-    tree["config"]  = c.config.load();
-    tree["crypto"]  = c.crypto.load();
+    tree["config"] = c.config.load();
+    tree["crypto"] = c.crypto.load();
     tree["unknown"] = c.unknown.load();
-    tree["total"]   = c.total.load();
+    tree["total"] = c.total.load();
     send_response(response, tree);
   }
 
@@ -1649,12 +1671,7 @@ namespace confighttp {
    * @api_examples{/api/tokens| GET| null}
    */
   void listTokens(const resp_https_t &response, const req_https_t &request) {
-    auto auth = authenticate(response, request);
-    if (!auth.authenticated) {
-      return;
-    }
-    if (!has_scope(auth, config::api_scope_t::TOKENS_MANAGE)) {
-      send_forbidden(response, request);
+    if (!require_scope(response, request, config::api_scope_t::TOKENS_MANAGE)) {
       return;
     }
     print_req(request);
@@ -1686,12 +1703,7 @@ namespace confighttp {
    * @api_examples{/api/tokens| POST| {"name":"ci-bot","scopes":["config:get","apps:launch"]}}
    */
   void createToken(const resp_https_t &response, const req_https_t &request) {
-    auto auth = authenticate(response, request);
-    if (!auth.authenticated) {
-      return;
-    }
-    if (!has_scope(auth, config::api_scope_t::TOKENS_MANAGE)) {
-      send_forbidden(response, request);
+    if (!require_scope(response, request, config::api_scope_t::TOKENS_MANAGE)) {
       return;
     }
     print_req(request);
@@ -1734,8 +1746,7 @@ namespace confighttp {
       }
       auto parsed = config::api_scope_from_string(s.get<std::string>());
       if (!parsed) {
-        bad_request(response, request,
-          "Unknown scope: '" + s.get<std::string>() + "'");
+        bad_request(response, request, "Unknown scope: '" + s.get<std::string>() + "'");
         return;
       }
       scopes.push_back(*parsed);
@@ -1751,7 +1762,9 @@ namespace confighttp {
     // Build the api_tokens config entry that the admin must add to sunshine.conf.
     std::string cfg_entry = name + "\t" + minted.hash + "\t" + minted.salt + "\t";
     for (size_t i = 0; i < scopes.size(); ++i) {
-      if (i > 0) cfg_entry += ",";
+      if (i > 0) {
+        cfg_entry += ",";
+      }
       cfg_entry += config::to_string(scopes[i]);
     }
     // ponytail: L-2 log injection guard -- strip CR/LF from admin-supplied name
@@ -1759,7 +1772,9 @@ namespace confighttp {
     // log line isn't.
     auto safe_name = name;
     for (auto &c : safe_name) {
-      if (c == '\n' || c == '\r') c = ' ';
+      if (c == '\n' || c == '\r') {
+        c = ' ';
+      }
     }
     BOOST_LOG(info) << "API token '" << safe_name << "' minted. Add this line to sunshine.conf:\n"
                     << "  api_tokens += \"" << cfg_entry << "\"";
@@ -1770,7 +1785,9 @@ namespace confighttp {
     tree["name"] = name;
     tree["plaintext"] = minted.plaintext;
     tree["scopes"] = nlohmann::json::array();
-    for (auto s : scopes) tree["scopes"].push_back(config::to_string(s));
+    for (auto s : scopes) {
+      tree["scopes"].push_back(config::to_string(s));
+    }
     tree["warning"] = "Add the api_tokens line printed to the sunshine log to sunshine.conf to persist.";
     send_response(response, tree);
   }
@@ -1781,12 +1798,7 @@ namespace confighttp {
    * @api_examples{/api/tokens/ci-bot| DELETE| null}
    */
   void deleteToken(const resp_https_t &response, const req_https_t &request) {
-    auto auth = authenticate(response, request);
-    if (!auth.authenticated) {
-      return;
-    }
-    if (!has_scope(auth, config::api_scope_t::TOKENS_MANAGE)) {
-      send_forbidden(response, request);
+    if (!require_scope(response, request, config::api_scope_t::TOKENS_MANAGE)) {
       return;
     }
     print_req(request);
@@ -1820,7 +1832,7 @@ namespace confighttp {
   }
 
   void getLogs(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::LOGS_GET)) {
       return;
     }
 
@@ -1855,7 +1867,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!config::sunshine.username.empty() && !authenticate(response, request).authenticated) {
+    if (!config::sunshine.username.empty() && !require_scope(response, request, config::api_scope_t::STAR)) {
       return;
     }
 
@@ -1933,7 +1945,7 @@ namespace confighttp {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CLIENTS_PAIR)) {
       return;
     }
 
@@ -1974,7 +1986,7 @@ namespace confighttp {
    * @api_examples{/api/reset-display-device-persistence| POST| null}
    */
   void resetDisplayDevicePersistence(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::DISPLAY_RESET)) {
       return;
     }
 
@@ -1998,7 +2010,7 @@ namespace confighttp {
    * @api_examples{/api/restart| POST| null}
    */
   void restart(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::STAR)) {
       return;
     }
 
@@ -2021,7 +2033,7 @@ namespace confighttp {
    * @api_examples{/api/vigembus/status| GET| null}
    */
   void getViGEmBusStatus(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CONFIG_GET)) {
       return;
     }
 
@@ -2079,7 +2091,7 @@ namespace confighttp {
    * @api_examples{/api/vigembus/install| POST| null}
    */
   void installViGEmBus(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::STAR)) {
       return;
     }
 
@@ -2253,7 +2265,7 @@ namespace confighttp {
    * @api_examples{/api/browse?path=/home/user&type=directory| GET| null}
    */
   void browseDirectory(const resp_https_t &response, const req_https_t &request) {
-    if (!authenticate(response, request).authenticated) {
+    if (!require_scope(response, request, config::api_scope_t::CONFIG_GET)) {
       return;
     }
 

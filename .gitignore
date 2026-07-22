@@ -96,3 +96,5 @@ crush.db
 
 # Broader log coverage
 *.log
+# Local Pi runtime state
+.atl/

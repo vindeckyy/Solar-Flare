@@ -91,7 +91,7 @@ namespace crypto {
 
       aes_t key;
 
-      bool padding;
+      bool padding {true};
     };
 
     class ecb_t: public cipher_t {
