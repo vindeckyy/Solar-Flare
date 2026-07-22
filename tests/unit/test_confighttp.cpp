@@ -108,6 +108,7 @@ protected:
   std::filesystem::path cert_file;
   std::filesystem::path key_file;
   std::filesystem::path web_dir_test_file;
+  std::filesystem::path web_asset_test_file;
   // Members used by the save-config tests. The route handler redirects
   // confighttp::saveConfig's read/write target through config_file so we can
   // assert on the on-disk file without disturbing the user's real config.
@@ -169,6 +170,12 @@ protected:
     std::ofstream test_html(web_dir_test_file);
     test_html << "<html><head><title>Test Page</title></head><body><h1>Test Page Content</h1></body></html>";
     test_html.close();
+
+    web_asset_test_file = web_dir_path / "assets" / "test_asset.txt";
+    std::filesystem::create_directories(web_asset_test_file.parent_path());
+    std::ofstream test_asset(web_asset_test_file);
+    test_asset << "Test asset content";
+    test_asset.close();
 
     // Write certificates to temp files (Simple-Web-Server expects file paths)
     cert_file = test_web_dir / "test_cert.pem";
@@ -318,6 +325,14 @@ protected:
       confighttp::getPage(response, request, "test_page.html", false, true);
     };
 
+    // Add a route to test getAsset using the same path shape as production.
+    server->resource["^/assets\\/.+$"]["GET"] = [](
+                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                   ) {
+      confighttp::getAsset(response, request);
+    };
+
     // Add a route to test getLocale
     server->resource["^/locale-test$"]["GET"] = [](
                                                   const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
@@ -387,6 +402,9 @@ protected:
     // Clean up test HTML file from WEB_DIR
     if (std::filesystem::exists(web_dir_test_file)) {
       std::filesystem::remove(web_dir_test_file);
+    }
+    if (std::filesystem::exists(web_asset_test_file)) {
+      std::filesystem::remove(web_asset_test_file);
     }
 
     if (std::filesystem::exists(test_web_dir)) {
@@ -784,6 +802,13 @@ TEST_F(ConfigHttpTest, GetPageNoRedirectWhenUsernameEmpty) {
 
   // Restore username
   config::sunshine.username = saved;
+}
+
+// Test: confighttp::getAsset() serves an asset inside WEB_DIR/assets
+TEST_F(ConfigHttpTest, GetAssetServesAssetWithinAssetsDirectory) {
+  const auto response = client->request("GET", "/assets/test_asset.txt");
+  ASSERT_EQ(response->status_code, "200 OK");
+  ASSERT_EQ(response->content.string(), "Test asset content");
 }
 
 // Test: confighttp::getLocale() returns locale JSON
