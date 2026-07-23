@@ -81,14 +81,22 @@ export function Architecture() {
           ))}
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border bg-card/60 px-5 py-4 font-mono text-xs text-muted-foreground">
-          <span className="text-foreground">latency_mode</span>
-          <span>
-            <span className="text-primary">safe</span> — bounded, quality-preserving defaults
-          </span>
-          <span>
-            <span className="text-primary">aggressive</span> — tighter audio &amp; scaler tradeoffs, two-pass NVENC off
-          </span>
+        <div className="mt-6 rounded-xl border border-border bg-card/60 px-5 py-4 font-mono text-xs">
+          <p className="text-foreground">latency_mode</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-border/70 bg-background/40 p-3">
+              <p className="text-primary">safe</p>
+              <p className="mt-1 leading-relaxed text-muted-foreground">
+                Bounded, quality-preserving defaults.
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-background/40 p-3">
+              <p className="text-primary">aggressive</p>
+              <p className="mt-1 leading-relaxed text-muted-foreground">
+                Tighter audio and scaler tradeoffs; two-pass NVENC is off.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
