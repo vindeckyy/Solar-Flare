@@ -88,7 +88,7 @@ changes; there are no ambient looping effects.
 
 ```mermaid
 flowchart LR
-    ML["Moonlight client"] <-->|"encrypted GameStream transport"| NET["SolarFlare network path"]
+    ML["Moonlight client"] <--> NET["SolarFlare network path"]
     CAP["Display capture"] --> ENC["Hardware / software encoder"] --> NET
     AUD["Audio capture + optional FX"] --> NET
     UI["Observatory Web UI"] --> CFG["Host configuration"]
