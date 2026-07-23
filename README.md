@@ -12,6 +12,7 @@
   </p>
 
   <p>
+    <a href="https://vindeckyy.github.io/Solar-Flare/">Website</a> ·
     <a href="#install">Install</a> ·
     <a href="#control-surface">Interface</a> ·
     <a href="#performance-architecture">Architecture</a> ·

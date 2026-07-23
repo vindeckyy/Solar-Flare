@@ -1,47 +1,63 @@
----
-name: Build GH-Pages
-permissions: {}
+name: Deploy SolarFlare website
 
 on:
-  pull_request:
   push:
-    branches:
-      - master
+    branches: [master]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 concurrency:
-  group: "${{ github.workflow }}-${{ github.ref }}"
+  group: pages
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: 22
+
 jobs:
-  prep:
+  build:
     runs-on: ubuntu-latest
-    if: startsWith(github.repository, 'LizardByte/')
-    permissions:
-      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        uses: actions/checkout@v4
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          name: prep
-          path: gh-pages-template/
-          if-no-files-found: error
-          include-hidden-files: true
-          retention-days: 1
+          version: 10
 
-  call-jekyll-build:
-    needs: prep
-    permissions:
-      contents: read
-    uses: LizardByte/LizardByte.github.io/.github/workflows/jekyll-build.yml@master
-    secrets:
-      GH_BOT_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
-      GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
-    with:
-      clean_gh_pages: true
-      gh_bot_name: ${{ vars.GH_BOT_NAME }}
-      site_artifact: 'prep'
-      target_branch: 'gh-pages'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      - name: Build static site
+        working-directory: website
+        env:
+          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+        run: pnpm build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/out
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
