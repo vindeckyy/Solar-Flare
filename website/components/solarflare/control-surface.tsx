@@ -177,7 +177,7 @@ export function ControlSurface() {
                 ))}
               </div>
 
-              <div className="mt-4 flex items-center justify-between rounded-xl border border-border bg-background/60 px-4 py-3">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-background/60 px-4 py-3">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
@@ -185,7 +185,7 @@ export function ControlSurface() {
                   </span>
                   <span className="text-sm text-foreground">Host online</span>
                 </div>
-                <span className="font-mono text-xs text-muted-foreground">
+                <span className="max-w-full truncate font-mono text-xs text-muted-foreground sm:max-w-none">
                   v2026.718.5-solarflare
                 </span>
               </div>

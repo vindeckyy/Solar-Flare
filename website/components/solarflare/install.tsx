@@ -15,7 +15,7 @@ export function Install() {
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
             The source installer detects Arch/CachyOS, Debian/Ubuntu,
             Fedora-family, openSUSE, and Bazzite hosts. Then open{' '}
-            <span className="font-mono text-primary">https://localhost:47990</span>,
+            <span className="break-all font-mono text-primary">https://localhost:47990</span>,
             accept the host-local certificate, and pair a Moonlight client.
           </p>
         </div>

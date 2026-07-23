@@ -49,11 +49,12 @@ export function SiteHeader() {
           <Button
             size="sm"
             nativeButton={false}
-            className="gap-2 font-medium"
+            aria-label="Star SolarFlare on GitHub"
+            className="gap-2 px-2 font-medium sm:px-3"
             render={<a href={REPO} target="_blank" rel="noreferrer" />}
           >
             <GitFork className="h-4 w-4" aria-hidden="true" />
-            Star on GitHub
+            <span className="hidden sm:inline">Star on GitHub</span>
           </Button>
         </div>
       </div>

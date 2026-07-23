@@ -50,7 +50,7 @@ export function Hero() {
           <Button
             size="lg"
             nativeButton={false}
-            className="h-11 gap-2 px-5 text-sm font-medium"
+            className="h-11 w-full gap-2 px-5 text-sm font-medium sm:w-auto"
             render={<a href="#install" />}
           >
             <Terminal className="h-4 w-4" aria-hidden="true" />
@@ -60,7 +60,7 @@ export function Hero() {
             size="lg"
             variant="outline"
             nativeButton={false}
-            className="h-11 gap-2 border-border bg-card/40 px-5 text-sm font-medium backdrop-blur"
+            className="h-11 w-full gap-2 border-border bg-card/40 px-5 text-sm font-medium backdrop-blur sm:w-auto"
             render={<a href={REPO} target="_blank" rel="noreferrer" />}
           >
             <GitFork className="h-4 w-4" aria-hidden="true" />
@@ -80,7 +80,7 @@ export function Hero() {
               <dt className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                 {s.k}
               </dt>
-              <dd className="mt-1 text-sm font-medium text-foreground">
+              <dd className="mt-1 break-words text-sm font-medium text-foreground">
                 {s.v}
               </dd>
             </div>
