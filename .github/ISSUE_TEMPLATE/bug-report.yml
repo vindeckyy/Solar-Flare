@@ -22,19 +22,18 @@ body:
         - label: I have read the documentation
   - type: dropdown
     attributes:
-      label: Is your issue present in the latest beta/pre-release?
+      label: Is your issue present in the latest release?
       description: Please test the latest [release](https://github.com/vindeckyy/Solar-Flare/releases).
       options:
-        - "I didn't read the issue template"
-        - "I'm too lazy to test"
-        - "This issue is present in the latest pre-release"
+        - "I have not tested the latest release"
+        - "This issue is present in the latest release"
   - type: textarea
     id: description
     attributes:
       label: Describe the Bug
       description: |
-        A clear and concise description of the bug, list the reproduction steps.
-        :warning: Errors in log messages are NOT bugs. Read the message and fix what it's telling you. :warning:
+        Provide a clear description of the bug and list the steps to reproduce it.
+        Include relevant log output and explain why the behavior is unexpected.
     validations:
       required: true
   - type: textarea

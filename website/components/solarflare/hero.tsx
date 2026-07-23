@@ -8,7 +8,7 @@ const SPECS = [
   { k: 'Client protocol', v: 'Moonlight / GameStream' },
   { k: 'Control plane', v: 'https://localhost:47990' },
   { k: 'Host focus', v: 'Linux x86-64 · AMD-first' },
-  { k: 'Current release', v: 'v2026.718.5' },
+  { k: 'Release', v: 'View latest release', href: `${REPO}/releases/latest` },
 ]
 
 export function Hero() {
@@ -81,7 +81,18 @@ export function Hero() {
                 {s.k}
               </dt>
               <dd className="mt-1 text-sm font-medium text-foreground">
-                {s.v}
+                {'href' in s ? (
+                  <a
+                    href={s.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-primary"
+                  >
+                    {s.v}
+                  </a>
+                ) : (
+                  s.v
+                )}
               </dd>
             </div>
           ))}

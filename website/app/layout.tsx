@@ -17,7 +17,6 @@ export const metadata: Metadata = {
   title: 'SolarFlare — A precision game-streaming host for Moonlight',
   description:
     'SolarFlare is a self-hosted, Linux & AMD-first game-streaming host for Moonlight, with an observatory-style Web UI, low-latency transport tuning, and advanced host controls. Own the host. Instrument the path. Stream without the cloud.',
-  generator: 'v0.app',
   keywords: [
     'SolarFlare',
     'Moonlight',
