@@ -115,7 +115,10 @@ protected:
   // assert on the on-disk file without disturbing the user's real config.
   std::filesystem::path test_config_file;
   std::filesystem::path save_config_test_dir;
+  std::filesystem::path test_apps_file;
+  std::filesystem::path save_apps_test_dir;
   std::string saved_config_file;
+  std::string saved_apps_file;
 
   void SetUp() override {
     // Save current config
@@ -126,6 +129,7 @@ protected:
     saved_csrf_allowed_origins = config::sunshine.csrf_allowed_origins;
     saved_api_tokens = config::nvhttp.api_tokens;
     saved_config_file = config::sunshine.config_file;
+    saved_apps_file = config::stream.file_apps;
     config::nvhttp.api_tokens.clear();
 
     // Create a fresh on-disk config that saveConfig will write into. The
@@ -144,6 +148,16 @@ protected:
       pre << "nvenc_tuning_preset = 0\n";
     }
     config::sunshine.config_file = test_config_file.string();
+
+    save_apps_test_dir = platf::appdata() / "tests" / "save_apps";
+    std::filesystem::remove_all(save_apps_test_dir, ec);
+    std::filesystem::create_directories(save_apps_test_dir, ec);
+    test_apps_file = save_apps_test_dir / "apps.json";
+    {
+      std::ofstream apps(test_apps_file);
+      apps << R"({"apps":[{"name":"Existing","cmd":"true"}]})";
+    }
+    config::stream.file_apps = test_apps_file.string();
 
     // Set up test credentials
     config::sunshine.username = "testuser";
@@ -363,6 +377,13 @@ protected:
       confighttp::saveConfig(response, request);
     };
 
+    server->resource["^/save-app-test$"]["POST"] = [](
+                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                     const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                   ) {
+      confighttp::saveApp(response, request);
+    };
+
     // Start server
     server_thread = std::thread([this]() {  // NOSONAR(cpp:S6168) - jthread not available on FreeBSD 14.3 libc++
       server->start([this](const unsigned short assigned_port) {
@@ -402,6 +423,9 @@ protected:
     config::sunshine.csrf_allowed_origins = saved_csrf_allowed_origins;
     config::nvhttp.api_tokens = saved_api_tokens;
     config::sunshine.config_file = saved_config_file;
+    config::stream.file_apps = saved_apps_file;
+    std::error_code ec;
+    std::filesystem::remove_all(save_apps_test_dir, ec);
 
     // Clean up test HTML file from WEB_DIR
     if (std::filesystem::exists(web_dir_test_file)) {
@@ -437,6 +461,14 @@ protected:
    */
   std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response>
     post_save_config(const std::string &body);
+
+  /**
+   * @brief POST a JSON body to the /save-app-test endpoint with valid auth and CSRF.
+   * @param body The JSON body to send verbatim.
+   * @return The client response.
+   */
+  std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response>
+    post_save_app(const std::string &body);
 
   /**
    * @brief Read the current on-disk test config file as a string.
@@ -894,6 +926,15 @@ std::string ConfigHttpTest::fetch_csrf_token() {
  *        the test user/pass and a freshly-fetched CSRF token.
  */
 std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response>
+  ConfigHttpTest::post_save_app(const std::string &body) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Content-Type", "application/json");
+  headers.emplace("X-CSRF-Token", fetch_csrf_token());
+  return client->request("POST", "/save-app-test", body, headers);
+}
+
+std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response>
   ConfigHttpTest::post_save_config(const std::string &body) {
   SimpleWeb::CaseInsensitiveMultimap headers;
   headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
@@ -915,6 +956,16 @@ std::string ConfigHttpTest::read_test_config_file() {
  */
 std::string ConfigHttpTest::pristine_config_contents() {
   return "bitrate = 200000\nsunshine_name = hayden\nnvenc_tuning_preset = 0\n";
+}
+
+// Test: confighttp::saveApp() rejects an update index outside the apps array.
+TEST_F(ConfigHttpTest, SaveApp_OutOfRangeIndex_DoesNotRewriteFile) {
+  const std::string original = file_handler::read_file(test_apps_file.string().c_str());
+  const auto response = post_save_app(R"({"name":"Replacement","cmd":"false","index":99})");
+
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+  assert_json_error_response(response, "out of range", "400");
+  EXPECT_EQ(file_handler::read_file(test_apps_file.string().c_str()), original);
 }
 
 // Test: confighttp::saveConfig() — successful POST persists the body

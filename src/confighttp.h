@@ -182,6 +182,13 @@ namespace confighttp {
    */
   void saveConfig(const resp_https_t &response, const req_https_t &request);
 
+  /**
+   * @brief Handle the POST /api/apps endpoint.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
+  void saveApp(const resp_https_t &response, const req_https_t &request);
+
   // Browse helper functions (also exposed for unit testing)
   /**
    * @brief Checks whether a directory entry qualifies as an executable file.

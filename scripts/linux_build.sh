@@ -9,6 +9,11 @@ _doxygen_min="${doxygen_min//\./_}"  # Convert dots to underscores for URL
 doxygen_max="1.12.0"
 default_cuda_version="13.1.1"
 default_cuda_build="590.48.01"
+nvm_version="v0.40.3"
+nvm_installer_sha256="2d8359a64a3cb07c02389ad88ceecd43f2fa469c06104f92f98df5b6f3152752"
+cmake_x86_64_sha256="c59f5915c76b7881160238ccb16b4991ac76bf8e7872e7b3d40bb1d502c86a6b"
+cmake_aarch64_sha256="753fa209480fe8ab17e4418df318770862dc4fa3398b1a045a954e8907453243"
+doxygen_sha256="dd7c556b4d96ca5e682534bc1f1a78a5cfabce0c425b14c1b8549802686a4442"
 
 # Default value for arguments
 appimage_build=0
@@ -37,6 +42,15 @@ step="all"
 # constants
 AARCH64="aarch64"
 DOXYGEN="doxygen"
+
+function download_verified() {
+  local url=$1
+  local destination=$2
+  local sha256=$3
+
+  wget "$url" --progress=bar:force:noscroll -q --show-progress -O "$destination"
+  echo "$sha256  $destination" | sha256sum --check --status
+}
 
 function setup_cuda_system_package_environment() {
   if [[ "$cuda_system_package" == 1 ]]; then
@@ -547,6 +561,7 @@ function install_cuda() {
   echo "cuda url: ${url}"
   wget "$url" --progress=bar:force:noscroll -q --show-progress -O "${build_dir}/cuda.run"
   chmod a+x "${build_dir}/cuda.run"
+  "${build_dir}/cuda.run" --check
   "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm "$cuda_override_arg"
   rm "${build_dir}/cuda.run"
 
@@ -626,7 +641,12 @@ function run_step_deps() {
     fi
     url="${cmake_prefix}${target_cmake_version}/cmake-${target_cmake_version}-linux-${cmake_arch}.sh"
     echo "cmake url: ${url}"
-    wget "$url" --progress=bar:force:noscroll -q --show-progress -O "${build_dir}/cmake.sh"
+    if [[ "$architecture" == "x86_64" ]]; then
+      cmake_sha256="$cmake_x86_64_sha256"
+    else
+      cmake_sha256="$cmake_aarch64_sha256"
+    fi
+    download_verified "$url" "${build_dir}/cmake.sh" "$cmake_sha256"
     ${sudo_cmd} sh "${build_dir}/cmake.sh" --skip-license --prefix=/usr/local
     echo "cmake installed, version:"
     cmake --version
@@ -639,7 +659,7 @@ function run_step_deps() {
       doxygen_url="https://github.com/doxygen/doxygen/releases/download/Release_${_doxygen_min}/${DOXYGEN}-${doxygen_min}.src.tar.gz"
       echo "${DOXYGEN} url: ${doxygen_url}"
       pushd "${build_dir}"
-        wget "$doxygen_url" --progress=bar:force:noscroll -q --show-progress -O "${DOXYGEN}.tar.gz"
+        download_verified "$doxygen_url" "${DOXYGEN}.tar.gz" "$doxygen_sha256"
         tar -xzf "${DOXYGEN}.tar.gz"
         cd "${DOXYGEN}-${doxygen_min}"
         cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
@@ -654,9 +674,13 @@ function run_step_deps() {
 
   # install node from nvm
   if [[ "$nvm_node" == 1 ]]; then
-    nvm_url="https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh"
+    nvm_url="https://raw.githubusercontent.com/nvm-sh/nvm/${nvm_version}/install.sh"
+    nvm_installer="${build_dir}/nvm-install.sh"
     echo "nvm url: ${nvm_url}"
-    wget -qO- ${nvm_url} | bash
+    wget "$nvm_url" --progress=bar:force:noscroll -q --show-progress -O "$nvm_installer"
+    echo "$nvm_installer_sha256  $nvm_installer" | sha256sum --check --status
+    bash "$nvm_installer"
+    rm -f "$nvm_installer"
 
     # shellcheck source=/dev/null  # we don't care that shellcheck cannot find nvm.sh
     source "$HOME/.nvm/nvm.sh"

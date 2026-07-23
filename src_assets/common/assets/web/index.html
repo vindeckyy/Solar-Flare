@@ -230,14 +230,30 @@
     Link2
   } from '@lucide/vue'
 
-  // Configure marked to allow HTML
+  // Release notes come from GitHub and must not be trusted as HTML.
   marked.setOptions({
     breaks: true,
     gfm: true,
-    headerIds: true,
-    mangle: false,
-    sanitize: false
+    html: false
   });
+
+  function sanitizeReleaseNotes(markdown) {
+    const template = document.createElement('template');
+    template.innerHTML = marked.parse(markdown ?? '');
+
+    for (const element of template.content.querySelectorAll('*')) {
+      for (const attribute of [...element.attributes]) {
+        const name = attribute.name.toLowerCase();
+        const value = attribute.value.trim().toLowerCase();
+        if (name.startsWith('on')) {
+          element.removeAttribute(attribute.name);
+        } else if (['href', 'src'].includes(name) && !/^(https?:|mailto:|[/#]|$)/.test(value)) {
+          element.removeAttribute(attribute.name);
+        }
+      }
+    }
+    return template.innerHTML;
+  }
 
   console.log("Hello, SolarFlare!")
   let app = createApp({
@@ -377,7 +393,7 @@
     methods: {
       convertMarkdownToHtml(markdown) {
         if (!markdown) return '';
-        return marked.parse(markdown);
+        return sanitizeReleaseNotes(markdown);
       },
       /**
        * Copy the cached upgrade command to the clipboard and flash the

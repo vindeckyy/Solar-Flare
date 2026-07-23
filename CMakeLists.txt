@@ -46,6 +46,10 @@ include(${CMAKE_MODULE_PATH}/prep/build_version.cmake)
 # cmake build flags
 include(${CMAKE_MODULE_PATH}/prep/options.cmake)
 
+if(BUILD_TESTS)
+    enable_testing()
+endif()
+
 # initial prep
 include(${CMAKE_MODULE_PATH}/prep/init.cmake)
 

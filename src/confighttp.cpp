@@ -98,7 +98,7 @@ namespace confighttp {
     BOOST_LOG(debug) << " [--] "sv;
 
     for (auto &[name, val] : request->parse_query_string()) {
-      BOOST_LOG(debug) << name << " -- " << val;
+      BOOST_LOG(debug) << name << " -- " << (name == "csrf_token" ? "TOKEN REDACTED" : val);
     }
 
     BOOST_LOG(debug) << " [--] "sv;
@@ -157,9 +157,20 @@ namespace confighttp {
   static constexpr int LOGIN_FAIL_LIMIT = 10;
   static constexpr std::chrono::seconds LOGIN_FAIL_WINDOW {30};
 
+  /**
+   * @brief Remove expired login rate-limit buckets.
+   * @param now The current monotonic time.
+   */
+  void prune_rate_limits(const std::chrono::steady_clock::time_point now) {
+    std::erase_if(g_login_failures, [now](const auto &entry) {
+      return now - entry.second.window_start > LOGIN_FAIL_WINDOW;
+    });
+  }
+
   bool rate_limit_allow(const std::string &ip) {
     auto now = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(g_rate_mutex);
+    prune_rate_limits(now);
     auto &b = g_login_failures[ip];
     if (now - b.window_start > LOGIN_FAIL_WINDOW) {
       b.window_start = now;
@@ -171,6 +182,7 @@ namespace confighttp {
   void rate_limit_record_failure(const std::string &ip) {
     auto now = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(g_rate_mutex);
+    prune_rate_limits(now);
     auto &b = g_login_failures[ip];
     if (now - b.window_start > LOGIN_FAIL_WINDOW) {
       b.window_start = now;
@@ -901,9 +913,14 @@ namespace confighttp {
     std::stringstream ss;
     ss << request->content.rdbuf();
     try {
-      // TODO: Input Validation
       nlohmann::json output_tree;
       nlohmann::json input_tree = nlohmann::json::parse(ss);
+      if (!input_tree.is_object() || !input_tree.contains("index") || !input_tree["index"].is_number_integer()) {
+        throw std::invalid_argument("'index' must be an integer");
+      }
+      if (!input_tree.contains("name") || !input_tree["name"].is_string()) {
+        throw std::invalid_argument("'name' must be a string");
+      }
       std::string file = file_handler::read_file(config::stream.file_apps.c_str());
       BOOST_LOG(info) << file;
       nlohmann::json file_tree = nlohmann::json::parse(file);
@@ -917,27 +934,20 @@ namespace confighttp {
       }
 
       auto &apps_node = file_tree["apps"];
-      int index = input_tree["index"].get<int>();  // this will intentionally cause an exception if the provided value is the wrong type
-
-      input_tree.erase("index");
-
-      if (index == -1) {
-        apps_node.push_back(input_tree);
-      } else {
-        nlohmann::json newApps = nlohmann::json::array();
-        for (size_t i = 0; i < apps_node.size(); ++i) {
-          if (i == index) {
-            newApps.push_back(input_tree);
-          } else {
-            newApps.push_back(apps_node[i]);
-          }
-        }
-        file_tree["apps"] = newApps;
+      const int index = input_tree["index"].get<int>();
+      if (index < -1 || index >= static_cast<int>(apps_node.size())) {
+        throw std::out_of_range("'index' is out of range");
       }
 
-      // Sort the apps array by name
+      input_tree.erase("index");
+      if (index == -1) {
+        apps_node.push_back(std::move(input_tree));
+      } else {
+        apps_node[index] = std::move(input_tree);
+      }
+
       std::sort(apps_node.begin(), apps_node.end(), [](const nlohmann::json &a, const nlohmann::json &b) {
-        return a["name"].get<std::string>() < b["name"].get<std::string>();
+        return a.at("name").get<std::string>() < b.at("name").get<std::string>();
       });
 
       file_handler::write_file(config::stream.file_apps.c_str(), file_tree.dump(4));

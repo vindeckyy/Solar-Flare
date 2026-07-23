@@ -61,8 +61,8 @@ TEST_P(DownloadFileTest, Run) {
 constexpr const char *URL_1 = "http://0.0.0.0:3000/hello.txt";
 constexpr const char *URL_2 = "http://0.0.0.0:3000/hello-redirect.txt";
 #else
-constexpr const char *URL_1 = "https://httpbin.org/base64/aGVsbG8h";
-constexpr const char *URL_2 = "https://httpbin.org/redirect-to?url=/base64/aGVsbG8h";
+constexpr const char *URL_1 = "https://example.com/";
+constexpr const char *URL_2 = "https://www.example.com/";
 #endif
 
 INSTANTIATE_TEST_SUITE_P(
