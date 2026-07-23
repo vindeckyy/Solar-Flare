@@ -76,7 +76,7 @@ export function Overview() {
             </div>
 
             {/* stats */}
-            <div className="mt-10 grid grid-cols-1 gap-5 min-[420px]:grid-cols-3 min-[420px]:gap-4">
+            <div className="mt-10 grid grid-cols-3 gap-4">
               {STATS.map((s) => (
                 <div key={s.label}>
                   <div className="font-mono text-3xl font-semibold text-primary md:text-4xl">

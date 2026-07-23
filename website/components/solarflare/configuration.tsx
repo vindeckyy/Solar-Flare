@@ -29,7 +29,7 @@ export function Configuration() {
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
             Ten fork-specific tunables live in the same{' '}
-            <code className="break-all rounded bg-background px-1.5 py-0.5 font-mono text-sm text-primary">
+            <code className="rounded bg-background px-1.5 py-0.5 font-mono text-sm text-primary">
               ~/.config/sunshine/sunshine.conf
             </code>{' '}
             file. Each is opt-out: revert a knob to its upstream value to undo
@@ -40,7 +40,7 @@ export function Configuration() {
 
         <div className="mt-12 grid gap-8 lg:grid-cols-2">
           {/* tunable list */}
-          <div className="overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card">
             <div className="border-b border-border px-5 py-3 font-mono text-xs uppercase tracking-wider text-muted-foreground">
               The tunables at a glance
             </div>
@@ -48,7 +48,7 @@ export function Configuration() {
               {TUNABLES.map((t) => (
                 <li key={t.key} className="flex flex-col gap-1 px-5 py-3">
                   <div className="flex items-baseline justify-between gap-3">
-                    <code className="min-w-0 break-all font-mono text-sm text-primary">
+                    <code className="font-mono text-sm text-primary">
                       {t.key}
                     </code>
                     <span className="shrink-0 rounded border border-border bg-background px-2 py-0.5 font-mono text-xs text-muted-foreground">
@@ -64,7 +64,7 @@ export function Configuration() {
           </div>
 
           {/* code examples */}
-          <div className="flex flex-col gap-6">
+          <div className="flex min-w-0 flex-col gap-6">
             <CodeBlock
               title="sunshine.conf"
               lines={[

@@ -12,14 +12,14 @@ export function CodeBlock({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-xl border border-border bg-background',
+        'min-w-0 overflow-hidden rounded-xl border border-border bg-background',
         className,
       )}
     >
       {title && (
         <div className="flex items-center gap-2 border-b border-border bg-card/60 px-4 py-2.5">
           <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/30" />
-          <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">
+          <span className="font-mono text-xs text-muted-foreground">
             {title}
           </span>
         </div>

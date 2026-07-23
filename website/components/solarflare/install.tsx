@@ -15,13 +15,13 @@ export function Install() {
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
             The source installer detects Arch/CachyOS, Debian/Ubuntu,
             Fedora-family, openSUSE, and Bazzite hosts. Then open{' '}
-            <span className="break-all font-mono text-primary">https://localhost:47990</span>,
+            <span className="font-mono text-primary">https://localhost:47990</span>,
             accept the host-local certificate, and pair a Moonlight client.
           </p>
         </div>
 
         <div className="mt-12 grid gap-6 lg:grid-cols-2">
-          <div>
+          <div className="min-w-0">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
               <Terminal className="h-4 w-4 text-primary" aria-hidden="true" />
               Fresh source installation
@@ -38,7 +38,7 @@ export function Install() {
             />
           </div>
 
-          <div>
+          <div className="min-w-0">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
               <PackageOpen className="h-4 w-4 text-primary" aria-hidden="true" />
               Update with the release binary

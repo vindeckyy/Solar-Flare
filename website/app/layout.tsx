@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
   title: 'SolarFlare — A precision game-streaming host for Moonlight',
   description:
     'SolarFlare is a self-hosted, Linux & AMD-first game-streaming host for Moonlight, with an observatory-style Web UI, low-latency transport tuning, and advanced host controls. Own the host. Instrument the path. Stream without the cloud.',
-  
+  generator: 'v0.app',
   keywords: [
     'SolarFlare',
     'Moonlight',
@@ -50,6 +51,7 @@ export default function RootLayout({
     <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
       <body className="antialiased bg-background font-sans">
         {children}
+        {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
   )

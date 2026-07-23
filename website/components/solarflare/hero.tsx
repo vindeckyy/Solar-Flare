@@ -17,7 +17,7 @@ export function Hero() {
       {/* corona backdrop */}
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         <Image
-          src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/solar-corona.png`}
+          src="/solar-corona.png"
           alt=""
           fill
           priority
@@ -50,7 +50,7 @@ export function Hero() {
           <Button
             size="lg"
             nativeButton={false}
-            className="h-11 w-full gap-2 px-5 text-sm font-medium sm:w-auto"
+            className="h-11 gap-2 px-5 text-sm font-medium"
             render={<a href="#install" />}
           >
             <Terminal className="h-4 w-4" aria-hidden="true" />
@@ -60,7 +60,7 @@ export function Hero() {
             size="lg"
             variant="outline"
             nativeButton={false}
-            className="h-11 w-full gap-2 border-border bg-card/40 px-5 text-sm font-medium backdrop-blur sm:w-auto"
+            className="h-11 gap-2 border-border bg-card/40 px-5 text-sm font-medium backdrop-blur"
             render={<a href={REPO} target="_blank" rel="noreferrer" />}
           >
             <GitFork className="h-4 w-4" aria-hidden="true" />
@@ -80,12 +80,34 @@ export function Hero() {
               <dt className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                 {s.k}
               </dt>
-              <dd className="mt-1 break-words text-sm font-medium text-foreground">
+              <dd className="mt-1 text-sm font-medium text-foreground">
                 {s.v}
               </dd>
             </div>
           ))}
         </dl>
+
+        {/* live UI preview */}
+        <div className="mt-14 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/50">
+          <div className="flex items-center gap-2 border-b border-border bg-background/60 px-4 py-3">
+            <span className="h-3 w-3 rounded-full bg-destructive/70" />
+            <span className="h-3 w-3 rounded-full bg-primary/70" />
+            <span className="h-3 w-3 rounded-full bg-muted-foreground/40" />
+            <span className="ml-3 truncate font-mono text-xs text-muted-foreground">
+              https://localhost:47990 · Host Status &amp; Telemetry
+            </span>
+          </div>
+          <div className="relative aspect-[1440/891] w-full bg-background">
+            <Image
+              src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/sf-web-ui-home.png`}
+              alt="SolarFlare observatory Web UI home screen, with a sidebar for Home, PIN, Applications, Featured Apps, Configuration, and Troubleshooting, and a real-time control surface showing host condition, build vector, and platform."
+              fill
+              priority
+              sizes="(max-width: 768px) 100vw, 1152px"
+              className="object-cover object-top"
+            />
+          </div>
+        </div>
       </div>
     </section>
   )

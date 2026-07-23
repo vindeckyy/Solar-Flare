@@ -28,7 +28,7 @@ export function SiteFooter() {
             <Button
               size="lg"
               nativeButton={false}
-              className="h-11 w-full gap-2 px-5 text-sm font-medium sm:w-auto"
+              className="h-11 gap-2 px-5 text-sm font-medium"
               render={<a href={REPO} target="_blank" rel="noreferrer" />}
             >
               <GitFork className="h-4 w-4" aria-hidden="true" />
@@ -38,7 +38,7 @@ export function SiteFooter() {
               size="lg"
               variant="outline"
               nativeButton={false}
-              className="h-11 w-full gap-2 border-border px-5 text-sm font-medium sm:w-auto"
+              className="h-11 gap-2 border-border px-5 text-sm font-medium"
               render={
                 <a
                   href={`${REPO}/blob/master/docs/CONFIGURATION.md`}

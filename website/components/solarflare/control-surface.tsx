@@ -1,80 +1,79 @@
 'use client'
 
-import Image from 'next/image'
 import { useState } from 'react'
+import Image from 'next/image'
 import {
+  House,
   KeyRound,
   LayoutGrid,
-  Radar,
+  Star,
   SlidersHorizontal,
   Activity,
-  Gauge,
-  Wifi,
-  Cpu,
-  ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const TABS = [
   {
-    id: 'dashboard',
+    id: 'home',
+    short: 'Home',
     label: 'Monitor the host',
-    icon: Gauge,
-    short: 'Dashboard',
-    desc: 'Connection state, release status, and direct actions on a magnetic-field host dashboard.',
-        image: 'web-ui-home.png',
+    desc: 'The observatory home surface — host condition, build vector, and platform at a glance, with direct actions to pair a device or open the application map.',
+    image: '/sf-web-ui-home.png',
+    alt: 'SolarFlare home screen showing host condition Running Latest, build vector v2026.718.1, and platform Linux, with Pair a device and Open application map actions.',
   },
   {
-    id: 'pair',
+    id: 'pin',
+    short: 'Pair',
     label: 'Pair a client',
-    icon: KeyRound,
-    short: 'Pairing',
-    desc: 'Focused PIN entry with clear host state and trusted-subnet rules.',
-        image: 'web-ui-pin.png',
+    desc: 'Focused PIN entry with clear host state and a security warning, so Moonlight clients pair over a trusted subnet without any cloud round-trip.',
+    image: '/sf-web-ui-pin.png',
+    alt: 'SolarFlare PIN pairing screen with PIN and device name fields, a Send button, and a warning about granting client control of the host.',
   },
   {
     id: 'apps',
+    short: 'Applications',
     label: 'Manage applications',
-    icon: LayoutGrid,
-    short: 'Apps',
-    desc: 'Launch definitions, artwork, per-app encoder presets, and import tools.',
-        image: 'web-ui-applications.png',
+    desc: 'Launch definitions with artwork, sort and search, add-new tools, and per-application editing for commands, working directories, and encoder overrides.',
+    image: '/sf-web-ui-applications.png',
+    alt: 'SolarFlare applications page listing Desktop, Steam Big Picture, Gamescope Session, and RetroArch as cards with edit and delete controls.',
   },
   {
-    id: 'clients',
+    id: 'featured',
+    short: 'Featured',
     label: 'Discover clients',
-    icon: Radar,
-    short: 'Clients',
-    desc: 'A curated local catalog with no third-party runtime fetch.',
-        image: 'web-ui-featured.png',
+    desc: 'A curated local catalog of Moonlight clients and tools — no third-party runtime fetch — with platform badges and direct download and source links.',
+    image: '/sf-web-ui-featured.png',
+    alt: 'SolarFlare featured apps page showing Moonlight PC, Moonlight Mobile, and Moonlight Embedded clients with platform badges and get and source buttons.',
   },
   {
-    id: 'tune',
+    id: 'configuration',
+    short: 'Configuration',
     label: 'Tune the host',
-    icon: SlidersHorizontal,
-    short: 'Config',
-    desc: 'Dense configuration surfaces with a consistent hierarchy.',
-        image: 'web-ui-configuration.png',
+    desc: 'Dense configuration surfaces with consistent hierarchy and command search, spanning general, headless stream, input, audio/video, network, and encoder sections.',
+    image: '/sf-web-ui-configuration.png',
+    alt: 'SolarFlare configuration page with a search bar and a category sidebar (General, Headless Stream, Input, Audio/Video, Network, encoders) beside general host settings.',
   },
   {
-    id: 'diag',
+    id: 'troubleshooting',
+    short: 'Troubleshooting',
     label: 'Inspect the pipeline',
-    icon: Activity,
-    short: 'Diagnostics',
-    desc: 'Logs, diagnostics, and recovery actions in one place.',
-        image: 'web-ui-troubleshooting.png',
+    desc: 'Logs, diagnostics, and recovery actions in one place — force-close a stuck app, restart the host, or unpair devices without leaving the console.',
+    image: '/sf-web-ui-troubleshooting.png',
+    alt: 'SolarFlare troubleshooting page with Force Close, Restart SolarFlare, and Unpair Devices recovery actions.',
   },
-]
+] as const
 
-const METRICS = [
-  { icon: Wifi, label: 'Link', value: '2.5 GbE', sub: 'rate_cap 80%' },
-  { icon: Gauge, label: 'Encode', value: 'NVENC · latency', sub: 'two-pass off' },
-  { icon: Cpu, label: 'Capture', value: 'KMS · pinned', sub: 'SCHED_RR' },
-  { icon: ShieldCheck, label: 'Access', value: 'Scoped tokens', sub: 'subnet paired' },
-]
+const TAB_ICONS = {
+  home: House,
+  pin: KeyRound,
+  apps: LayoutGrid,
+  featured: Star,
+  configuration: SlidersHorizontal,
+  troubleshooting: Activity,
+} as const
 
 export function ControlSurface() {
-  const [active, setActive] = useState('dashboard')
+  const [active, setActive] = useState<(typeof TABS)[number]['id']>('home')
   const activeTab = TABS.find((t) => t.id === active)!
 
   return (
@@ -88,110 +87,72 @@ export function ControlSurface() {
             A host instrument panel, not a settings page
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
-            Motion is reserved for interaction and state changes — there are no
-            ambient looping effects. Select a surface to see what it does.
+            The observatory Web UI runs on the host at{' '}
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground">
+              https://localhost:47990
+            </code>
+            . Every surface is dense, keyboard-navigable, and reserves motion for
+            real state changes. Switch tabs to see the actual screens.
           </p>
         </div>
 
+        {/* tabs */}
+        <div className="mt-10 flex flex-wrap gap-2">
+          {TABS.map((t) => {
+            const Icon = TAB_ICONS[t.id]
+            return (
+              <button
+                key={t.id}
+                onClick={() => setActive(t.id)}
+                className={cn(
+                  'flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors',
+                  active === t.id
+                    ? 'border-primary/50 bg-primary/15 text-foreground'
+                    : 'border-border text-muted-foreground hover:border-border hover:bg-accent/40 hover:text-foreground',
+                )}
+                aria-pressed={active === t.id}
+              >
+                <Icon
+                  className={cn('h-4 w-4', active === t.id && 'text-primary')}
+                  aria-hidden="true"
+                />
+                {t.short}
+              </button>
+            )
+          })}
+        </div>
+
         {/* mock window */}
-        <div className="mt-12 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/40">
+        <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/40">
           {/* window bar */}
           <div className="flex items-center gap-2 border-b border-border bg-background/60 px-4 py-3">
             <span className="h-3 w-3 rounded-full bg-destructive/70" />
             <span className="h-3 w-3 rounded-full bg-primary/70" />
             <span className="h-3 w-3 rounded-full bg-muted-foreground/40" />
-            <span className="ml-3 font-mono text-xs text-muted-foreground">
-              https://localhost:47990
+            <span className="ml-3 truncate font-mono text-xs text-muted-foreground">
+              https://localhost:47990 · {activeTab.short}
             </span>
           </div>
 
-          <div className="grid md:grid-cols-[220px_1fr]">
-            {/* nav rail */}
-            <nav className="flex gap-1 overflow-x-auto border-b border-border p-3 md:flex-col md:overflow-visible md:border-b-0 md:border-r">
-              {TABS.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setActive(t.id)}
-                  className={cn(
-                    'flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors',
-                    active === t.id
-                      ? 'bg-primary/15 text-foreground'
-                      : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
-                  )}
-                  aria-pressed={active === t.id}
-                >
-                  <t.icon
-                    className={cn(
-                      'h-4 w-4 shrink-0',
-                      active === t.id ? 'text-primary' : '',
-                    )}
-                    aria-hidden="true"
-                  />
-                  <span className="whitespace-nowrap md:whitespace-normal">
-                    {t.short}
-                  </span>
-                </button>
-              ))}
-            </nav>
-
-            {/* panel */}
-            <div className="min-h-[340px] p-6">
-              <div className="flex items-center gap-2">
-                <activeTab.icon className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h3 className="text-lg font-semibold text-foreground">
-                  {activeTab.label}
-                </h3>
-              </div>
-              <div className="relative mt-5 aspect-[16/10] overflow-hidden rounded-xl border border-border bg-background">
-                    <Image
-                      src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/ui/${activeTab.image}`}
-                      alt={`SolarFlare ${activeTab.label} web interface`}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 70vw"
-                      className="object-cover object-top"
-                    />
-                  </div>
-                  <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground">
-                {activeTab.desc}
-              </p>
-
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {METRICS.map((m) => (
-                  <div
-                    key={m.label}
-                    className="rounded-xl border border-border bg-background/60 p-4"
-                  >
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <m.icon className="h-4 w-4 text-primary" aria-hidden="true" />
-                      <span className="font-mono text-[11px] uppercase tracking-wider">
-                        {m.label}
-                      </span>
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-foreground">
-                      {m.value}
-                    </div>
-                    <div className="font-mono text-xs text-muted-foreground">
-                      {m.sub}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-background/60 px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                  </span>
-                  <span className="text-sm text-foreground">Host online</span>
-                </div>
-                <span className="max-w-full truncate font-mono text-xs text-muted-foreground sm:max-w-none">
-                  v2026.718.5-solarflare
-                </span>
-              </div>
-            </div>
+          {/* screenshot */}
+          <div className="relative aspect-[1440/891] w-full bg-background">
+            <Image
+              key={activeTab.id}
+              src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}${activeTab.image || '/placeholder.svg'}`}
+              alt={activeTab.alt}
+              fill
+              sizes="(max-width: 768px) 100vw, 1152px"
+              className="object-cover object-top"
+              priority
+            />
           </div>
         </div>
+
+        {/* caption */}
+        <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
+          <span className="font-medium text-foreground">{activeTab.label}.</span>{' '}
+          {activeTab.desc}
+        </p>
       </div>
     </section>
   )
