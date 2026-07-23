@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import {
   KeyRound,
@@ -21,6 +22,7 @@ const TABS = [
     icon: Gauge,
     short: 'Dashboard',
     desc: 'Connection state, release status, and direct actions on a magnetic-field host dashboard.',
+        image: 'web-ui-home.png',
   },
   {
     id: 'pair',
@@ -28,6 +30,7 @@ const TABS = [
     icon: KeyRound,
     short: 'Pairing',
     desc: 'Focused PIN entry with clear host state and trusted-subnet rules.',
+        image: 'web-ui-pin.png',
   },
   {
     id: 'apps',
@@ -35,6 +38,7 @@ const TABS = [
     icon: LayoutGrid,
     short: 'Apps',
     desc: 'Launch definitions, artwork, per-app encoder presets, and import tools.',
+        image: 'web-ui-applications.png',
   },
   {
     id: 'clients',
@@ -42,6 +46,7 @@ const TABS = [
     icon: Radar,
     short: 'Clients',
     desc: 'A curated local catalog with no third-party runtime fetch.',
+        image: 'web-ui-featured.png',
   },
   {
     id: 'tune',
@@ -49,6 +54,7 @@ const TABS = [
     icon: SlidersHorizontal,
     short: 'Config',
     desc: 'Dense configuration surfaces with a consistent hierarchy.',
+        image: 'web-ui-configuration.png',
   },
   {
     id: 'diag',
@@ -56,6 +62,7 @@ const TABS = [
     icon: Activity,
     short: 'Diagnostics',
     desc: 'Logs, diagnostics, and recovery actions in one place.',
+        image: 'web-ui-troubleshooting.png',
   },
 ]
 
@@ -135,7 +142,16 @@ export function ControlSurface() {
                   {activeTab.label}
                 </h3>
               </div>
-              <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+              <div className="relative mt-5 aspect-[16/10] overflow-hidden rounded-xl border border-border bg-background">
+                    <Image
+                      src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/ui/${activeTab.image}`}
+                      alt={`SolarFlare ${activeTab.label} web interface`}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 70vw"
+                      className="object-cover object-top"
+                    />
+                  </div>
+                  <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground">
                 {activeTab.desc}
               </p>
 
