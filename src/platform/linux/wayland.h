@@ -109,6 +109,14 @@ namespace wl {
 
   class monitor_t {
   public:
+    /**
+     * @brief Bind a Wayland output and attach the @c wl_output listener immediately.
+     *
+     * The listener must be registered before the first @c wl_display dispatch so
+     * compositor events emitted during registry binding are not dropped.
+     *
+     * @param output The bound @c wl_output proxy.
+     */
     explicit monitor_t(wl_output *output);
 
     monitor_t(monitor_t &&) = delete;
@@ -116,6 +124,11 @@ namespace wl {
     monitor_t &operator=(const monitor_t &) = delete;
     monitor_t &operator=(monitor_t &&) = delete;
 
+    /**
+     * @brief Attach the @c zxdg_output listener for logical desktop metadata.
+     *
+     * @param output_manager The bound @c zxdg_output_manager_v1 instance.
+     */
     void listen(zxdg_output_manager_v1 *output_manager);
     void xdg_name(zxdg_output_v1 *, const char *name);
     void xdg_description(zxdg_output_v1 *, const char *description);

@@ -124,6 +124,9 @@ namespace wl {
         &CLASS_CALL(monitor_t, xdg_name),
         &CLASS_CALL(monitor_t, xdg_description)
       } {
+    // Attach before the first wl_display dispatch so geometry/mode/done events
+    // from wl_registry_bind() are not dropped by timeout-guarded dispatch loops.
+    wl_output_add_listener(output, &wl_listener, this);
   }
 
   inline void monitor_t::xdg_name(zxdg_output_v1 *, const char *name) {
@@ -167,7 +170,6 @@ namespace wl {
   void monitor_t::listen(zxdg_output_manager_v1 *output_manager) {
     auto xdg_output = zxdg_output_manager_v1_get_xdg_output(output_manager, output);
     zxdg_output_v1_add_listener(xdg_output, &xdg_listener, this);
-    wl_output_add_listener(output, &wl_listener, this);
   }
 
   interface_t::interface_t() noexcept

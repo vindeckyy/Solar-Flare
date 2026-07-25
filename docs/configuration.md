@@ -4180,9 +4180,11 @@ identical to a build without this configuration section. }
         <td>Description</td>
         <td colspan="2">
             Skip the Wayland output-ID to KMS connector-ID correlation step during
-            display enumeration. This avoids a `wl_output` roundtrip to the compositor
-            that can hang indefinitely on KWin (KDE Plasma). Enabled at the cost of
-            losing absolute mouse-to-monitor coordinate mapping on multi-monitor setups.
+            display enumeration. This avoids waiting for compositor output metadata
+            when a session cannot provide it. Enabled at the cost of losing absolute
+            mouse-to-monitor coordinate mapping on multi-monitor setups. Leave this
+            disabled on current SolarFlare builds so KMS capture keeps the correct
+            resolution and absolute mouse coordinates work.
             @note{Linux only.}
         </td>
     </tr>

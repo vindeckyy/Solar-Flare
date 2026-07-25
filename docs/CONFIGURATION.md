@@ -24,7 +24,7 @@ still supported.
 | `dscp_qos`            | bool   | true | -       | Tag ENet packets with DSCP CS3 so routers prioritize streaming over bulk traffic (Linux only). |
 | `gpu_governor`        | bool   | true | -       | Set GPU to `performance` power profile during stream, restore on disconnect (Linux only). |
 | `headless_virtual_display` | bool | false | -    | If no displays detected, try creating a virtual xrandr output (Linux only, opt-in). |
-| `skip_wayland_correlation` | bool | false | -    | Skip Wayland monitor correlation during KMS display enumeration. Avoids KWin roundtrip hang at the cost of absolute mouse coordinates. |
+| `skip_wayland_correlation` | bool | false | -    | Skip Wayland monitor correlation during KMS display enumeration. Only needed if the compositor still fails to report output metadata; leaving it `false` preserves absolute mouse coordinates. |
 | `latency_mode`        | string | safe | safe/aggressive | Select bounded safe defaults or tighter latency-first media/scaling behavior. |
 
 Audio pre-processor and Opus encoder tunables are documented in the
@@ -198,17 +198,19 @@ Linux-only, requires an X11 display server running (Xorg or XWayland).
 ### `skip_wayland_correlation`
 
 By default Sunshine correlates Wayland output IDs with KMS connector IDs so
-absolute mouse coordinates land on the right monitor. This requires a
-round-trip to the compositor via the `wl_output` protocol. On KWin (KDE
-Plasma) this round-trip can hang indefinitely if the compositor doesn't
-serve output events promptly.
+absolute mouse coordinates land on the right monitor. This requires output
+metadata from the compositor via the `wl_output` and `xdg_output` protocols.
 
 - **true**: skip the correlation step entirely. The KMS display enumeration
   proceeds directly without waiting for Wayland output events. You lose
-  absolute mouse-to-monitor mapping (useful for multi-monitor setups), but
-  KWin users no longer see a startup hang.
-- **false** (default): normal Wayland correlation. Safe on Mutter/GNOME,
-  problematic on KWin.
+  absolute mouse-to-monitor mapping (useful for multi-monitor setups).
+- **false** (default): normal Wayland correlation. With current SolarFlare
+  builds this no longer requires a blocking `wl_display_roundtrip()` on KWin,
+  and you should leave it disabled so KMS capture keeps the correct resolution
+  and absolute mouse coordinates work.
+
+Set this to `true` only if your compositor still fails to deliver output
+metadata and you need a workaround.
 
 ## Audio FX (pre-encoder processing)
 

@@ -1582,6 +1582,24 @@ namespace platf {
     return disp;
   }
 
+  bool merge_wayland_viewport(touch_port_t &dst, const touch_port_t &src) {
+    const auto kms_width = dst.width;
+    const auto kms_height = dst.height;
+
+    dst.offset_x = src.offset_x;
+    dst.offset_y = src.offset_y;
+    dst.logical_width = src.logical_width;
+    dst.logical_height = src.logical_height;
+
+    if (src.width > 0 && src.height > 0) {
+      dst.width = src.width;
+      dst.height = src.height;
+      return kms_width != src.width || kms_height != src.height;
+    }
+
+    return false;
+  }
+
   /**
    * On Wayland, it's not possible to determine the position of the monitor on the desktop with KMS.
    * Wayland does allow applications to query attached monitors on the desktop,
@@ -1617,21 +1635,19 @@ namespace platf {
       for (auto &card_descriptor : cds) {
         for (auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
           if (monitor_descriptor.index == index && monitor_descriptor.type == type) {
-            monitor_descriptor.viewport.width = monitor->viewport.width;
-            monitor_descriptor.viewport.height = monitor->viewport.height;
-            monitor_descriptor.viewport.offset_x = monitor->viewport.offset_x;
-            monitor_descriptor.viewport.offset_y = monitor->viewport.offset_y;
-            monitor_descriptor.viewport.logical_width = monitor->viewport.logical_width;
-            monitor_descriptor.viewport.logical_height = monitor->viewport.logical_height;
+            if (monitor->viewport.width <= 0 || monitor->viewport.height <= 0) {
+              BOOST_LOG(warning)
+                << "Wayland monitor "sv << name
+                << " reported no physical mode; keeping KMS-derived resolution "sv
+                << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height;
+            }
 
-            // A sanity check, it's guesswork after all.
-            if (
-              monitor_descriptor.viewport.width != monitor->viewport.width ||
-              monitor_descriptor.viewport.height != monitor->viewport.height
-            ) {
+            const auto kms_width = monitor_descriptor.viewport.width;
+            const auto kms_height = monitor_descriptor.viewport.height;
+            if (merge_wayland_viewport(monitor_descriptor.viewport, monitor->viewport)) {
               BOOST_LOG(warning)
                 << "Mismatch on expected Resolution compared to actual resolution: "sv
-                << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height
+                << kms_width << 'x' << kms_height
                 << " vs "sv
                 << monitor->viewport.width << 'x' << monitor->viewport.height;
             }

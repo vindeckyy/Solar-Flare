@@ -28,4 +28,18 @@ namespace platf {
    */
   bool resolve_sysfs_desktop_size(const std::filesystem::path &drm_class_path, int &out_w, int &out_h);
 
+  /**
+   * @brief Merge a Wayland monitor viewport into a KMS-derived viewport.
+   *
+   * Wayland offsets and logical size always win because KMS cannot report them.
+   * Physical width and height are only taken when the compositor reported a mode;
+   * otherwise the KMS-derived size is kept so a missing @c wl_output.mode event
+   * cannot zero out the capture region.
+   *
+   * @param dst KMS-derived viewport, updated in place.
+   * @param src Viewport as reported by the Wayland compositor.
+   * @return @c true if the Wayland mode disagreed with the KMS mode.
+   */
+  bool merge_wayland_viewport(touch_port_t &dst, const touch_port_t &src);
+
 }  // namespace platf

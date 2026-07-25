@@ -6,6 +6,24 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+## 2026-07-25
+
+### KMS capture on Wayland without `skip_wayland_correlation`
+
+Fixed a black-screen regression on KDE Plasma Wayland with KMS capture
+([#19](https://github.com/vindeckyy/Solar-Flare/issues/19)). The
+timeout-guarded `wl_display` dispatch loop in `wl::monitors()` consumed
+`wl_output` geometry/mode events before the output listener was attached,
+leaving `viewport.width/height` at zero. `correlate_to_wayland()` then
+overwrote the correct KMS-derived resolution with that zeroed viewport,
+producing a 0×0 capture region unless `skip_wayland_correlation` was set.
+
+- attach the `wl_output` listener when the monitor is bound, not after the
+  first dispatch loop
+- keep the KMS-derived size when the compositor reports no physical mode
+- restore the resolution-mismatch warning so disagreements are visible in logs
+- unit test the viewport merge helper
+
 ## 2026-07-20
 
 ### KMS capability check and capture fallback
