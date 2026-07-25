@@ -80,6 +80,7 @@ sunshine_state.json
 write_file_test_*.txt
 third-party-check
 *.deb
+sunshine-x86_64
 
 # Local tooling scratch files
 crush.db

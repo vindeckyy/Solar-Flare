@@ -98,13 +98,14 @@ echo "✓ pyproject.toml"
 # 3. README.md badge — update the legacy static badge when present. Newer
 # READMEs use GitHub's dynamic latest-release badge and need no version edit.
 if [ "$DRY_RUN" = false ]; then
-  python3 -c "
-import re, pathlib
+  VERSION="$VERSION" python3 -c "
+import os, re, pathlib
+version = os.environ['VERSION']
 p = pathlib.Path('README.md')
 src = p.read_text()
 new = re.sub(
-  r'(badge/version-)(v[0-9]+\.[0-9]+\.[0-9]+--solarflare)',
-  lambda m: m.group(1) + 'v${VERSION}--solarflare',
+  r'(badge/(?:version|release)-)(v[0-9]+\.[0-9]+\.[0-9]+--solarflare)',
+  lambda m: m.group(1) + 'v' + version + '--solarflare',
   src
 )
 if new == src:
@@ -120,18 +121,19 @@ echo "✓ README.md"
 # 4. CHANGELOG header — single Python call, no temp file
 TODAY="$(date -u +%Y-%m-%d)"
 if [ "$DRY_RUN" = false ] && ! grep -q "v${VERSION}-solarflare" docs/CHANGELOG-SolarFlare.md; then
-  python3 -c "
-import pathlib
+  VERSION="$VERSION" TODAY="$TODAY" python3 -c "
+import os, pathlib
+version = os.environ['VERSION']
+today = os.environ['TODAY']
 p = pathlib.Path('docs/CHANGELOG-SolarFlare.md')
 lines = p.read_text().splitlines(keepends=True)
-# Insert after the first '## YYYY-MM-DD' section header
 for i, l in enumerate(lines):
     if l.startswith('## ') and i > 0:
         insert_at = i
         break
 else:
     insert_at = len(lines)
-lines.insert(insert_at, '\n## $TODAY — v${VERSION}-solarflare\n\nRelease notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.\n\n')
+lines.insert(insert_at, f'\n## {today} — v{version}-solarflare\n\nRelease notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.\n\n')
 p.write_text(''.join(lines))
 "
 fi
