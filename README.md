@@ -5,7 +5,7 @@
   <p>Linux & AMD-first capture, transport, and host control engineered for predictable local-network latency.</p>
 
   <p>
-    <a href="https://github.com/vindeckyy/Solar-Flare/releases/latest"><img src="https://img.shields.io/badge/release-v2026.718.5--solarflare-f97316?style=for-the-badge" alt="Latest release"></a>
+    <a href="https://github.com/vindeckyy/Solar-Flare/releases/latest"><img src="https://img.shields.io/badge/release-v2026.725.1--solarflare-f97316?style=for-the-badge" alt="Latest release"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-111827?style=for-the-badge" alt="GPL-3.0 license"></a>
     <a href="https://moonlight-stream.org/"><img src="https://img.shields.io/badge/client-Moonlight-22d3ee?style=for-the-badge" alt="Moonlight client"></a>
     <img src="https://img.shields.io/badge/primary%20target-Linux%20x86__64-0f172a?style=for-the-badge&logo=linux&logoColor=white" alt="Primary target Linux x86-64">
@@ -39,7 +39,7 @@ the complete streaming pipeline.
 | **Host focus** | Linux x86-64, with native tuning for modern AMD and Intel CPUs |
 | **Client protocol** | Moonlight / NVIDIA GameStream-compatible transport |
 | **Control plane** | Responsive HTTPS interface at `https://localhost:47990` |
-| **Current release** | [`v2026.718.5-solarflare`](https://github.com/vindeckyy/Solar-Flare/releases/tag/v2026.718.5-solarflare) |
+| **Current release** | [`v2026.725.1-solarflare`](https://github.com/vindeckyy/Solar-Flare/releases/tag/v2026.725.1-solarflare) |
 
 > [!IMPORTANT]
 > SolarFlare preserves the executable name, service identifier, ports, state

@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.20)
 # `cmake_path(CONVERT ... TO_NATIVE_PATH_LIST ...)` requires 3.20
 # todo - set this conditionally
 
-project(Sunshine VERSION 2026.718.5
+project(Sunshine VERSION 2026.725.1
         DESCRIPTION "Self-hosted game stream host for Moonlight"
         HOMEPAGE_URL "https://github.com/vindeckyy/Solar-Flare")
 

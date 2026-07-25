@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "SolarFlare"
-version = "2026.718.5"
+version = "2026.725.1"
 description = "Python tooling for SolarFlare"
 requires-python = ">=3.14"
 license = {text = "GPL-3.0-only"}
