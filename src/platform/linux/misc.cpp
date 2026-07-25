@@ -1244,6 +1244,44 @@ namespace platf {
   bool verify_hermes_kms();
 
   /**
+   * @brief Enable every capture backend that passes its runtime probe.
+   * @details Used when an explicitly selected backend fails at runtime so
+   *          display() can fall back without restarting the process.
+   */
+  void enable_fallback_capture_sources() {
+#ifdef SUNSHINE_BUILD_CUDA
+    if (verify_nvfbc()) {
+      sources[source::NVFBC] = true;
+    }
+#endif
+#ifdef SUNSHINE_BUILD_WAYLAND
+    if (!config::solarflare.skip_wayland_correlation && verify_wl()) {
+      sources[source::WAYLAND] = true;
+    }
+#endif
+#ifdef SUNSHINE_BUILD_DRM
+    if (verify_kms()) {
+      sources[source::KMS] = true;
+    }
+#endif
+#ifdef SUNSHINE_BUILD_X11
+    if (verify_x11()) {
+      sources[source::X11] = true;
+    }
+#endif
+#ifdef SUNSHINE_BUILD_PORTAL
+    if (!config::solarflare.skip_wayland_correlation && verify_portal()) {
+      sources[source::PORTAL] = true;
+    }
+#endif
+#ifdef SUNSHINE_BUILD_KWIN
+    if (!config::solarflare.skip_wayland_correlation && verify_kwin()) {
+      sources[source::KWIN] = true;
+    }
+#endif
+  }
+
+  /**
    * @brief Enumerate available capture outputs for the current set of
    *        auto-detected sources.
    * @details Walks the @c sources bitset in priority order (NVFBC, Wayland,
@@ -1352,7 +1390,14 @@ namespace platf {
 #endif
     if (sources[source::HERMES_KMS]) {
       BOOST_LOG(info) << "Screencasting with Hermes-KMS"sv;
-      return hermes_kms_display(hwdevice_type, display_name, config);
+      auto hermes = hermes_kms_display(hwdevice_type, display_name, config);
+      if (hermes) {
+        return hermes;
+      }
+      BOOST_LOG(warning) << "Hermes-KMS capture failed, falling back to next available source"sv;
+      sources[source::HERMES_KMS] = false;
+      enable_fallback_capture_sources();
+      return display(hwdevice_type, display_name, config);
     }
 
     return nullptr;

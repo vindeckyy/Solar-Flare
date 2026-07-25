@@ -63,6 +63,23 @@ namespace stream {
      * @return Packet-loss percentage and RTT, or no value for malformed input.
      */
     std::optional<std::pair<float, float>> parse_frame_fec_status(std::string_view payload, std::uint32_t rtt_ms);
+
+    /**
+     * @brief Parse an IDX_INVALIDATE_REF_FRAMES control payload.
+     * @param payload Packed first/last frame indexes.
+     * @return Frame range, or no value when the payload is too short.
+     */
+    std::optional<std::pair<std::int64_t, std::int64_t>> parse_invalidate_ref_frames(std::string_view payload);
+
+    /**
+     * @brief Compute an FEC percentage adjustment to satisfy the parity-shard minimum.
+     * @param data_shards Number of data shards in the block.
+     * @param parity_shards Current parity shard count.
+     * @param minparityshards Minimum required parity shards.
+     * @param fecpercentage Current FEC percentage; zero disables adjustment.
+     * @return Adjusted FEC percentage, or no value when adjustment is unnecessary or unsafe.
+     */
+    std::optional<std::size_t> adjusted_fec_percentage_for_min_parity(std::size_t data_shards, std::size_t parity_shards, std::size_t minparityshards, std::size_t fecpercentage);
   }  // namespace detail
 
   struct session_t;

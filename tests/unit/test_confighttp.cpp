@@ -1790,3 +1790,24 @@ TEST_F(BrowseDirectoryTest, GetWindowsDrives_EntriesHaveCorrectFormat) {
   }
 }
 #endif
+
+TEST(ConfighttpValidationTests, AcceptsCanonicalClientUuid) {
+  EXPECT_TRUE(confighttp::is_valid_client_uuid("4D7BB2DD-5704-A405-B41C-891A022932E1"));
+}
+
+TEST(ConfighttpValidationTests, RejectsMalformedClientUuid) {
+  EXPECT_FALSE(confighttp::is_valid_client_uuid(""));
+  EXPECT_FALSE(confighttp::is_valid_client_uuid("1234"));
+  EXPECT_FALSE(confighttp::is_valid_client_uuid("not-a-uuid"));
+}
+
+TEST(ConfighttpValidationTests, AcceptsBoundedWebUsernames) {
+  EXPECT_TRUE(confighttp::is_valid_web_username("admin"));
+  EXPECT_TRUE(confighttp::is_valid_web_username(std::string(256, 'a')));
+}
+
+TEST(ConfighttpValidationTests, RejectsInvalidWebUsernames) {
+  EXPECT_FALSE(confighttp::is_valid_web_username(""));
+  EXPECT_FALSE(confighttp::is_valid_web_username(std::string(257, 'a')));
+  EXPECT_FALSE(confighttp::is_valid_web_username("bad\nname"));
+}

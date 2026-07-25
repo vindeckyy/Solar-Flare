@@ -427,6 +427,7 @@ namespace egl {
     const char *extension_st = eglQueryString(display, EGL_EXTENSIONS);
 
     std::vector<EGLint> attr;
+    attr.reserve(8);
     attr.push_back(EGL_CONTEXT_CLIENT_VERSION);
     attr.push_back(3);
 
@@ -560,6 +561,7 @@ namespace egl {
    */
   std::vector<EGLAttrib> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
     std::vector<EGLAttrib> attribs;
+    attribs.reserve(32);
 
     attribs.emplace_back(EGL_WIDTH);
     attribs.emplace_back(surface.width);

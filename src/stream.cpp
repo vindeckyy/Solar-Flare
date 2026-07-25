@@ -125,6 +125,24 @@ namespace stream {
       return std::pair {loss_pct, static_cast<float>(rtt_ms)};
     }
 
+    std::optional<std::pair<std::int64_t, std::int64_t>> parse_invalidate_ref_frames(std::string_view payload) {
+      if (payload.size() < 2 * sizeof(std::int64_t)) {
+        return std::nullopt;
+      }
+
+      std::int64_t frames[2];
+      std::memcpy(frames, payload.data(), sizeof(frames));
+      return std::pair {frames[0], frames[1]};
+    }
+
+    std::optional<std::size_t> adjusted_fec_percentage_for_min_parity(const std::size_t data_shards, const std::size_t parity_shards, const std::size_t minparityshards, const std::size_t fecpercentage) {
+      if (fecpercentage == 0 || parity_shards >= minparityshards || data_shards == 0) {
+        return std::nullopt;
+      }
+
+      return (100 * minparityshards) / data_shards;
+    }
+
     /**
      * @brief Read the negotiated link speed of the interface that owns
      * `local_address` from sysfs and return it in bits-per-second.
@@ -819,9 +837,9 @@ namespace stream {
       auto parity_shards = (data_shards * fecpercentage + 99) / 100;
 
       // increase the FEC percentage for this frame if the parity shard minimum is not met
-      if (parity_shards < minparityshards && fecpercentage != 0) {
+      if (auto adjusted_fecpercentage = detail::adjusted_fec_percentage_for_min_parity(data_shards, parity_shards, minparityshards, fecpercentage)) {
         parity_shards = minparityshards;
-        fecpercentage = (100 * parity_shards) / data_shards;
+        fecpercentage = *adjusted_fecpercentage;
 
         BOOST_LOG(verbose) << "Increasing FEC percentage to "sv << fecpercentage << " to meet parity shard minimum"sv << std::endl;
       }
@@ -1141,16 +1159,18 @@ namespace stream {
     });
 
     server->map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [&](session_t *session, const std::string_view &payload) {
-      auto frames = (std::int64_t *) payload.data();
-      auto firstFrame = frames[0];
-      auto lastFrame = frames[1];
+      auto frames = detail::parse_invalidate_ref_frames(payload);
+      if (!frames) {
+        BOOST_LOG(warning) << "IDX_INVALIDATE_REF_FRAMES runt packet: "sv << payload.size();
+        return;
+      }
 
       BOOST_LOG(debug)
         << "type [IDX_INVALIDATE_REF_FRAMES]"sv << std::endl
-        << "firstFrame [" << firstFrame << ']' << std::endl
-        << "lastFrame [" << lastFrame << ']';
+        << "firstFrame [" << frames->first << ']' << std::endl
+        << "lastFrame [" << frames->second << ']';
 
-      session->video.invalidate_ref_frames_events->raise(std::make_pair(firstFrame, lastFrame));
+      session->video.invalidate_ref_frames_events->raise(*frames);
     });
 
     server->map(packetTypes[IDX_INPUT_DATA], [&](session_t *session, const std::string_view &payload) {

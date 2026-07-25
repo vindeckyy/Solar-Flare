@@ -15,6 +15,7 @@
 #include <format>
 #include <fstream>
 #include <mutex>
+#include <regex>
 #include <string_view>
 #include <unordered_map>
 
@@ -82,6 +83,17 @@ namespace confighttp {
   // CSRF token configuration
   constexpr auto CSRF_TOKEN_SIZE = 32;  // 32 bytes = 256 bits
   constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
+
+  /**
+   * @brief Check whether a string contains ASCII control characters.
+   * @param value The string to inspect.
+   * @return `true` when a control character is present.
+   */
+  bool contains_control_chars(const std::string &value) {
+    return std::any_of(value.begin(), value.end(), [](const unsigned char ch) {
+      return ch < 0x20 || ch == 0x7f;
+    });
+  }
 
   /**
    * @brief Log the request details.
@@ -1094,6 +1106,10 @@ namespace confighttp {
       nlohmann::json input_tree = nlohmann::json::parse(ss.str());
       nlohmann::json output_tree;
       std::string uuid = input_tree.value("uuid", "");
+      if (!is_valid_client_uuid(uuid)) {
+        bad_request(response, request, "Invalid UUID");
+        return;
+      }
       bool enabled = input_tree.value("enabled", true);
       output_tree["status"] = nvhttp::set_client_enabled(uuid, enabled);
 
@@ -1147,10 +1163,13 @@ namespace confighttp {
     ss << request->content.rdbuf();
 
     try {
-      // TODO: Input Validation
       nlohmann::json output_tree;
       const nlohmann::json input_tree = nlohmann::json::parse(ss);
       const std::string uuid = input_tree.value("uuid", "");
+      if (!is_valid_client_uuid(uuid)) {
+        bad_request(response, request, "Invalid UUID");
+        return;
+      }
       const bool removed = nvhttp::unpair_client(uuid);
       output_tree["status"] = removed;
 
@@ -1893,7 +1912,6 @@ namespace confighttp {
     std::stringstream config_stream;
     ss << request->content.rdbuf();
     try {
-      // TODO: Input Validation
       nlohmann::json output_tree;
       nlohmann::json input_tree = nlohmann::json::parse(ss);
       std::string username = input_tree.value("currentUsername", "");
@@ -1904,15 +1922,16 @@ namespace confighttp {
       if (newUsername.empty()) {
         newUsername = username;
       }
-      if (newUsername.empty()) {
+      if (!is_valid_web_username(newUsername)) {
         errors.emplace_back("Invalid Username");
       } else {
         auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
         if (config::sunshine.username.empty() || (boost::iequals(username, config::sunshine.username) && hash == config::sunshine.password)) {
           if (newPassword.empty() || newPassword != confirmPassword) {
             errors.emplace_back("Password Mismatch");
+          } else if (http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword) != 0) {
+            errors.emplace_back("Invalid Password");
           } else {
-            http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
             http::reload_user_creds(config::sunshine.credentials_file);
             output_tree["status"] = true;
           }
@@ -1978,6 +1997,7 @@ namespace confighttp {
       _pin = std::stoi(pin);
       if (_pin < 0 || _pin > 9999) {
         bad_request(response, request, "PIN must be between 0000 and 9999");
+        return;
       }
 
       output_tree["status"] = nvhttp::pin(pin, name);
@@ -2348,6 +2368,18 @@ namespace confighttp {
       BOOST_LOG(warning) << "BrowseDirectory: "sv << e.what();
       bad_request(response, request, e.what());
     }
+  }
+
+  bool is_valid_client_uuid(const std::string &uuid) {
+    static const std::regex pattern {
+      R"(^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$)"
+    };
+    return std::regex_match(uuid, pattern);
+  }
+
+  bool is_valid_web_username(const std::string &username) {
+    constexpr std::size_t MAX_USERNAME_LEN = 256;
+    return !username.empty() && username.size() <= MAX_USERNAME_LEN && !contains_control_chars(username);
   }
 
   void start() {

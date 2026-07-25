@@ -109,6 +109,40 @@ TEST(StreamAdaptiveStatsTests, RejectsMalformedOrImpossibleFrameFecStatus) {
   ));
 }
 
+TEST(StreamInvalidateRefFramesTests, ParsesValidFrameRange) {
+  const std::int64_t frames[] {42, 99};
+  const auto parsed = stream::detail::parse_invalidate_ref_frames(
+    std::string_view {reinterpret_cast<const char *>(frames), sizeof(frames)}
+  );
+
+  ASSERT_TRUE(parsed);
+  EXPECT_EQ(parsed->first, 42);
+  EXPECT_EQ(parsed->second, 99);
+}
+
+TEST(StreamInvalidateRefFramesTests, RejectsRuntInvalidateRefFramesPacket) {
+  const std::int64_t frame = 7;
+  EXPECT_FALSE(stream::detail::parse_invalidate_ref_frames(
+    std::string_view {reinterpret_cast<const char *>(&frame), sizeof(frame)}
+  ));
+  EXPECT_FALSE(stream::detail::parse_invalidate_ref_frames(""));
+}
+
+TEST(StreamFecTests, SkipsFecPercentageAdjustmentWhenDataShardsAreZero) {
+  EXPECT_FALSE(stream::detail::adjusted_fec_percentage_for_min_parity(0, 0, 1, 20));
+}
+
+TEST(StreamFecTests, AdjustsFecPercentageToMeetParityMinimum) {
+  const auto adjusted = stream::detail::adjusted_fec_percentage_for_min_parity(2, 0, 1, 20);
+  ASSERT_TRUE(adjusted);
+  EXPECT_EQ(*adjusted, 50u);
+}
+
+TEST(StreamFecTests, LeavesFecPercentageUnchangedWhenParityMinimumIsMet) {
+  EXPECT_FALSE(stream::detail::adjusted_fec_percentage_for_min_parity(10, 2, 1, 20));
+  EXPECT_FALSE(stream::detail::adjusted_fec_percentage_for_min_parity(10, 1, 1, 0));
+}
+
 // ----------------------------------------------------------------------------
 // Regression: the audio stream port (AUDIO_STREAM_PORT) must not collide with
 // the ENet control port (CONTROL_PORT). Both are offset from

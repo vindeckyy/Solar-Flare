@@ -206,6 +206,20 @@ namespace confighttp {
    */
   nlohmann::json build_browse_entries(const std::filesystem::path &dir_path, const std::string &type_str);
 
+  /**
+   * @brief Validate a Moonlight client UUID string.
+   * @param uuid The UUID to validate.
+   * @return `true` when @p uuid matches the canonical hyphenated form.
+   */
+  bool is_valid_client_uuid(const std::string &uuid);
+
+  /**
+   * @brief Validate a Web UI username before persisting credentials.
+   * @param username The username to validate.
+   * @return `true` when @p username is non-empty, bounded, and control-character free.
+   */
+  bool is_valid_web_username(const std::string &username);
+
 #ifdef _WIN32
   /**
    * @brief Builds a JSON array of available Windows drive letters.

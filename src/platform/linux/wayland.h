@@ -21,6 +21,9 @@
 // local includes
 #include "graphics.h"
 
+struct gbm_device;  ///< Forward declaration; full type from <gbm.h> in wayland.cpp.
+struct gbm_bo;  ///< Forward declaration; full type from <gbm.h> in wayland.cpp.
+
 /**
  * The classes defined in this macro block should only be used by
  * cpp files whose compilation depends on SUNSHINE_BUILD_WAYLAND
@@ -98,8 +101,8 @@ namespace wl {
       std::uint32_t height;
     } dmabuf_info;
 
-    struct gbm_device *gbm_device {nullptr};
-    struct gbm_bo *current_bo {nullptr};
+    ::gbm_device *gbm_dev {nullptr};  ///< Avoid ODR clash with a member named @c gbm_device.
+    ::gbm_bo *current_bo {nullptr};
     struct wl_buffer *current_wl_buffer {nullptr};
     bool y_invert {false};
   };

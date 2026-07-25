@@ -76,7 +76,7 @@
       <div>
         <div class="d-flex align-items-center mb-3">
           <alert-circle :size="32" class="icon-lg me-3"></alert-circle>
-          <div v-html="$t('index.startup_errors')"></div>
+          <div v-html="sanitizeLocaleHtml($t('index.startup_errors'))"></div>
         </div>
         <ul class="mb-3">
           <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
@@ -255,6 +255,24 @@
     return template.innerHTML;
   }
 
+  function sanitizeLocaleHtml(html) {
+    const template = document.createElement('template');
+    template.innerHTML = html ?? '';
+
+    for (const element of template.content.querySelectorAll('*')) {
+      const tag = element.tagName.toLowerCase();
+      if (!['b', 'strong', 'em', 'i'].includes(tag)) {
+        element.replaceWith(document.createTextNode(element.textContent));
+      } else {
+        for (const attribute of [...element.attributes]) {
+          element.removeAttribute(attribute.name);
+        }
+      }
+    }
+
+    return template.innerHTML;
+  }
+
   console.log("Hello, SolarFlare!")
   let app = createApp({
     components: {
@@ -394,6 +412,9 @@
       convertMarkdownToHtml(markdown) {
         if (!markdown) return '';
         return sanitizeReleaseNotes(markdown);
+      },
+      sanitizeLocaleHtml(html) {
+        return sanitizeLocaleHtml(html);
       },
       /**
        * Copy the cached upgrade command to the clipboard and flash the

@@ -237,7 +237,7 @@ namespace wl {
 
   // Initialize GBM
   bool dmabuf_t::init_gbm() {
-    if (gbm_device) {
+    if (gbm_dev) {
       return true;
     }
 
@@ -248,8 +248,8 @@ namespace wl {
       return false;
     }
 
-    gbm_device = gbm_create_device(drm_fd);
-    if (!gbm_device) {
+    gbm_dev = gbm_create_device(drm_fd);
+    if (!gbm_dev) {
       close(drm_fd);
       BOOST_LOG(error) << "[wayland] Failed to create GBM device"sv;
       return false;
@@ -323,10 +323,10 @@ namespace wl {
       frame.destroy();
     }
 
-    if (gbm_device) {
+    if (gbm_dev) {
       // We should close the DRM FD, but it's owned by GBM
-      gbm_device_destroy(gbm_device);
-      gbm_device = nullptr;
+      gbm_device_destroy(gbm_dev);
+      gbm_dev = nullptr;
     }
   }
 
@@ -377,12 +377,12 @@ namespace wl {
     if (supported_modifiers) {
       auto it = supported_modifiers->find(dmabuf_info.format);
       if (it != supported_modifiers->end() && !it->second.empty()) {
-        current_bo = gbm_bo_create_with_modifiers(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size());
+        current_bo = gbm_bo_create_with_modifiers(gbm_dev, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, it->second.data(), it->second.size());
       }
     }
 
     if (!current_bo) {
-      current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
+      current_bo = gbm_bo_create(gbm_dev, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
     }
 
     if (!current_bo) {

@@ -168,6 +168,7 @@ set(TEST_LINK_LIBRARIES
     ${SUNSHINE_EXTERNAL_LIBRARIES}
     gtest
     ${PLATFORM_LIBRARIES}
+    stdc++
 )
 
 # Add the specific libgcov library if found
