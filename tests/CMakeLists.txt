@@ -183,6 +183,24 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC ${SUNSHINE_DEFINITIONS} ${TEST
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
 target_link_options(${PROJECT_NAME} PRIVATE)
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+if(UNIX AND NOT APPLE)
+    add_test(
+        NAME nixos_installer_detection
+        COMMAND bash
+                "${CMAKE_SOURCE_DIR}/tests/scripts/test_nixos_detection.sh"
+                "${CMAKE_SOURCE_DIR}/scripts/cachyos-build.sh"
+    )
+    add_test(
+        NAME nixos_cmake_install_overrides
+        COMMAND
+            "${CMAKE_COMMAND}" -E env
+            "PKG_CONFIG_PATH=${CMAKE_SOURCE_DIR}/tests/nixos/cmake_install_overrides/pkgconfig"
+            "${CMAKE_COMMAND}"
+            -S "${CMAKE_SOURCE_DIR}/tests/nixos/cmake_install_overrides"
+            -B "${CMAKE_CURRENT_BINARY_DIR}/nixos-cmake-install-overrides"
+            "-DSOLARFLARE_SOURCE_ROOT=${CMAKE_SOURCE_DIR}"
+    )
+endif()
 
 if (WIN32)
     # prefer static libraries since we're linking statically

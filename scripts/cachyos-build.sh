@@ -3,14 +3,14 @@
 # scripts/cachyos-build.sh
 #
 # Build SolarFlare (CachyOS / Linux local-LAN fast path) on a fresh
-# CachyOS (or Arch / Manjaro / EndeavourOS) install in one shot.
+# supported Linux installation in one shot.
 #
 # What it does:
-#   1. Verifies we're on Linux with pacman.
+#   1. Verifies we're on Linux and detects the distribution.
 #   2. Makes sure all submodules are fetched, even if a previous run
 #      died mid-clone. Tolerates individual submodule failures
 #      (e.g. transient network) and retries them.
-#   3. Installs the build dependencies via pacman --needed.
+#   3. Installs the build dependencies, or enters the Nix build shell.
 #   4. Runs cmake with the CachyOS fast-path flags (auto-detects
 #      Zen 1/2/3/4/5 from /proc/cpuinfo, enables LTO, drops docs/tests).
 #   5. Builds with ninja.
@@ -28,8 +28,11 @@
 # To force a clean rebuild:
 #   ./scripts/cachyos-build.sh --clean
 #
-# To skip pacman (deps already installed) and just rebuild:
+# To skip dependency setup (deps already installed) and just rebuild:
 #   ./scripts/cachyos-build.sh --no-pacman
+#
+# To print the canonical detected distribution ID and exit:
+#   ./scripts/cachyos-build.sh --print-distro-id
 
 set -uo pipefail   # NB: NOT -e. We want to keep going through non-fatal errors.
 
@@ -37,11 +40,13 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="${REPO_ROOT}/cmake-build-cachyos"
 CLEAN=0
 RUN_PACMAN=1
+PRINT_DISTRO_ID=0
 
 for arg in "$@"; do
   case "$arg" in
     --clean)    CLEAN=1 ;;
     --no-pacman) RUN_PACMAN=0 ;;
+    --print-distro-id) PRINT_DISTRO_ID=1 ;;
     -h|--help)
       sed -n '2,40p' "$0"
       exit 0
@@ -66,16 +71,24 @@ step() {
 # ---------------------------------------------------------------------------
 # 1. Platform check
 # ---------------------------------------------------------------------------
-step "1/7  Platform check"
 if [[ "$(uname -s)" != "Linux" ]]; then
   die "This script is for Linux. Sunshine builds on macOS and Windows too; use the upstream docs for those."
 fi
 
-# Detect distro early so we know which package manager to check for.
+## @brief Detect the canonical Linux distribution identifier.
+## @return The lowercase distribution ID, or `unknown` when unavailable.
 detect_distro() {
-  if [[ -f /etc/os-release ]]; then
-    . /etc/os-release
-    echo "${ID:-unknown}"
+  local os_release_file="${SOLARFLARE_OS_RELEASE_FILE:-/etc/os-release}"
+  if [[ -f "$os_release_file" ]]; then
+    local ID=""
+    local ID_LIKE=""
+    # shellcheck disable=SC1090
+    . "$os_release_file"
+    if [[ "${ID:-}" == "nixos" ]] || [[ " ${ID_LIKE:-} " == *" nixos "* ]]; then
+      echo nixos
+    else
+      echo "${ID:-unknown}"
+    fi
   elif command -v lsb_release >/dev/null 2>&1; then
     lsb_release -is | tr '[:upper:]' '[:lower:]'
   else
@@ -83,8 +96,45 @@ detect_distro() {
   fi
 }
 DISTRO_ID="$(detect_distro)"
-say "Linux: ✓ ($(. /etc/os-release && echo "$PRETTY_NAME"))"
+if [[ "$PRINT_DISTRO_ID" -eq 1 ]]; then
+  printf '%s\n' "$DISTRO_ID"
+  exit 0
+fi
+
+step "1/7  Platform check"
+OS_RELEASE_FILE="${SOLARFLARE_OS_RELEASE_FILE:-/etc/os-release}"
+if [[ -f "$OS_RELEASE_FILE" ]]; then
+  PRETTY_NAME=""
+  # shellcheck disable=SC1090
+  . "$OS_RELEASE_FILE"
+fi
+say "Linux: ✓ (${PRETTY_NAME:-unknown distribution})"
 say "Detected distro: ${DISTRO_ID}"
+
+IS_NIXOS=0
+if [[ "$DISTRO_ID" == "nixos" ]]; then
+  IS_NIXOS=1
+  if [[ "$RUN_PACMAN" -eq 1 && "${SOLARFLARE_NIX_SHELL:-0}" != "1" ]]; then
+    if ! command -v nix-shell >/dev/null 2>&1 || ! command -v nix-build >/dev/null 2>&1; then
+      die "NixOS detected, but nix-shell or nix-build is unavailable. Enable Nix or re-run with --no-pacman inside a suitable development shell."
+    fi
+
+    nix_gc_root_dir="${XDG_DATA_HOME:-${HOME}/.local/share}/solarflare"
+    mkdir -p "$nix_gc_root_dir"
+    say "NixOS detected. Realizing and retaining the SolarFlare build environment."
+    if ! nix-build "$REPO_ROOT/packaging/linux/nixos/shell.nix" \
+      --out-link "$nix_gc_root_dir/build-environment" >/dev/null; then
+      die "Could not realize the SolarFlare Nix build environment."
+    fi
+
+    say "Entering the reproducible SolarFlare build shell."
+    quoted_command=""
+    printf -v quoted_command '%q ' "$0" "$@"
+    exec env SOLARFLARE_NIX_SHELL=1 nix-shell \
+      "$REPO_ROOT/packaging/linux/nixos/shell.nix" \
+      --run "$quoted_command"
+  fi
+fi
 
 # Bazzite is Fedora-based but uses rpm-ostree instead of dnf.
 # Flag it early so later steps know to use the right package manager.
@@ -251,6 +301,13 @@ else
         warn "zypper returned non-zero. Continuing. The build will tell us if anything's actually missing."
       fi
       ;;
+    nixos)
+      if [[ "${SOLARFLARE_NIX_SHELL:-0}" == "1" ]]; then
+        say "Build dependencies are provided by the Nix shell."
+      else
+        say "Skipping Nix dependency setup (--no-pacman)."
+      fi
+      ;;
     *)
       warn "Unknown distro '${DISTRO_ID}'. Skipping automatic package install."
       warn "Either install the packages manually and re-run with --no-pacman,"
@@ -311,6 +368,23 @@ else
   warn "neither mold nor lld found; falling back to system ld (slow link)."
 fi
 
+cmake_platform_args=()
+SOLARFLARE_INSTALL_PREFIX=""
+if [[ "$IS_NIXOS" -eq 1 ]]; then
+  SOLARFLARE_INSTALL_PREFIX="${HOME}/.local"
+  mkdir -p "${HOME}/.config/systemd/user"
+  cmake_platform_args=(
+    "-DCMAKE_INSTALL_PREFIX=${SOLARFLARE_INSTALL_PREFIX}"
+    "-DSUNSHINE_EXECUTABLE_PATH=${SOLARFLARE_INSTALL_PREFIX}/bin/sunshine"
+    "-DUDEV_FOUND=ON"
+    "-DUDEV_RULES_INSTALL_DIR=${SOLARFLARE_INSTALL_PREFIX}/lib/udev/rules.d"
+    "-DSYSTEMD_FOUND=ON"
+    "-DSYSTEMD_USER_UNIT_INSTALL_DIR=${HOME}/.config/systemd/user"
+    "-DSYSTEMD_MODULES_LOAD_DIR=${SOLARFLARE_INSTALL_PREFIX}/lib/modules-load.d"
+  )
+  say "NixOS user-local install prefix: ${SOLARFLARE_INSTALL_PREFIX}"
+fi
+
 set +e
 cmake -B "$BUILD_DIR" -G Ninja -S "$REPO_ROOT" \
     -DCMAKE_BUILD_TYPE=Release \
@@ -323,7 +397,8 @@ cmake -B "$BUILD_DIR" -G Ninja -S "$REPO_ROOT" \
     -DCMAKE_CXX_COMPILER_LAUNCHER="${_launcher}" \
     -DCMAKE_C_COMPILER_LAUNCHER="${_launcher}" \
     -DCMAKE_EXE_LINKER_FLAGS="${_linker_flag}" \
-    -DCMAKE_SHARED_LINKER_FLAGS="${_linker_flag}"
+    -DCMAKE_SHARED_LINKER_FLAGS="${_linker_flag}" \
+    "${cmake_platform_args[@]}"
 cmake_rc=$?
 set -u
 
@@ -364,13 +439,17 @@ say "Build: ✓"
 # 6. Install + final check
 # ---------------------------------------------------------------------------
 step "7/7  Install + verification"
-say "sudo cmake --install $BUILD_DIR..."
+if [[ "$IS_NIXOS" -eq 1 ]]; then
+  say "cmake --install $BUILD_DIR..."
+else
+  say "sudo cmake --install $BUILD_DIR..."
+fi
 
 # If a previous install (e.g. from a distro package) set the immutable
 # flag on any install-path file, cmake --install will fail with
 # "Operation not permitted". Remove the flag before installing.
 install_prefix="$(cmake -LA "$BUILD_DIR" 2>/dev/null | grep CMAKE_INSTALL_PREFIX | cut -d= -f2)"
-if [[ -n "$install_prefix" && -d "$install_prefix" ]]; then
+if [[ "$IS_NIXOS" -eq 0 && -n "$install_prefix" && -d "$install_prefix" ]]; then
   say "Checking for immutable files under $install_prefix..."
   if command -v lsattr &>/dev/null; then
     immutable_files=$(sudo lsattr -R "$install_prefix" 2>/dev/null | grep '^....i' | sed 's/ *$//' || true)
@@ -384,7 +463,11 @@ if [[ -n "$install_prefix" && -d "$install_prefix" ]]; then
 fi
 
 set +e
-sudo cmake --install "$BUILD_DIR"
+if [[ "$IS_NIXOS" -eq 1 ]]; then
+  cmake --install "$BUILD_DIR"
+else
+  sudo cmake --install "$BUILD_DIR"
+fi
 install_rc=$?
 set -u
 
@@ -403,7 +486,10 @@ systemctl --user daemon-reload 2>/dev/null || true
 # so a fresh install on different hardware does not stall boot.
 # ---------------------------------------------------------------------------
 step "post-install  fork redesign services"
-if [[ -x "$REPO_ROOT/packaging/linux/redesign/install-redesign-services.sh" ]]; then
+if [[ "$IS_NIXOS" -eq 1 ]]; then
+  say "Skipping imperative system tuning services on NixOS."
+  say "See docs/PORTING.md for the declarative NixOS host configuration."
+elif [[ -x "$REPO_ROOT/packaging/linux/redesign/install-redesign-services.sh" ]]; then
   say "Installing fork redesign services..."
   if sudo "$REPO_ROOT/packaging/linux/redesign/install-redesign-services.sh"; then
     say "Fork redesign services installed and enabled."
@@ -422,7 +508,9 @@ fi
 # missing so the build still completes on CI / chroots.
 # ---------------------------------------------------------------------------
 step "post-install  Hermes-KMS kernel module"
-if [[ -x "$REPO_ROOT/packaging/linux/redesign/install-hermes-kms.sh" ]]; then
+if [[ "$IS_NIXOS" -eq 1 ]]; then
+  say "Skipping the DKMS installer on NixOS. Kernel modules must be declared in the NixOS configuration."
+elif [[ -x "$REPO_ROOT/packaging/linux/redesign/install-hermes-kms.sh" ]]; then
   say "Building + DKMS-installing Hermes-KMS from third-party/hermes-kms..."
   if sudo "$REPO_ROOT/packaging/linux/redesign/install-hermes-kms.sh"; then
     say "Hermes-KMS installed and loaded. 'HERMES-1' should now appear in the source selector."
@@ -436,8 +524,13 @@ else
 fi
 
 # Verify the binary is on $PATH.
+if [[ "$IS_NIXOS" -eq 1 ]]; then
+  export PATH="${SOLARFLARE_INSTALL_PREFIX}/bin:${PATH}"
+fi
 if command -v sunshine >/dev/null 2>&1; then
   say "Verified: $(command -v sunshine) is on PATH"
+elif [[ "$IS_NIXOS" -eq 1 ]]; then
+  warn "sunshine is not on \$PATH. Add ${SOLARFLARE_INSTALL_PREFIX}/bin to your shell's PATH."
 else
   warn "sunshine is not on \$PATH. Check /usr/local/bin/sunshine (or wherever --install put it) and add it to your shell's PATH if needed."
 fi
@@ -521,6 +614,19 @@ fi
 # ---------------------------------------------------------------------------
 # Done
 # ---------------------------------------------------------------------------
+if [[ "$IS_NIXOS" -eq 1 ]]; then
+  cat <<EOF
+
+  NixOS host integration:
+
+    1. Apply the uinput, video-group, and firewall settings from
+       docs/PORTING.md with sudo nixos-rebuild switch.
+    2. Ensure ${SOLARFLARE_INSTALL_PREFIX}/bin is in your login PATH.
+
+  The generated service uses ${SOLARFLARE_INSTALL_PREFIX}/bin/sunshine.
+EOF
+fi
+
 cat <<'EOF'
 
   ══════════════════════════════════════════════════════════════════════

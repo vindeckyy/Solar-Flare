@@ -1,0 +1,8 @@
+prefix=/nix/store/mock-systemd
+systemd_user_unit_dir=${prefix}/lib/systemd/user
+systemd_system_unit_dir=${prefix}/lib/systemd/system
+modules_load_dir=${prefix}/lib/modules-load.d
+
+Name: systemd
+Description: Mock systemd metadata for NixOS path override tests
+Version: 999

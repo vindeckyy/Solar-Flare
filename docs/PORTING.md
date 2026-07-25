@@ -1,8 +1,8 @@
 # Porting SolarFlare to other Linux distributions
 
 The SolarFlare fork ([vindeckyy/Solar-Flare](https://github.com/vindeckyy/Solar-Flare))
-is developed against CachyOS but is portable to any Arch-family or
-Debian/Ubuntu/Fedora/openSUSE-based distro. The CMake / build-system
+is developed against CachyOS but is portable to any Arch-family,
+Debian/Ubuntu/Fedora/openSUSE-based distro, and NixOS. The CMake / build-system
 patches (Zen 1/2/3/4/5 auto-detection, `-march`/`-mtune`/`-flto`/`-O3`,
 Linux-only `__linux__`-guarded source patches) work everywhere; only
 the package names change between distros.
@@ -148,6 +148,68 @@ The columns below mirror the case blocks in
 - SteamOS uses `pipewire-media-session` not `wireplumber`; either
   works but you'll see harmless debug logs about the missing
   `wireplumber` service in `~/.config/sunshine/sunshine.log`.
+
+### NixOS
+
+The installer recognizes both `ID=nixos` and distributions whose
+`ID_LIKE` contains `nixos`. It then re-enters itself through
+`packaging/linux/nixos/shell.nix`, which supplies the compiler, Web UI
+tooling, and native development libraries without modifying the system
+profile. The installer retains that environment through a GC root at
+`${XDG_DATA_HOME:-~/.local/share}/solarflare/build-environment`, so garbage
+collection cannot remove runtime libraries referenced by the user-local
+binary.
+
+The default NixOS installation is user-local:
+
+- The binary and assets are installed under `~/.local`.
+- The user service is installed under `~/.config/systemd/user`.
+- The redesign services and Hermes-KMS DKMS installer are skipped because
+  `/etc`, kernel modules, uinput, and firewall policy are declarative on
+  NixOS.
+
+Add the following host settings to the appropriate NixOS module, replacing
+`your-user`, then run `sudo nixos-rebuild switch`:
+
+```nix
+{
+  hardware.uinput.enable = true;
+  users.users.your-user.extraGroups = [
+    "input"
+    "video"
+  ];
+
+  networking.firewall = {
+    allowedTCPPorts = [
+      47984
+      47989
+      47990
+      48010
+    ];
+    allowedUDPPorts = [
+      47998
+      47999
+      48000
+      48002
+      48010
+    ];
+  };
+}
+```
+
+After rebuilding the host, run the normal installer and start its generated
+user service:
+
+```bash
+./scripts/cachyos-build.sh
+systemctl --user daemon-reload
+systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
+```
+
+DRM/KMS capture may additionally require a declarative security wrapper with
+`CAP_SYS_ADMIN`. Do not apply capabilities directly to the Nix store. X11 and
+desktop-portal capture do not require that wrapper. Hardware graphics drivers
+must also be enabled through the host's normal NixOS graphics configuration.
 
 ### Generic / non-pacman distros
 

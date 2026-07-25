@@ -137,8 +137,10 @@ systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
 ```
 
 The installer detects Arch/CachyOS, Debian/Ubuntu, Fedora-family, openSUSE,
-and Bazzite hosts. Read [the porting guide](docs/PORTING.md) before using an
-unsupported distribution or building a portable binary.
+Bazzite, and NixOS hosts. On NixOS it enters the repository's reproducible
+Nix shell and installs into `~/.local`. Read the
+[porting guide](docs/PORTING.md) for the required declarative host settings
+or before using an unsupported distribution.
 
 ### Update an existing installation with the release binary
 

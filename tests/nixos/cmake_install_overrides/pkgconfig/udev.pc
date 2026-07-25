@@ -1,0 +1,6 @@
+prefix=/nix/store/mock-udev
+udev_dir=${prefix}/lib/udev
+
+Name: udev
+Description: Mock udev metadata for NixOS path override tests
+Version: 999
