@@ -78,8 +78,9 @@ systemctl status cpu-performance nic-tuning nvidia-clock-lock
 ```
 
 All three should report `active (exited)` with status 0/SUCCESS.
-A `failed` result on any of them is a bug. Open an issue with the
-output of `journalctl -b -u <unit>.service`.
+A `failed` result on any of them is a bug. Open an issue on
+[vindeckyy/Solar-Flare](https://github.com/vindeckyy/Solar-Flare/issues) with
+the output of `journalctl -b -u <unit>.service`.
 
 Quick post-boot sanity:
 

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/vindeckyy/Solar-Flare/master/sunshine.png" alt="SolarFlare logo" />
+  <img src="https://raw.githubusercontent.com/vindeckyy/Solar-Flare/master/sunshine.png" alt="Sunshine logo" />
   <h1 align="center">Sunshine</h1>
   <h4 align="center">Self-hosted game stream host for Moonlight.</h4>
 </div>
@@ -15,14 +15,17 @@
   <a href="https://flathub.org/apps/dev.lizardbyte.app.Sunshine"><img src="https://img.shields.io/flathub/v/dev.lizardbyte.app.Sunshine?style=for-the-badge&logo=flathub" alt="Flathub Version"></a>
 </div>
 
-## ℹ️ About
+## About
 
-Sunshine is a self-hosted game stream host for Moonlight.
+This directory holds an inherited Flatpak definition for packaging experiments
+inside [vindeckyy/Solar-Flare](https://github.com/vindeckyy/Solar-Flare). Flathub
+ships upstream [Sunshine](https://github.com/LizardByte/Sunshine). For SolarFlare
+itself, use the [install guide](../../../README.md#install).
 
-LizardByte has the full documentation hosted on [Read the Docs](https://docs.lizardbyte.dev/projects/sunshine)
+Upstream Sunshine docs:
 
 * [Stable](https://docs.lizardbyte.dev/projects/sunshine/latest/)
 * [Beta](https://docs.lizardbyte.dev/projects/sunshine/master/)
 
-This repo is synced from the upstream [Sunshine](https://github.com/LizardByte/Sunshine) repo.
-Please report issues and contribute to the upstream repo.
+Flatpak packaging bugs that are not fork-specific can be reported on the
+upstream Sunshine repository.

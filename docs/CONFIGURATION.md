@@ -1,8 +1,9 @@
 # SolarFlare fork configuration
 
-The SolarFlare fork adds Linux-only tunables that let you dial
-the CachyOS local-LAN fast path in or out without rebuilding. All
-live under the `solarflare_t` struct in `src/config.h` and are read
+The SolarFlare fork adds Linux-only tunables that let you dial the
+local-LAN fast path in or out without rebuilding. (Originally tuned on
+CachyOS; available on all distros supported by `scripts/linux-install.sh`.)
+All live under the `solarflare_t` struct in `src/config.h` and are read
 from the same `~/.config/sunshine/sunshine.conf` file as the upstream
 options. They appear in `sunshine --version` (with
 `min_log_level = 1`) as `config: '...' = ...` lines.
@@ -330,7 +331,8 @@ that, so a vanilla install is unchanged.
 | `dscp_qos`           | `src/network.cpp` |
 | `gpu_governor`       | `src/video.cpp` |
 | `headless_virtual_display` | `src/video.cpp` |
-| `skip_wayland_correlation` | `src/platform/linux/kmsgrab.cpp` |
+| `skip_wayland_correlation` | `src/platform/linux/kmsgrab.cpp`, `src/platform/linux/misc.cpp` |
+| `latency_mode`       | `src/stream.cpp`, `src/video.cpp`, `src/audio.cpp` |
 | `sf_audio_*`         | `src/audio.cpp`, `src/config.cpp` |
 | `sf_opus_*`          | `src/audio.cpp`, `src/config.cpp` |
 
@@ -350,6 +352,7 @@ dscp_qos = false
 gpu_governor = false
 headless_virtual_display = true
 skip_wayland_correlation = true
+latency_mode = aggressive
 sf_audio_agc = true
 sf_audio_vad = true
 sf_audio_ducking = true
@@ -398,7 +401,7 @@ After installing a new SolarFlare build:
 2. Confirm the installed binary contains the fork identity with
    `strings /usr/local/bin/sunshine | grep -m1 SolarFlare`.
 3. Open `https://localhost:47990`. Audio FX and Opus controls should appear in
-   the Audio/Video tab. The nine lower-level network, scheduling, and capture
+   the Audio/Video tab. The ten lower-level network, scheduling, and capture
    tunables remain file-only controls in `~/.config/sunshine/sunshine.conf`.
 4. Run `tests/unit/test_config_fork_keys.cpp` through `test_sunshine` when
    changing these keys; the test owns the source/default/documentation

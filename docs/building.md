@@ -4,7 +4,10 @@
 > This document retains inherited cross-platform build details. SolarFlare
 > build directories use the `cmake-build-` prefix; the maintained Linux path is
 > documented in [Porting SolarFlare](PORTING.md).
-Sunshine binaries are built using [CMake](https://cmake.org) and requires `cmake` > 3.25.
+Sunshine binaries are built using [CMake](https://cmake.org). The tree
+requires CMake ≥ 3.20 (`CMakeLists.txt`). The upstream Docker/CI builder
+(`scripts/linux_build.sh`) expects CMake ≥ 4.0.0. Prefer a current CMake
+from your distro.
 
 ## Building Locally
 
@@ -62,7 +65,7 @@ Upstream's
 [linux_build.sh](https://github.com/LizardByte/Sunshine/blob/master/scripts/linux_build.sh)
 (also present here as `scripts/linux_build.sh`) remains a useful reference for
 inherited Debian-, Fedora-, and Arch-family dependency lists used by Docker/CI
-packaging — it is not the default end-user install path.
+packaging. It is not the default end-user install path.
 
 ##### KMS Capture
 If you are using KMS, patching the Sunshine binary with `setcap` is required. Some post-install scripts handle this. If building
@@ -80,8 +83,11 @@ Sunshine requires CUDA Toolkit for NVFBC capture. There are two caveats to CUDA:
 
 1. The version installed depends on the version of GCC.
 2. The version of CUDA you use will determine compatibility with various GPU generations.
-   At the time of writing, the recommended version to use is CUDA 12.6 or newer (12.6 supports GCC 13, which is required for `<format>` and other C++23 features).
-   See [CUDA compatibility](https://docs.nvidia.com/deploy/cuda-compatibility/index.html) for more info.
+   At the time of writing, match the defaults in `scripts/linux_build.sh`
+   and [Getting Started](getting_started.md): CUDA 13.1.1 with driver
+   590.48.01 (or newer compatible). See
+   [CUDA compatibility](https://docs.nvidia.com/deploy/cuda-compatibility/index.html)
+   for GPU generation coverage.
 
 > [!NOTE]
 > To install older versions, select the appropriate run file based on your desired CUDA version and architecture
@@ -195,8 +201,8 @@ For ARM64: To build frontend, you also need to install [Node.JS](https://nodejs.
 Ensure [git](https://git-scm.com) is installed on your system, then clone the repository using the following command:
 
 ```bash
-git clone https://github.com/lizardbyte/sunshine.git --recurse-submodules
-cd sunshine
+git clone --recursive https://github.com/vindeckyy/Solar-Flare.git
+cd Solar-Flare
 mkdir cmake-build-release
 ```
 
@@ -208,39 +214,41 @@ ninja -C cmake-build-release -j2
 ```
 
 > [!TIP]
-> Available build options can be found in
-> [options.cmake](https://github.com/LizardByte/Sunshine/blob/master/cmake/prep/options.cmake).
+> Available build options live in this tree's
+> [`cmake/prep/options.cmake`](../cmake/prep/options.cmake). SolarFlare also
+> documents `SUNSHINE_CACHYOS_NATIVE` and related Linux flags in
+> [Porting SolarFlare](PORTING.md).
 
 ### Package
 
 @tabs{
   @tab{FreeBSD | @tabs{
     @tab{pkg | ```bash
-      cpack -G FREEBSD --config ./build/CPackConfig.cmake
+      cpack -G FREEBSD --config ./cmake-build-release/CPackConfig.cmake
       ```}
   }}
   @tab{Linux | @tabs{
     @tab{deb | ```bash
-      cpack -G DEB --config ./build/CPackConfig.cmake
+      cpack -G DEB --config ./cmake-build-release/CPackConfig.cmake
       ```}
     @tab{rpm | ```bash
-      cpack -G RPM --config ./build/CPackConfig.cmake
+      cpack -G RPM --config ./cmake-build-release/CPackConfig.cmake
       ```}
   }}
   @tab{macOS | @tabs{
     @tab{DragNDrop | ```bash
-      cpack -G DragNDrop --config ./build/CPackConfig.cmake
+      cpack -G DragNDrop --config ./cmake-build-release/CPackConfig.cmake
       ```}
   }}
   @tab{Windows | @tabs{
     @tab{NSIS Installer | ```bash
-      cpack -G NSIS --config ./build/CPackConfig.cmake
+      cpack -G NSIS --config ./cmake-build-release/CPackConfig.cmake
       ```}
     @tab{WiX Installer | ```bash
-      cpack -G WIX --config ./build/CPackConfig.cmake
+      cpack -G WIX --config ./cmake-build-release/CPackConfig.cmake
       ```}
     @tab{Portable | ```bash
-      cpack -G ZIP --config ./build/CPackConfig.cmake
+      cpack -G ZIP --config ./cmake-build-release/CPackConfig.cmake
       ```}
   }}
 }

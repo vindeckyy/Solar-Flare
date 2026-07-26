@@ -387,7 +387,7 @@ Daily sweep pass two: dead-state removal, naming cleanups, diagnostic logs. Herm
 
 ### Hermes-KMS kernel module
 
-Vendored Hermes-KMS from `github.com/MrOz59/Hermes-KMS` at `third-party/hermes-kms` (git submodule, GPL-2.0+). `scripts/cachyos-build.sh` runs `packaging/linux/redesign/install-hermes-kms.sh` after `cmake --install`; the script DKMS-installs `hermes_kms.ko` and loads it with `initial_enabled=1` so `HERMES-1` appears in the source selector. Requires kernel-headers + dkms. Removed the duplicate `src/platform/linux/hermes_kms_drm.h`; the C++ capture backend now includes the upstream UAPI header directly.
+Vendored Hermes-KMS from `github.com/MrOz59/Hermes-KMS` at `third-party/hermes-kms` (git submodule, GPL-2.0+). The Linux installer (then `scripts/cachyos-build.sh`, now `scripts/linux-install.sh`) runs `packaging/linux/redesign/install-hermes-kms.sh` after `cmake --install`; the script DKMS-installs `hermes_kms.ko` and loads it with `initial_enabled=1` so `HERMES-1` appears in the source selector. Requires kernel-headers + dkms. Removed the duplicate `src/platform/linux/hermes_kms_drm.h`; the C++ capture backend now includes the upstream UAPI header directly.
 
 
 ### Hermes-KMS Web UI + README
@@ -460,7 +460,7 @@ Bug audit pass on the Jul 3 feature batch plus the Reddit portal/KMS report. Fix
 ## See also
 
 - [docs/CONFIGURATION.md](CONFIGURATION.md): the 10 fork-specific latency/display toggles (`busy_poll_us`, `rate_cap_pct`, `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`, `dscp_qos`, `gpu_governor`, `headless_virtual_display`, `skip_wayland_correlation`, `latency_mode`).
-- [docs/PORTING.md](PORTING.md): per-distro package translation table for the build script.
+- [docs/PORTING.md](PORTING.md): per-distro package translation table for `scripts/linux-install.sh`.
 - [README.md](../README.md): fork entry point.
 - [cachyos-fastpath.patch](../cachyos-fastpath.patch): the original 7-file latency-tuning patch (kept as a historical artifact).
 

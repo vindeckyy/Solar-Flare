@@ -457,22 +457,22 @@ After adding yourself to the group, log out and log back in for the changes to t
 
 **Start once**
 ```bash
-systemctl --user start app-dev.lizardbyte.app.Sunshine
+systemctl --user start app-dev.lizardbyte.app.Sunshine.service
 ```
 
 **Start on boot**
 ```bash
-systemctl --user --now enable app-dev.lizardbyte.app.Sunshine
+systemctl --user --now enable app-dev.lizardbyte.app.Sunshine.service
 ```
 
 > [!NOTE]
-> The service has been renamed to "app-dev.lizardbyte.app.Sunshine" in order to increase compatibility with
-> XDG Desktop Portal, but it is also aliased to "sunshine.service" for convenience.
+> The service has been renamed to `app-dev.lizardbyte.app.Sunshine.service` in order to increase compatibility with
+> XDG Desktop Portal, but it is also aliased to `sunshine.service` for convenience.
 
 ### macOS
 The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
 
-Sunshine supports native system audio capture on macOS 14.0 (Sonoma) and newer via Apple’s Audio Tap API.
+Sunshine supports native system audio capture on macOS 14.0 (Sonoma) and newer via Apple's Audio Tap API.
 To use it, simply leave the **Audio Sink** setting blank.
 
 If you prefer to manage your own loopback device, you can still use

@@ -180,7 +180,7 @@
 
             <!-- upgrade command: the user runs the build script -->
             <div class="solarflare-update-cmd">
-              <code>git -C ~/Solar-Flare pull && ./scripts/linux-install.sh --skip-deps</code>
+              <code>cd /path/to/Solar-Flare && git pull && ./scripts/linux-install.sh --skip-deps</code>
               <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="copyUpgradeCmd">
                 <copy :size="14" class="icon"></copy>
                 {{ upgradeCmdCopied ? $t('index.copied') : $t('index.copy') }}
@@ -424,7 +424,7 @@
        * the deps are already installed.
        */
       copyUpgradeCmd() {
-        const cmd = 'git -C ~/Solar-Flare pull && ./scripts/linux-install.sh --skip-deps';
+        const cmd = 'cd /path/to/Solar-Flare && git pull && ./scripts/linux-install.sh --skip-deps';
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(cmd).then(() => {
             this.upgradeCmdCopied = true;
