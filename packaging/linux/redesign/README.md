@@ -2,7 +2,7 @@
 
 Boot-time tuning systemd units that the Solar-Flare fork expects on a
 fresh CachyOS / Arch / Manjaro / EndeavourOS install. They are
-**best-effort** — each unit probes hardware first and skips cleanly if
+**best-effort**: each unit probes hardware first and skips cleanly if
 the hardware doesn't expose the relevant sysfs / driver / GPU API.
 
 ## What's in here
@@ -14,7 +14,7 @@ the hardware doesn't expose the relevant sysfs / driver / GPU API.
 | `systemd/nvidia-clock-lock.service` + `nvidia-clock-lock.sh` | Locks the NVIDIA GPU's clocks to its reported boost value via `nvidia-smi -lgc`. Probes first; skips cleanly on boxes without an NVIDIA GPU or without `coolbits`. |
 | `install-redesign-services.sh` | Idempotent installer. Drops the units into `/etc/systemd/system` and the helper scripts into `/usr/local/sbin`. Pass `--uninstall` to remove. |
 
-The service files are thin wrappers — each `ExecStart` just calls the
+The service files are thin wrappers. Each `ExecStart` just calls the
 matching `.sh` helper. This keeps systemd's own specifier expansion from
 clobbering shell variables inside complex commands (the earlier
 inline-`/bin/sh -c` approach hit this: `${boost}` got expanded to
@@ -25,7 +25,7 @@ empty by systemd before the shell ever saw it).
 Previously these units existed only on the live box as config drift. A
 fresh `linux-install.sh` install would not get them, leaving the fork
 in a state where upstream Sunshine boots cleanly but the fork-specific
-tuning was missing — and a hard-coded clock value in an untracked unit
+tuning was missing, and a hard-coded clock value in an untracked unit
 would also break on any hardware change (different NIC, different
 NVIDIA card).
 
@@ -63,10 +63,10 @@ The script auto-detects whether files live at `/usr/share/sunshine/redesign/syst
 These services exist on the live box but are personal / CPU-specific
 tooling, not part of the fork:
 
-- `punktfunk-*.service` — punktfunk latency-tuner (separate project)
-- `ryzenadj-tuned.service` — Ryzen 5 4600H undervolt profile
-- `bpftune.service`, `pci-latency.service`, `cachyos-iw-set-regdomain.service` — CachyOS distro defaults
-- `nvidia-*.service` (hibernate/suspend/persistenced/powerd) — NVIDIA driver upstream
+- `punktfunk-*.service`: punktfunk latency-tuner (separate project)
+- `ryzenadj-tuned.service`: Ryzen 5 4600H undervolt profile
+- `bpftune.service`, `pci-latency.service`, `cachyos-iw-set-regdomain.service`: CachyOS distro defaults
+- `nvidia-*.service` (hibernate/suspend/persistenced/powerd): NVIDIA driver upstream
 
 If the fork ever needs to ship general Ryzen tuning or per-distro
 defaults, that goes in a separate directory.
@@ -78,7 +78,7 @@ systemctl status cpu-performance nic-tuning nvidia-clock-lock
 ```
 
 All three should report `active (exited)` with status 0/SUCCESS.
-A `failed` result on any of them is a bug — open an issue with the
+A `failed` result on any of them is a bug. Open an issue with the
 output of `journalctl -b -u <unit>.service`.
 
 Quick post-boot sanity:
@@ -89,4 +89,4 @@ nvidia-smi --query-gpu=clocks.current.graphics,clocks.max.graphics --format=csv
 
 If the current clock is at max after a few seconds of streaming, the
 clock lock is doing its job. If current stays at idle (300 MHz or so)
-even during encode, the lock silently failed — check the journal.
+even during encode, the lock silently failed. Check the journal.

@@ -1,8 +1,8 @@
 <div align="center">
   <img src="docs/images/solarflare-mark-1024.png" width="192" alt="SolarFlare logo">
   <h1>SolarFlare</h1>
-  <p><strong>A precision game-streaming host for Moonlight.</strong></p>
-  <p>Linux & AMD-first capture, transport, and host control engineered for predictable local-network latency.</p>
+  <p><strong>A game-streaming host for Moonlight.</strong></p>
+  <p>Linux and AMD-first capture, transport, and host control tuned for predictable local-network latency.</p>
 
   <p>
     <a href="https://github.com/vindeckyy/Solar-Flare/releases/latest"><img src="https://img.shields.io/badge/release-v1.0.7-f97316?style=for-the-badge" alt="Latest release"></a>
@@ -49,11 +49,11 @@ the complete streaming pipeline.
 > compatibility identifiers such as `sunshine`, `SUNSHINE_CLIENT_*`, and
 > `~/.config/sunshine` intentionally remain unchanged.
 
-## What sets SolarFlare apart
+## Fork additions
 
 | System | SolarFlare approach |
 |---|---|
-| **Host control** | A purpose-built observatory interface with persistent desktop navigation, compact mobile controls, command search, and unified diagnostics |
+| **Host control** | An observatory interface with persistent desktop navigation, compact mobile controls, command search, and unified diagnostics |
 | **Network path** | Link-aware pacing, optional busy polling, expanded ENet buffers, DSCP tagging, and adaptive bitrate controls |
 | **Scheduling** | Capture-thread affinity, controlled real-time scheduling, native CPU tuning, and optional boot-time performance services |
 | **Video** | NVENC tuning profiles, per-application encoder overrides, headless display paths, and hardware-aware capture selection |
@@ -66,9 +66,8 @@ when comparing behavior on a particular host.
 
 ## Control surface
 
-The interface is designed as a host instrument panel rather than a collection
-of generic settings pages. Motion is reserved for interaction and state
-changes; there are no ambient looping effects.
+The interface is built as a host instrument panel. Motion is reserved for
+interaction and state changes; there are no ambient looping effects.
 
 <table>
   <tr>
@@ -76,7 +75,7 @@ changes; there are no ambient looping effects.
     <td width="50%"><strong>Manage applications</strong><br><sub>Launch definitions, artwork, and import tools.</sub><br><br><img src="docs/images/web-ui-applications.png" alt="SolarFlare application catalog"></td>
   </tr>
   <tr>
-    <td width="50%"><strong>Discover clients</strong><br><sub>A curated local catalog with no third-party runtime fetch.</sub><br><br><img src="docs/images/web-ui-featured.png" alt="SolarFlare featured client catalog"></td>
+    <td width="50%"><strong>Discover clients</strong><br><sub>A local catalog with no third-party runtime fetch.</sub><br><br><img src="docs/images/web-ui-featured.png" alt="SolarFlare featured client catalog"></td>
     <td width="50%"><strong>Tune the host</strong><br><sub>Dense configuration surfaces with consistent hierarchy.</sub><br><br><img src="docs/images/web-ui-configuration.png" alt="SolarFlare configuration console"></td>
   </tr>
   <tr>
@@ -287,5 +286,5 @@ Platform-specific dependencies and compiler requirements are documented in
 
 <div align="center">
   <strong>SolarFlare</strong><br>
-  <sub>Own the host. Instrument the path. Stream without the cloud.</sub>
+  <sub>Self-hosted streaming on your LAN. No cloud in the path.</sub>
 </div>

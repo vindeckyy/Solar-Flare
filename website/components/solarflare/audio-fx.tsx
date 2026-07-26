@@ -26,7 +26,7 @@ const STAGES = [
   {
     title: 'Voice activity detection',
     key: 'sf_audio_vad',
-    body: 'Classifies each frame as speech or non-speech using a threshold plus a hysteresis band and minimum speech/silence durations. VAD changes nothing on its own — it produces the voice-active signal that ducking and gating consume.',
+    body: 'Classifies each frame as speech or non-speech using a threshold plus a hysteresis band and minimum speech/silence durations. VAD alone does not change the audio; it produces the voice-active signal that ducking and gating consume.',
   },
   {
     title: 'Speech ducking',
@@ -36,7 +36,7 @@ const STAGES = [
   {
     title: 'Noise gate',
     key: 'sf_audio_noise_gate',
-    body: 'Zeroes any frame below the threshold to kill constant background hiss, fan noise, or open-mic floor noise — without touching louder content.',
+    body: 'Zeroes any frame below the threshold to kill constant background hiss, fan noise, or open-mic floor noise, and leaves louder content alone.',
   },
   {
     title: 'Opus encoder tuning',

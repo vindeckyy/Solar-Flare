@@ -21,8 +21,8 @@ export function SiteFooter() {
         <div className="absolute inset-0 grid-lines opacity-30" aria-hidden="true" />
         <div className="relative mx-auto max-w-6xl px-4 py-20 text-center md:px-6 md:py-28">
           <h2 className="mx-auto max-w-2xl text-balance text-3xl font-semibold tracking-tight text-foreground md:text-5xl">
-            Own the host. Instrument the path.{' '}
-            <span className="text-primary">Stream without the cloud.</span>
+            Self-hosted streaming on your LAN.{' '}
+            <span className="text-primary">No cloud in the path.</span>
           </h2>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Button
@@ -60,7 +60,7 @@ export function SiteFooter() {
           <div className="max-w-sm">
             <Logo />
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              A precision, Linux and AMD-first game-streaming host for Moonlight.
+              A Linux and AMD-first game-streaming host for Moonlight.
               A Sunshine-derived project distributed under GPL-3.0-only.
             </p>
           </div>

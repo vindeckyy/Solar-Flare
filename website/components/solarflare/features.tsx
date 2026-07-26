@@ -11,7 +11,7 @@ const FEATURES = [
   {
     icon: MonitorPlay,
     title: 'Host control',
-    body: 'A purpose-built observatory interface with a persistent desktop navigation rail, compact mobile controls, command search, and unified diagnostics.',
+    body: 'An observatory interface with a persistent desktop navigation rail, compact mobile controls, command search, and unified diagnostics.',
   },
   {
     icon: Network,
@@ -46,7 +46,7 @@ export function Features() {
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <div className="max-w-2xl">
           <p className="font-mono text-xs uppercase tracking-wider text-primary">
-            What sets it apart
+            Fork additions
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
             Every subsystem, exposed as an individual control

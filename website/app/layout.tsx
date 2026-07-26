@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
 
 export const metadata: Metadata = {
-  title: 'SolarFlare — A precision game-streaming host for Moonlight',
+  title: 'SolarFlare: a game-streaming host for Moonlight',
   description:
-    'SolarFlare is a self-hosted, Linux & AMD-first game-streaming host for Moonlight, with an observatory-style Web UI, low-latency transport tuning, and advanced host controls. Own the host. Instrument the path. Stream without the cloud.',
+    'SolarFlare is a self-hosted, Linux and AMD-first game-streaming host for Moonlight, with an observatory-style Web UI, low-latency transport tuning, and advanced host controls.',
   keywords: [
     'SolarFlare',
     'Moonlight',
@@ -55,9 +55,9 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: 'SolarFlare — A precision game-streaming host for Moonlight',
+    title: 'SolarFlare: a game-streaming host for Moonlight',
     description:
-      'Linux & AMD-first capture, transport, and host control engineered for predictable local-network latency.',
+      'Linux and AMD-first capture, transport, and host control tuned for predictable local-network latency.',
     type: 'website',
   },
 }

@@ -25,7 +25,7 @@ export function Configuration() {
             Configuration
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            Dial the fast path in or out — no rebuild
+            Dial the fast path in or out. No rebuild required.
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
             Ten fork-specific tunables live in the same{' '}
@@ -79,7 +79,7 @@ export function Configuration() {
               ]}
             />
             <CodeBlock
-              title="apps.json — per-application encoder override"
+              title="apps.json: per-application encoder override"
               lines={[
                 '{',
                 '  "name": "Competitive profile",',

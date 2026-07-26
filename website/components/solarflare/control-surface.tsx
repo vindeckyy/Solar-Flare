@@ -17,7 +17,7 @@ const TABS = [
     id: 'home',
     short: 'Home',
     label: 'Monitor the host',
-    desc: 'The observatory home surface — host condition, build vector, and platform at a glance, with direct actions to pair a device or open the application map.',
+    desc: 'The observatory home surface shows host condition, build vector, and platform, with direct actions to pair a device or open the application map.',
     image: '/sf-web-ui-home.png',
     alt: 'SolarFlare home screen showing host condition Running Latest and platform Linux, with Pair a device and Open application map actions.',
   },
@@ -41,7 +41,7 @@ const TABS = [
     id: 'featured',
     short: 'Featured',
     label: 'Discover clients',
-    desc: 'A curated local catalog of Moonlight clients and tools — no third-party runtime fetch — with platform badges and direct download and source links.',
+    desc: 'A local catalog of Moonlight clients and tools (no third-party runtime fetch), with platform badges and direct download and source links.',
     image: '/sf-web-ui-featured.png',
     alt: 'SolarFlare featured apps page showing Moonlight PC, Moonlight Mobile, and Moonlight Embedded clients with platform badges and get and source buttons.',
   },
@@ -57,7 +57,7 @@ const TABS = [
     id: 'troubleshooting',
     short: 'Troubleshooting',
     label: 'Inspect the pipeline',
-    desc: 'Logs, diagnostics, and recovery actions in one place — force-close a stuck app, restart the host, or unpair devices without leaving the console.',
+    desc: 'Logs, diagnostics, and recovery actions together: force-close a stuck app, restart the host, or unpair devices without leaving the console.',
     image: '/sf-web-ui-troubleshooting.png',
     alt: 'SolarFlare troubleshooting page with Force Close, Restart SolarFlare, and Unpair Devices recovery actions.',
   },
@@ -84,7 +84,7 @@ export function ControlSurface() {
             Control surface
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            A host instrument panel, not a settings page
+            A host instrument panel for the full pipeline
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
             The observatory Web UI runs on the host at{' '}

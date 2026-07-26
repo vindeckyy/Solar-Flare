@@ -550,7 +550,7 @@
     "vigembus_not_installed_title": "ViGEmBus Driver Not Installed",
     "vigembus_outdated_desc": "You are running an outdated version of ViGEmBus (v{version}). Version 1.17 or higher is required for proper gamepad support. Click the button below to update.",
     "vigembus_outdated_title": "ViGEmBus Driver Outdated",
-    "outdated_eyebrow": "OUTDATED VERSION — UPDATE NOW",
+    "outdated_eyebrow": "OUTDATED VERSION: UPDATE NOW",
     "outdated_title": "Running {installed}, latest is {latest}",
     "release_notes_for": "What's new in {version}",
     "copy": "Copy",

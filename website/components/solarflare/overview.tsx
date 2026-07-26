@@ -34,7 +34,7 @@ export function Overview() {
               What it does
             </p>
             <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-              Your own game-streaming host — no subscription, no cloud
+              Your own game-streaming host: no subscription, no cloud
             </h2>
             <div className="mt-5 space-y-4 text-pretty leading-relaxed text-muted-foreground">
               <p>
@@ -48,14 +48,14 @@ export function Overview() {
                 >
                   Moonlight
                 </a>{' '}
-                client — phone, tablet, laptop, TV, or handheld — and play your
+                client (phone, tablet, laptop, TV, or handheld), and play your
                 full library remotely over your own network. The video never
                 leaves your LAN and no third-party server sits in the path.
               </p>
               <p>
-                It is a precision fork of LizardByte&apos;s Sunshine, focused on
-                Linux and AMD. On top of the GameStream-compatible transport it
-                layers link-aware network pacing, real-time capture scheduling,
+                It is a fork of LizardByte&apos;s Sunshine, focused on Linux and
+                AMD. On top of the GameStream-compatible transport it layers
+                link-aware network pacing, real-time capture scheduling,
                 per-application NVENC encoder profiles, a pre-encoder audio DSP
                 chain, and an original observatory-style Web UI that runs the
                 entire host from one instrument panel.

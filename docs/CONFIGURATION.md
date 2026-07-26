@@ -32,7 +32,7 @@ Audio pre-processor and Opus encoder tunables are documented in the
 `sf_audio_*` / `sf_opus_*` keys default to upstream-compatible values and are
 available in the Web UI's Audio/Video configuration tab.
 
-Each one is opt-out — setting it back to its "fall back to upstream"
+Each one is opt-out: setting it back to its "fall back to upstream"
 choice (`busy_poll_us = 0`, `rate_cap_pct = 80` is already upstream's
 default, `enet_4mib_buffer = false`, `pipewire_latency_ms = 8` is
 upstream's default, `cpu_pinning = false`) effectively undoes the
@@ -82,7 +82,7 @@ Values outside 50-95 are silently rejected.
 If `true` (default), grow the ENet UDP socket's send/recv buffers to
 4 MiB so a 4K60 HEVC stream (~25 Mbps) never blocks on `sendmsg()`.
 
-`SO_RCVBUFFORCE` / `SO_SNDBUFFORCE` are tried first — these let us
+`SO_RCVBUFFORCE` / `SO_SNDBUFFORCE` are tried first. These let us
 exceed `rmem_max`/`wmem_max` without sysctl changes (they require
 `CAP_NET_ADMIN`, which Sunshine doesn't run with, so the call
 silently no-ops if it fails). The code then falls back to plain
@@ -129,7 +129,7 @@ default IRQ affinity shadow and skipping SMT siblings).
 Removes the 5-15 ms CFS tail-latency spikes that show up as frame
 jitter under load, and keeps the thread's L1/L2 cache warm
 frame-to-frame. The calls fail silently under containers, systemd-run
-units, or non-`CAP_SYS_NICE` users — the upstream nice-only path
+units, or non-`CAP_SYS_NICE` users. The upstream nice-only path
 still applies.
 
 If `false`, only the upstream `nice -15` is applied. Use this if:
@@ -215,7 +215,7 @@ metadata and you need a workaround.
 ## Audio FX (pre-encoder processing)
 
 SolarFlare adds a lightweight audio pre-processor that runs between the
-PipeWire capture callback and the Opus encoder. All stages are opt-in —
+PipeWire capture callback and the Opus encoder. All stages are opt-in:
 every toggle defaults to `false` (off), matching upstream behaviour.
 
 ### At a glance
@@ -268,7 +268,7 @@ A hysteresis band (`sf_audio_vad_hysteresis_db`) prevents chatter toggling
 on low-frequency noise. Minimum durations (`sf_audio_vad_min_speech_ms` /
 `sf_audio_vad_min_silence_ms`) filter out clicks and brief pauses.
 
-VAD alone changes nothing about the audio output — it only produces a
+VAD alone changes nothing about the audio output; it only produces a
 voice-active signal that other stages (ducking, noise gate) can consume.
 
 ### Ducking
@@ -299,23 +299,23 @@ client. Upstream Sunshine defaults are: LOWDELAY application, CBR,
 complexity 10, FEC on, bandwidth extension on. Every default here matches
 that, so a vanilla install is unchanged.
 
-- `sf_opus_application` — 0 (LOWDELAY) is best for game streaming where
+- `sf_opus_application`: 0 (LOWDELAY) is best for game streaming where
   every millisecond matters. 1 (VOIP) trades a small latency increase for
   better speech intelligibility. 2 (AUDIO) prioritises music and
   sound-effect quality.
-- `sf_opus_vbr` — 0 (CBR) is the safe default for variable-bandwidth
+- `sf_opus_vbr`: 0 (CBR) is the safe default for variable-bandwidth
   networks. 1 (Constrained VBR) uses slightly fewer bits on easy passages
   and more on complex ones but stays near the target bitrate. 2 (Full VBR)
   can spike above the target; use only on links with generous headroom.
-- `sf_opus_complexity` — 10 gives the best quality/bitrate ratio. Lower
+- `sf_opus_complexity`: 10 gives the best quality/bitrate ratio. Lower
   values save CPU at the cost of audio quality at the same bitrate.
-- `sf_opus_fec` — When on, Opus embeds a redundant, lower-bitrate copy of
+- `sf_opus_fec`: When on, Opus embeds a redundant, lower-bitrate copy of
   each frame so a single lost packet can be reconstructed. Adds ~1 kbps of
   overhead. Disable if you need every bit for video.
-- `sf_opus_expected_loss_pct` — Tells Opus how much packet loss to expect
+- `sf_opus_expected_loss_pct`: Tells Opus how much packet loss to expect
   so it can pre-allocate FEC bits efficiently. 0 = no hint (Opus adapts
   naturally). Set to 5-10 on Wi-Fi links with spotty coverage.
-- `sf_opus_bandwidth_extension` — Allows Opus to encode up to 48 kHz
+- `sf_opus_bandwidth_extension`: Allows Opus to encode up to 48 kHz
   (fullband). Disable if the client or network can't handle >16 kHz audio.
 
 ## Where these are used
@@ -406,6 +406,6 @@ After installing a new SolarFlare build:
 
 ## See also
 
-- [docs/configuration.md](configuration.md) — the full upstream
+- [docs/configuration.md](configuration.md): the full upstream
   configuration reference.
-- [docs/PORTING.md](PORTING.md) — multi-distro build instructions.
+- [docs/PORTING.md](PORTING.md): multi-distro build instructions.

@@ -11,7 +11,7 @@ const STAGES = [
     n: '02',
     icon: Cpu,
     title: 'Encode',
-    body: 'NVENC presets and per-application overrides tune latency, lookahead, adaptive quantization, and frame structure — without changing the protocol.',
+    body: 'NVENC presets and per-application overrides tune latency, lookahead, adaptive quantization, and frame structure. The protocol stays the same.',
   },
   {
     n: '03',
@@ -23,7 +23,7 @@ const STAGES = [
     n: '04',
     icon: SlidersHorizontal,
     title: 'Control',
-    body: 'The HTTPS UI, API scopes, pairing rules, and diagnostics expose host state — without placing cloud services in the streaming path.',
+    body: 'The HTTPS UI, API scopes, pairing rules, and diagnostics expose host state. No cloud services sit in the streaming path.',
   },
 ]
 

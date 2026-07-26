@@ -2,7 +2,7 @@
 
 All fork-specific changes to [vindeckyy/Solar-Flare](https://github.com/vindeckyy/Solar-Flare) that are **not** present in upstream [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine). Upstream changelog lives at [docs/changelog.md](changelog.md) (which inlines the upstream `changelog/CHANGELOG.md`).
 
-Curated sections below group commits by feature and date, oldest commit first within each topic. The **Full commit index** at the bottom lists any commits that fell between the cracks — the curated sections above should cover nearly everything. Use `git show dbf8232` for the full diff.
+Curated sections below group commits by feature and date, oldest commit first within each topic. The **Full commit index** at the bottom lists commits not covered in the curated sections above. Use `git show dbf8232` for the full diff.
 
 ---
 
@@ -48,7 +48,7 @@ Debian/Ubuntu, Fedora-family, openSUSE, Bazzite, and NixOS. Kept
 alias for `--no-pacman`. Documented that `scripts/linux_build.sh` remains the
 inherited upstream Docker/CI builder, not the end-user install path.
 
-## 2026-07-26 — SolarFlare v1.0.7 (`v2026.726.1-solarflare`)
+## 2026-07-26: SolarFlare v1.0.7 (`v2026.726.1-solarflare`)
 
 
 ### SolarFlare identity system
@@ -63,7 +63,7 @@ Linux release artifacts are built and validated on the target system before
 manual publication. Verification checks the SolarFlare logo bytes inside the
 packaged Web UI, and each release includes SHA-256 checksums.
 
-## 2026-07-25 — SolarFlare v1.0.6 (`v2026.725.1-solarflare`)
+## 2026-07-25: SolarFlare v1.0.6 (`v2026.725.1-solarflare`)
 
 Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.
 
@@ -104,7 +104,7 @@ and stream-health design was informed by reviewing the
 a Sunshine-derived project; this records design inspiration separately from
 source-code attribution.
 
-## 2026-07-18 — SolarFlare v1.0.5 (`v2026.718.5-solarflare`)
+## 2026-07-18: SolarFlare v1.0.5 (`v2026.718.5-solarflare`)
 
 SolarFlare's Web UI is now a responsive observatory console with a persistent
 desktop navigation rail, compact mobile controls, a magnetic-field host
@@ -198,13 +198,13 @@ Also fixed KDE headless detection when `XDG_CURRENT_DESKTOP=plasma`.
 
 Seven fixes from a one-shot pentest of the network-reachable surfaces (HTTPS server, RTSP control stream, web UI auth, outbound fetches). All paired with tests except those guarded by the single-threaded HTTPS server, which would need an asio fixture to test in isolation.
 
-- `src/stream.cpp` — bound the length-prefixed parse in `IDX_INPUT_DATA` and `IDX_LOSS_STATS` handlers so a paired client can't construct a `string_view` past the actual buffer (M-1, paired-client OOB-read / OOB-write).
-- `src/crypto.cpp` — `PEM_read_bio_X509` / `PEM_read_bio_PrivateKey` return values now checked; malformed client certs during pairing produce a null smart pointer instead of an unwritten `X509`/`PKEY` (M-2, root-cause fix; all callers route through).
-- `src/nvhttp.cpp` — cap concurrent TLS handshakes at 64 on the HTTPS server so a slow/abusive client can't stall the single-threaded io_context and DoS the whole `origin_web_ui_allowed` scope (M-3).
-- `src/httpcommon.cpp` + `src/confighttp.cpp` — reject passwords shorter than 12 chars at write time; add per-IP token bucket (10 fails / 30s) before doing any hash work, reset on successful auth (M-4).
-- `src/confighttp.cpp` — reject `/`, `..`, NUL in cover-upload key (L-1, path-traversal guard, admin-only endpoint).
-- `src/confighttp.cpp` — strip CR/LF from API token name before logging to prevent log injection (L-2, admin-only; JSON response is auto-escaped).
-- `src/httpcommon.cpp` — `download_file` now requires TLS verify, HTTPS-only via `CURLOPT_PROTOCOLS_STR`, and 10s/5s timeouts (L-3, admin-only belt-and-suspenders for the upstream host check).
+- `src/stream.cpp`: bound the length-prefixed parse in `IDX_INPUT_DATA` and `IDX_LOSS_STATS` handlers so a paired client can't construct a `string_view` past the actual buffer (M-1, paired-client OOB-read / OOB-write).
+- `src/crypto.cpp`: `PEM_read_bio_X509` / `PEM_read_bio_PrivateKey` return values now checked; malformed client certs during pairing produce a null smart pointer instead of an unwritten `X509`/`PKEY` (M-2, root-cause fix; all callers route through).
+- `src/nvhttp.cpp`: cap concurrent TLS handshakes at 64 on the HTTPS server so a slow/abusive client can't stall the single-threaded io_context and DoS the whole `origin_web_ui_allowed` scope (M-3).
+- `src/httpcommon.cpp` + `src/confighttp.cpp`: reject passwords shorter than 12 chars at write time; add per-IP token bucket (10 fails / 30s) before doing any hash work, reset on successful auth (M-4).
+- `src/confighttp.cpp`: reject `/`, `..`, NUL in cover-upload key (L-1, path-traversal guard, admin-only endpoint).
+- `src/confighttp.cpp`: strip CR/LF from API token name before logging to prevent log injection (L-2, admin-only; JSON response is auto-escaped).
+- `src/httpcommon.cpp`: `download_file` now requires TLS verify, HTTPS-only via `CURLOPT_PROTOCOLS_STR`, and 10s/5s timeouts (L-3, admin-only extra checks on top of the upstream host check).
 
 ### setcap on local builds
 
@@ -228,14 +228,14 @@ Test suite: 494 tests, 482 passed / 12 skipped / 0 failed
 Bug found: `third-party/inputtino` submodule pointed to a fork-local commit
 (`64436f0`) that only exists on Hayden's local clone and was never pushed
 to any remote. Both the new pointer and the old upstream pointer (`7e2bb5d`)
-were unreachable from origin — a fresh Solar-Flare clone would fail during
+were unreachable from origin. A fresh Solar-Flare clone would fail during
 submodule checkout. Fixed by repointing to `b887f6a` (upstream stable HEAD,
 fetchable from games-on-whales/inputtino). Hayden's pure MT Type B fix needs
 a published inputtino fork to live in (see commit message for recipe).
 
 Other audit checks (doxygen, IPPROTO_IPV6/DSCP, hardcoded sample rates,
 mutex-unlock mismatches, null-pointer derefs, test_config_fork_keys coverage):
-clean — no new issues.
+clean: no new issues.
 
 
 > **Historical note:** this repair was initially produced on an offline
@@ -459,10 +459,10 @@ Bug audit pass on the Jul 3 feature batch plus the Reddit portal/KMS report. Fix
 
 ## See also
 
-- [docs/CONFIGURATION.md](CONFIGURATION.md) — the 10 fork-specific latency/display toggles (`busy_poll_us`, `rate_cap_pct`, `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`, `dscp_qos`, `gpu_governor`, `headless_virtual_display`, `skip_wayland_correlation`, `latency_mode`).
-- [docs/PORTING.md](PORTING.md) — per-distro package translation table for the build script.
-- [README.md](../README.md) — fork entry point.
-- [cachyos-fastpath.patch](../cachyos-fastpath.patch) — the original 7-file latency-tuning patch (kept as a historical artifact).
+- [docs/CONFIGURATION.md](CONFIGURATION.md): the 10 fork-specific latency/display toggles (`busy_poll_us`, `rate_cap_pct`, `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`, `dscp_qos`, `gpu_governor`, `headless_virtual_display`, `skip_wayland_correlation`, `latency_mode`).
+- [docs/PORTING.md](PORTING.md): per-distro package translation table for the build script.
+- [README.md](../README.md): fork entry point.
+- [cachyos-fastpath.patch](../cachyos-fastpath.patch): the original 7-file latency-tuning patch (kept as a historical artifact).
 
 ## Full commit index (commits not in the curated sections)
 

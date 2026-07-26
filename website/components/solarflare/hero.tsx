@@ -31,7 +31,7 @@ export function Hero() {
       <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-20 md:px-6 md:pb-28 md:pt-28">
         <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 font-mono text-xs text-muted-foreground backdrop-blur">
           <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          A precision fork of LizardByte / Sunshine
+          A fork of LizardByte / Sunshine
         </div>
 
         <h1 className="mt-6 max-w-3xl text-balance text-4xl font-semibold leading-[1.05] tracking-tight text-foreground md:text-6xl">
@@ -70,7 +70,7 @@ export function Hero() {
         </div>
 
         <p className="mt-6 font-mono text-sm italic text-primary/90">
-          Own the host. Instrument the path. Stream without the cloud.
+          Self-hosted streaming on your LAN. No cloud in the path.
         </p>
 
         {/* spec strip */}
