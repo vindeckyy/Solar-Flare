@@ -3059,6 +3059,11 @@ body::before {
         justify-content: flex-start;
     }
 
+    .sf-utility-nav .dropend .dropdown-menu {
+        top: auto;
+        bottom: 0;
+    }
+
     .sf-chrome + #content {
         width: calc(100% - var(--sf-rail-width));
         max-width: none;

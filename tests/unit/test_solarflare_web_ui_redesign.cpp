@@ -5,8 +5,9 @@
  * @brief Regression tests for the SolarFlare observatory web interface.
  *
  * These source-level guards protect the shared navigation rail, dashboard
- * command deck, non-looping motion policy, responsive breakpoint, and global
- * theme initialization. They intentionally test stable design contracts
+ * command deck, inward-opening utility menus, non-looping motion policy,
+ * responsive breakpoint, and global theme initialization. They intentionally
+ * test stable design contracts
  * rather than generated Vite asset names.
  */
 
@@ -37,6 +38,20 @@ TEST(SolarflareWebUIRedesign, NavbarUsesSemanticObservatoryRail) {
   EXPECT_TRUE(contains_marker(navbar, "class=\"collapse navbar-collapse sf-nav-content\""));
   EXPECT_TRUE(contains_marker(navbar, "class=\"sf-node-readout\""));
   EXPECT_TRUE(contains_marker(navbar, "data-nav-code=\"06\""));
+}
+
+TEST(SolarflareWebUIRedesign, UtilityMenusOpenTowardPageContent) {
+  const auto navbar = test_utils::read_repo_file("src_assets/common/assets/web/Navbar.vue");
+  const auto theme_toggle = test_utils::read_repo_file("src_assets/common/assets/web/ThemeToggle.vue");
+  const auto css = test_utils::read_repo_file("src_assets/common/assets/web/sunshine.css");
+
+  ASSERT_FALSE(navbar.empty());
+  ASSERT_FALSE(theme_toggle.empty());
+  ASSERT_FALSE(css.empty());
+  EXPECT_TRUE(contains_marker(navbar, "class=\"nav-item dropdown dropend\""));
+  EXPECT_TRUE(contains_marker(theme_toggle, "class=\"dropdown dropend bd-mode-toggle\""));
+  EXPECT_TRUE(contains_marker(css, ".sf-utility-nav .dropend .dropdown-menu"));
+  EXPECT_TRUE(contains_marker(css, "bottom: 0"));
 }
 
 TEST(SolarflareWebUIRedesign, DashboardUsesCommandDeckAndRealHostTelemetry) {

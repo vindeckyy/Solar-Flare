@@ -87,7 +87,7 @@
             <li class="nav-item">
               <ThemeToggle/>
             </li>
-            <li class="nav-item dropdown">
+            <li class="nav-item dropdown dropend">
               <button class="nav-link dropdown-toggle" type="button" id="navbarUserMenu"
                       data-bs-toggle="dropdown" aria-expanded="false" aria-label="User menu" title="User menu">
                 <CircleUserRound :size="18" class="icon"></CircleUserRound>

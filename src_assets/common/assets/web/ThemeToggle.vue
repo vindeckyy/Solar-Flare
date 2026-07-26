@@ -34,7 +34,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="dropdown bd-mode-toggle">
+  <div class="dropdown dropend bd-mode-toggle">
     <a class="nav-link dropdown-toggle d-flex align-items-center"
             id="bd-theme"
             type="button"
