@@ -16,10 +16,9 @@ states, favicon, documentation, README, and GitHub Pages site. Added
 size-appropriate raster assets and retained clear playing, pausing, and locked
 tray-state indicators.
 
-The Linux-only release pipeline now builds and validates the executable and
-runtime bundle before creating a GitHub release. Its release gate verifies the
-SolarFlare logo bytes inside the packaged Web UI and publishes SHA-256 checksums
-with each release.
+Linux release artifacts are built and validated on the target system before
+manual publication. Verification checks the SolarFlare logo bytes inside the
+packaged Web UI, and each release includes SHA-256 checksums.
 
 ## 2026-07-25 — v2026.725.1-solarflare
 

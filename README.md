@@ -1,8 +1,5 @@
 <div align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/solarflare-lockup-dark.svg">
-    <img src="docs/images/solarflare-lockup-light.svg" width="420" alt="SolarFlare — Host Observatory">
-  </picture>
+  <img src="docs/images/solarflare-mark-1024.png" width="192" alt="SolarFlare logo">
   <h1>SolarFlare</h1>
   <p><strong>A precision game-streaming host for Moonlight.</strong></p>
   <p>Linux & AMD-first capture, transport, and host control engineered for predictable local-network latency.</p>
