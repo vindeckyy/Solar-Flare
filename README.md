@@ -159,8 +159,7 @@ sudo curl --fail --location \
   --output /usr/local/bin/sunshine \
   https://github.com/vindeckyy/Solar-Flare/releases/latest/download/sunshine-x86_64
 sudo chmod 0755 /usr/local/bin/sunshine
-sudo setcap 'cap_sys_admin,cap_net_bind_service,cap_net_raw,cap_dac_read_search+ep' \
-  /usr/local/bin/sunshine
+sudo setcap 'cap_sys_admin,cap_sys_nice+p' /usr/local/bin/sunshine
 systemctl --user start app-dev.lizardbyte.app.Sunshine.service
 ```
 
@@ -190,6 +189,7 @@ definitions in `~/.config/sunshine/apps.json`.
 | Network | `busy_poll_us`, `rate_cap_pct`, `enet_4mib_buffer`, `dscp_qos` | [Fork controls](docs/CONFIGURATION.md#the-tunables-at-a-glance) |
 | Scheduling | `cpu_pinning`, `gpu_governor` | [Scheduling behavior](docs/CONFIGURATION.md#cpu_pinning) |
 | Capture | `headless_virtual_display`, `skip_wayland_correlation` | [Capture controls](docs/CONFIGURATION.md#headless_virtual_display) |
+| Latency | `latency_mode` (`safe` / `aggressive`) | [Latency mode](docs/CONFIGURATION.md#latency_mode) |
 | Video | `nvenc_tuning_preset`, adaptive bitrate, codec and quality controls | [Complete reference](docs/configuration.md) |
 | Audio | `pipewire_latency_ms`, `sf_audio_*`, `sf_opus_*` | [Audio FX](docs/CONFIGURATION.md#audio-fx-pre-encoder-processing) |
 | Access | Scoped API tokens, trusted subnets, pairing, origin policy | [API](docs/api.md) · [Security](SECURITY.md) |

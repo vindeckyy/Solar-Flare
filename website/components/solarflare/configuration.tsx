@@ -9,7 +9,7 @@ const TUNABLES = [
   { key: 'dscp_qos', def: 'true', desc: 'Tag ENet packets with DSCP CS3 for router QoS.' },
   { key: 'gpu_governor', def: 'true', desc: 'Force the GPU performance profile during a stream.' },
   { key: 'headless_virtual_display', def: 'false', desc: 'Create a virtual xrandr output when no display exists.' },
-  { key: 'skip_wayland_correlation', def: 'false', desc: 'Skip KMS↔Wayland correlation to avoid KWin hangs.' },
+  { key: 'skip_wayland_correlation', def: 'false', desc: 'Skip KMS↔Wayland correlation; leave false unless your compositor omits output metadata.' },
   { key: 'latency_mode', def: 'safe', desc: 'safe or aggressive latency-first media behavior.' },
 ]
 

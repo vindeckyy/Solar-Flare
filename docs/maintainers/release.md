@@ -3,12 +3,15 @@
 SolarFlare publishes Linux x86-64 binaries built and verified on the maintainer's
 system. GitHub Actions must not build release binaries.
 
-Two version identifiers are retained intentionally:
+Two version identifiers are retained intentionally. Examples below use the
+*next* release identifiers so the commands stay copy-paste templates:
 
 - The public release title uses chronological SemVer, such as
   `SolarFlare v1.0.8`.
 - The compatibility build tag uses `v<YYYY>.<MDD>.<revision>-solarflare`, such
   as `v2026.727.1-solarflare`. The executable reports this build version.
+
+The current published release is documented in the repository README.
 
 Release commits and binaries must be produced from a clean tree so the embedded
 version never carries a `-dirty` suffix.
@@ -65,7 +68,8 @@ The version output must match the compatibility tag and final commit and must
 identify the SolarFlare fork. `ldd` must report no missing libraries. Compare
 the packaged Web UI logo and icon byte-for-byte with the repository sources.
 A raw executable cannot retain Linux file capabilities in a GitHub release;
-installation instructions must run `setcap` after download.
+installation instructions must run
+`setcap 'cap_sys_admin,cap_sys_nice+p'` after download.
 
 ## Publish Manually
 

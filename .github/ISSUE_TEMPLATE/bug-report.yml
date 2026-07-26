@@ -46,15 +46,28 @@ body:
     attributes:
       label: Additional Context
       description: Add any other context about the bug here.
+  - type: input
+    id: solarflare-version
+    attributes:
+      label: SolarFlare version
+      description: >
+        Public release (for example v1.0.7) and/or build tag
+        (for example v2026.726.1-solarflare). From `sunshine --version` or the
+        Web UI home page.
+      placeholder: v1.0.7 / v2026.726.1-solarflare
+    validations:
+      required: true
   - type: dropdown
     id: os
     attributes:
       label: Host Operating System
-      description: What version operating system are you running the software on?
+      description: >
+        SolarFlare's maintained release profile is Linux x86-64. Other OS
+        values are for inherited or experimental builds only.
       options:
+        - Linux
         - Docker
         - FreeBSD
-        - Linux
         - macOS
         - Windows
         - other, n/a
@@ -81,31 +94,15 @@ body:
     id: package_type
     attributes:
       label: Package
-      description: The package you installed
+      description: How you installed this SolarFlare build
       options:
-        - FreeBSD
-        - Linux - AppImage
-        - Linux - AUR (Third Party)
-        - Linux - deb
-        - Linux - Docker
-        - Linux - Fedora Copr
-        - Linux - flathub/flatpak
-        - Linux - Homebrew
-        - Linux - see README.md for distro packages
-        - Linux - nixpkgs (Third Party)
-        - Linux - solus (Third Party)
-        - Linux - Unraid (Third Party)
-        - macOS - dmg
-        - macOS - Homebrew
-        - Windows - Chocolatey (Third Party)
-        - Windows - exe installer
-        - Windows - msi installer (recommended)
-        - Windows - portable (NOT recommended)
-        - Windows - Scoop (Third Party)
-        - Windows - Winget
+        - Linux - release binary (sunshine-x86_64)
+        - Linux - release tarball (solarflare-linux-x86_64.tar.gz)
+        - Linux - source installer (scripts/cachyos-build.sh)
+        - Linux - manual cmake build
+        - Linux - Docker (not a maintained SolarFlare image)
         - other (not listed)
         - other (self built)
-        - other (fork of this repo)
         - n/a
     validations:
       required: true

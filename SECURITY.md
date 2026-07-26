@@ -39,9 +39,16 @@ maintainer will coordinate with upstream as needed.
 
 ## Supported versions
 
-Only the `master` branch of this fork is maintained. There is no LTS
-branch and no `release/X` long-term-support branches. If you need a
-patched build, pull the latest master and run `./scripts/cachyos-build.sh`.
+| Version | Supported |
+|---|---|
+| Latest `1.0.x` release | Yes |
+| `master` | Yes |
+| Older `1.0.x` releases | Best effort until the next release |
+| Pre-`1.0` tags | No |
+
+There is no LTS branch and no `release/X` long-term-support branches. If you
+need a patched build before the next tagged release, pull the latest `master`
+and run `./scripts/cachyos-build.sh`.
 
 ## Update policy
 
