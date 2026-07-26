@@ -191,6 +191,12 @@ if(UNIX AND NOT APPLE)
                 "${CMAKE_SOURCE_DIR}/scripts/cachyos-build.sh"
     )
     add_test(
+        NAME release_metadata_sync
+        COMMAND bash
+                "${CMAKE_SOURCE_DIR}/tests/scripts/test_release_metadata.sh"
+                "${CMAKE_SOURCE_DIR}/scripts/release.sh"
+    )
+    add_test(
         NAME nixos_cmake_install_overrides
         COMMAND
             "${CMAKE_COMMAND}" -E env

@@ -6,7 +6,7 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
-## 2026-07-26 — v2026.726.1-solarflare
+## 2026-07-26 — SolarFlare v1.0.7 (`v2026.726.1-solarflare`)
 
 ### SolarFlare identity system
 
@@ -20,7 +20,7 @@ Linux release artifacts are built and validated on the target system before
 manual publication. Verification checks the SolarFlare logo bytes inside the
 packaged Web UI, and each release includes SHA-256 checksums.
 
-## 2026-07-25 — v2026.725.1-solarflare
+## 2026-07-25 — SolarFlare v1.0.6 (`v2026.725.1-solarflare`)
 
 Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.
 
@@ -61,7 +61,7 @@ and stream-health design was informed by reviewing the
 a Sunshine-derived project; this records design inspiration separately from
 source-code attribution.
 
-## 2026-07-18 — v2026.718.5-solarflare
+## 2026-07-18 — SolarFlare v1.0.5 (`v2026.718.5-solarflare`)
 
 SolarFlare's Web UI is now a responsive observatory console with a persistent
 desktop navigation rail, compact mobile controls, a magnetic-field host
@@ -119,7 +119,7 @@ proxy call, validating request paths, and cleaning up response subscriptions
 and variants. This keeps absolute input and cursor capture usable and prevents
 a stalled portal from wedging the HTTPS control plane.
 
-### v2026.708.4-solarflare
+### SolarFlare v1.0.4 (`v2026.708.4-solarflare`)
 
 Published the follow-up SolarFlare release with the fork's version and binary
 packaging paths aligned after the initial Linux binary release.
@@ -170,7 +170,7 @@ Local `cmake --install build` no longer ships a `sunshine` binary with no permit
 
 ### Binary release asset
 
-First release to ship a binary. `v2026.708.3-solarflare` carries `sunshine-x86_64` (26 MB stripped ELF) at `releases/latest/download/`. The `latest/download` URL is version-independent, so README only needs to point at the alias. README quick-start now lists the binary path alongside the source build.
+SolarFlare v1.0.3 (`v2026.708.3-solarflare`) was the first release to ship a binary. It carries `sunshine-x86_64` (26 MB stripped ELF) at `releases/latest/download/`. The `latest/download` URL is version-independent, so README only needs to point at the alias. README quick-start now lists the binary path alongside the source build.
 
 
 ---

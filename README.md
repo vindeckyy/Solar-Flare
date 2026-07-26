@@ -5,7 +5,7 @@
   <p>Linux & AMD-first capture, transport, and host control engineered for predictable local-network latency.</p>
 
   <p>
-    <a href="https://github.com/vindeckyy/Solar-Flare/releases/latest"><img src="https://img.shields.io/badge/release-v2026.726.1--solarflare-f97316?style=for-the-badge" alt="Latest release"></a>
+    <a href="https://github.com/vindeckyy/Solar-Flare/releases/latest"><img src="https://img.shields.io/badge/release-v1.0.7-f97316?style=for-the-badge" alt="Latest release"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-111827?style=for-the-badge" alt="GPL-3.0 license"></a>
     <a href="https://moonlight-stream.org/"><img src="https://img.shields.io/badge/client-Moonlight-22d3ee?style=for-the-badge" alt="Moonlight client"></a>
     <img src="https://img.shields.io/badge/primary%20target-Linux%20x86__64-0f172a?style=for-the-badge&logo=linux&logoColor=white" alt="Primary target Linux x86-64">
@@ -39,7 +39,8 @@ the complete streaming pipeline.
 | **Host focus** | Linux x86-64, with native tuning for modern AMD and Intel CPUs |
 | **Client protocol** | Moonlight / NVIDIA GameStream-compatible transport |
 | **Control plane** | Responsive HTTPS interface at `https://localhost:47990` |
-| **Current release** | [`v2026.726.1-solarflare`](https://github.com/vindeckyy/Solar-Flare/releases/tag/v2026.726.1-solarflare) |
+| **Current release** | [`v1.0.7`](https://github.com/vindeckyy/Solar-Flare/releases/latest) |
+| **Build tag** | [`v2026.726.1-solarflare`](https://github.com/vindeckyy/Solar-Flare/releases/tag/v2026.726.1-solarflare) |
 
 > [!IMPORTANT]
 > SolarFlare preserves the executable name, service identifier, ports, state
@@ -118,11 +119,19 @@ options.
 
 ### Supported release profile
 
-The published `sunshine-x86_64` asset is a stripped Linux x86-64 executable.
-It is intended for updating an existing SolarFlare source installation, where
-`/usr/local/assets` and the user service are already present. A fresh machine
-should use the source installer so the Web UI, desktop files, shaders, udev
-rules, and service unit are installed with the binary.
+SolarFlare v1.0.7 publishes three Linux x86-64 files:
+
+| Asset | Purpose |
+|---|---|
+| `sunshine-x86_64` | Stripped executable for updating an existing installation |
+| `solarflare-linux-x86_64.tar.gz` | Executable plus matching runtime and Web UI assets |
+| `SHA256SUMS` | SHA-256 checksums for both downloads |
+
+The `sunshine-x86_64` compatibility filename is intentional. SolarFlare keeps
+the executable and service names expected by existing Sunshine installations
+and Moonlight pairings. A fresh machine should use the source installer so the
+Web UI, desktop files, shaders, udev rules, and service unit are installed with
+the binary.
 
 The source tree retains inherited cross-platform code, but the SolarFlare
 release and performance profile documented here are maintained for Linux.

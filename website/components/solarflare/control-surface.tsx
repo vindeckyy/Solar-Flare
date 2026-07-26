@@ -19,7 +19,7 @@ const TABS = [
     label: 'Monitor the host',
     desc: 'The observatory home surface — host condition, build vector, and platform at a glance, with direct actions to pair a device or open the application map.',
     image: '/sf-web-ui-home.png',
-    alt: 'SolarFlare home screen showing host condition Running Latest, build vector v2026.718.1, and platform Linux, with Pair a device and Open application map actions.',
+    alt: 'SolarFlare home screen showing host condition Running Latest and platform Linux, with Pair a device and Open application map actions.',
   },
   {
     id: 'pin',

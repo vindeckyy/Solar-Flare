@@ -6,16 +6,18 @@
 > commands are documented in the repository [README](../README.md#install).
 > Upstream package links below install Sunshine, not the SolarFlare fork.
 
-The recommended method for running Sunshine is to use the [binaries](#binaries) included in the
-[latest release][latest-release], unless otherwise specified.
+SolarFlare publishes Linux x86-64 artifacts in the fork's
+[latest release][solarflare-latest-release]: `sunshine-x86_64`,
+`solarflare-linux-x86_64.tar.gz`, and `SHA256SUMS`. See the repository
+[installation guide](../README.md#install) before choosing an artifact.
 
-[Pre-releases](https://github.com/LizardByte/Sunshine/releases) are also available. These should be considered beta,
-and release artifacts may be missing when merging changes on a faster cadence.
+The package tables below are retained as an upstream Sunshine reference.
+They describe LizardByte artifacts, not SolarFlare releases.
 
-## Binaries
+## Inherited Sunshine binaries
 
-Binaries of Sunshine are created for each release. They are available for FreeBSD, Linux, macOS, and Windows.
-Binaries can be found in the [latest release][latest-release].
+Upstream Sunshine publishes binaries for FreeBSD, Linux, macOS, and Windows.
+They are available from the upstream [latest release][latest-release].
 
 > [!NOTE]
 > Some third party packages also exist.
@@ -683,3 +685,4 @@ Tutorials and Guides are community generated. Want to contribute? Reach out to u
 </details>
 
 [latest-release]: https://github.com/LizardByte/Sunshine/releases/latest
+[solarflare-latest-release]: https://github.com/vindeckyy/Solar-Flare/releases/latest

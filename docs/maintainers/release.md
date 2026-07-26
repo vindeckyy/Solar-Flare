@@ -1,64 +1,98 @@
 # SolarFlare Release Process
 
-SolarFlare releases use chronological tags in the form
-`v<YYYY>.<MDD>.<revision>-solarflare`, for example
-`v2026.718.5-solarflare`. Release commits and binaries must be produced from a
-clean tree so the embedded version never carries a `-dirty` suffix.
+SolarFlare publishes Linux x86-64 binaries built and verified on the maintainer's
+system. GitHub Actions must not build release binaries.
+
+Two version identifiers are retained intentionally:
+
+- The public release title uses chronological SemVer, such as
+  `SolarFlare v1.0.8`.
+- The compatibility build tag uses `v<YYYY>.<MDD>.<revision>-solarflare`, such
+  as `v2026.727.1-solarflare`. The executable reports this build version.
+
+Release commits and binaries must be produced from a clean tree so the embedded
+version never carries a `-dirty` suffix.
 
 ## Prepare
 
-1. Confirm `master` is synchronized with the SolarFlare fork remote.
-2. Run the Web UI production build and the relevant GoogleTest suite with a
+1. Confirm `master` is synchronized with `origin/master`.
+2. Choose the next display version and compatibility build version.
+3. Run the Web UI production build and the relevant GoogleTest suite with a
    maximum of two parallel jobs.
-3. Confirm `git status --short` is empty.
-4. Review the changes since the previous SolarFlare tag and prepare concise
-   release notes, calling out security and upgrade-impacting changes first.
+4. Confirm `git status --short` is empty.
+5. Prepare concise notes that list the exact published asset names.
 
 ## Version and Tag
 
 Preview the release transaction:
 
 ```bash
-./scripts/release.sh 2026.719.1 --dry-run
+./scripts/release.sh 2026.727.1 1.0.8 --dry-run
 ```
 
-Create the synchronized version commit and tag without pushing:
+Create the synchronized version commit and compatibility tag without pushing:
 
 ```bash
-./scripts/release.sh 2026.719.1 --no-push
+./scripts/release.sh 2026.727.1 1.0.8 --no-push
 ```
 
-The script updates `CMakeLists.txt`, `pyproject.toml`, the SolarFlare
-changelog, and any legacy static README version badge. It then creates the
-release commit and `-solarflare` tag.
+The script updates `CMakeLists.txt`, `pyproject.toml`, `uv.lock`, the README
+release badge and table, and `docs/CHANGELOG-SolarFlare.md`. It then creates the
+release commit and `v<build-version>-solarflare` tag.
 
-## Build and Verify
+## Build and Verify Locally
 
-Build release artifacts from the tagged, clean commit. For the maintained
-Linux profile, verify at minimum:
+Build from the final tagged commit. Set `BRANCH`, `BUILD_VERSION`, and `COMMIT`
+during CMake configuration so the executable embeds the exact build identity.
+The maintained release contains only these Linux x86-64 files:
+
+| Asset | Contents |
+|---|---|
+| `sunshine-x86_64` | Stripped compatibility-named executable |
+| `solarflare-linux-x86_64.tar.gz` | Executable, runtime and Web UI assets, icon, and license |
+| `SHA256SUMS` | SHA-256 checksums for the executable and runtime bundle |
+
+Verify at minimum:
 
 ```bash
 git status --short
-/path/to/staged/sunshine --version
-sha256sum /path/to/staged/sunshine
+/path/to/sunshine-x86_64 --version
+ldd /path/to/sunshine-x86_64
+(cd /path/to/release-artifacts && sha256sum -c SHA256SUMS)
 ```
 
-The version output must match the tag and must not contain `dirty`. A raw
-executable cannot retain Linux file capabilities in a GitHub release asset;
-installation instructions must explicitly run `setcap` after download.
+The version output must match the compatibility tag and final commit and must
+identify the SolarFlare fork. `ldd` must report no missing libraries. Compare
+the packaged Web UI logo and icon byte-for-byte with the repository sources.
+A raw executable cannot retain Linux file capabilities in a GitHub release;
+installation instructions must run `setcap` after download.
 
-## Publish
+## Publish Manually
 
-Push the release commit and tag only after local verification:
+Push the release commit and compatibility tag only after local verification:
 
 ```bash
 git push origin master
-git push origin v2026.719.1-solarflare
+git push origin v2026.727.1-solarflare
 ```
 
-The tag triggers `.github/workflows/release.yml`, which creates the GitHub
-release and uploads its artifacts. Verify every uploaded artifact name, size,
-SHA-256 digest, and embedded version before marking the release complete.
+Create the GitHub release manually and upload the three verified local files:
+
+```bash
+gh release create v2026.727.1-solarflare \
+  sunshine-x86_64 \
+  solarflare-linux-x86_64.tar.gz \
+  SHA256SUMS \
+  --repo vindeckyy/Solar-Flare \
+  --verify-tag \
+  --latest \
+  --title 'SolarFlare v1.0.8' \
+  --notes-file release-notes.md
+```
+
+Download the published assets into a clean directory and rerun
+`sha256sum -c SHA256SUMS`. Confirm the release is neither a draft nor a
+prerelease and that all three assets are in the `uploaded` state.
 
 Do not publish SolarFlare releases, issues, or pull requests in the LizardByte
 GitHub organization.
