@@ -55,11 +55,14 @@ pkg install -y \
 
 #### Linux
 Dependencies vary depending on the distribution. The maintained SolarFlare
-installer is [`scripts/cachyos-build.sh`](../scripts/cachyos-build.sh); see
-[Porting SolarFlare](PORTING.md) for per-distro package translation. Upstream's
+installer is [`scripts/linux-install.sh`](../scripts/linux-install.sh); see
+[Porting SolarFlare](PORTING.md) for per-distro package translation.
+`scripts/cachyos-build.sh` is a compatibility wrapper for that installer.
+Upstream's
 [linux_build.sh](https://github.com/LizardByte/Sunshine/blob/master/scripts/linux_build.sh)
-remains a useful reference for inherited Debian-, Fedora-, and Arch-family
-dependency lists.
+(also present here as `scripts/linux_build.sh`) remains a useful reference for
+inherited Debian-, Fedora-, and Arch-family dependency lists used by Docker/CI
+packaging — it is not the default end-user install path.
 
 ##### KMS Capture
 If you are using KMS, patching the Sunshine binary with `setcap` is required. Some post-install scripts handle this. If building

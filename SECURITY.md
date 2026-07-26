@@ -28,7 +28,7 @@ Fork-specific changes include:
 | Component                  | Security impact                                    |
 |----------------------------|----------------------------------------------------|
 | Fork configuration and API behavior | May affect authentication, authorization, networking, or process behavior |
-| `scripts/cachyos-build.sh` and packaging | May affect build integrity, installation, permissions, and bundled files |
+| `scripts/linux-install.sh` and packaging | May affect build integrity, installation, permissions, and bundled files |
 | Fork-specific web UI code | May affect browser-side authentication, API calls, or content handling |
 | Native compiler and linker flags | May affect binary compatibility and hardening |
 | Fork publisher and update metadata | May affect where users obtain builds and report problems |
@@ -48,7 +48,7 @@ maintainer will coordinate with upstream as needed.
 
 There is no LTS branch and no `release/X` long-term-support branches. If you
 need a patched build before the next tagged release, pull the latest `master`
-and run `./scripts/cachyos-build.sh`.
+and run `./scripts/linux-install.sh`.
 
 ## Update policy
 

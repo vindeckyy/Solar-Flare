@@ -188,7 +188,7 @@ if(UNIX AND NOT APPLE)
         NAME nixos_installer_detection
         COMMAND bash
                 "${CMAKE_SOURCE_DIR}/tests/scripts/test_nixos_detection.sh"
-                "${CMAKE_SOURCE_DIR}/scripts/cachyos-build.sh"
+                "${CMAKE_SOURCE_DIR}/scripts/linux-install.sh"
     )
     add_test(
         NAME release_metadata_sync

@@ -7,7 +7,7 @@ patches (Zen 1/2/3/4/5 auto-detection, `-march`/`-mtune`/`-flto`/`-O3`,
 Linux-only `__linux__`-guarded source patches) work everywhere; only
 the package names change between distros.
 
-`scripts/cachyos-build.sh` already auto-detects the distro via
+`scripts/linux-install.sh` already auto-detects the distro via
 `/etc/os-release` and installs the right package set. This document
 covers the manual fallback when the script's auto-detection doesn't
 match your `$ID`, plus the conceptual background for each
@@ -54,7 +54,7 @@ on one machine but shipping the binary to another.
 ## Package name translation
 
 The columns below mirror the case blocks in
-`scripts/cachyos-build.sh` step 3/7.
+`scripts/linux-install.sh` step 3/7.
 
 ### Build toolchain
 
@@ -109,7 +109,7 @@ The columns below mirror the case blocks in
 
 - **GCC 12 vs GCC 14.** Sunshine's source requires GCC 13+ for
   `<format>` and a few of the C++23 features in `src/stream.cpp` and
-  `src/audio.cpp`. The `cachyos-build.sh` defaults to the system
+  `src/audio.cpp`. The `linux-install.sh` defaults to the system
   compiler. If `gcc --version` reports anything below 13, install
   `gcc-13 g++-13` and either `update-alternatives` to point at it or
   pass `CC=gcc-13 CXX=g++-13` to the CMake configure command.
@@ -201,7 +201,7 @@ After rebuilding the host, run the normal installer and start its generated
 user service:
 
 ```bash
-./scripts/cachyos-build.sh
+./scripts/linux-install.sh
 systemctl --user daemon-reload
 systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
 ```
@@ -214,9 +214,9 @@ must also be enabled through the host's normal NixOS graphics configuration.
 ### Generic / non-pacman distros
 
 If your distro has none of the above package managers, the safest
-approach is to use the `--no-pacman` flag in `cachyos-build.sh` and
+approach is to use the `--skip-deps` flag in `linux-install.sh` and
 install the dependencies manually. Look at the
-`scripts/cachyos-build.sh` step 3/7 case statement for the canonical
+`scripts/linux-install.sh` step 3/7 case statement for the canonical
 list; it's the same on every distro, just with the distro-specific
 package names above.
 

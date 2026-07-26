@@ -23,7 +23,7 @@ empty by systemd before the shell ever saw it).
 ## Why these live in the repo
 
 Previously these units existed only on the live box as config drift. A
-fresh `cachyos-build.sh` install would not get them, leaving the fork
+fresh `linux-install.sh` install would not get them, leaving the fork
 in a state where upstream Sunshine boots cleanly but the fork-specific
 tuning was missing — and a hard-coded clock value in an untracked unit
 would also break on any hardware change (different NIC, different

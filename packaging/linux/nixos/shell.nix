@@ -2,7 +2,7 @@
 # @brief Reproducible NixOS build environment for SolarFlare.
 #
 # This shell supplies the compiler, Web UI tooling, and native libraries used
-# by scripts/cachyos-build.sh. Runtime graphics drivers remain supplied by the
+# by scripts/linux-install.sh. Runtime graphics drivers remain supplied by the
 # host NixOS configuration.
 { pkgs ? import <nixpkgs> { } }:
 

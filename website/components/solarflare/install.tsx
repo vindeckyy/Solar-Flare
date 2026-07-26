@@ -31,7 +31,7 @@ export function Install() {
                 'git clone --recursive \\',
                 '  https://github.com/vindeckyy/Solar-Flare.git',
                 'cd Solar-Flare',
-                './scripts/cachyos-build.sh',
+                './scripts/linux-install.sh',
                 'systemctl --user enable --now \\',
                 '  app-dev.lizardbyte.app.Sunshine.service',
               ]}

@@ -32,6 +32,6 @@ jobs:
       - name: No-op (fork)
         run: |
           echo "SolarFlare fork does not run this upstream workflow."
-          echo "Reason: Bumps the PKGBUILD version on the lizardbyte/pacman repo. The fork builds via scripts/cachyos-build.sh which already handles pacman --needed --noconfirm itself; it does not push to a remote pacman repo."
+          echo "Reason: Bumps the PKGBUILD version on the lizardbyte/pacman repo. The fork builds via scripts/linux-install.sh which already handles package install itself; it does not push to a remote pacman repo."
           echo "Owner: ${{ github.repository_owner }} (expected 'LizardByte')."
           echo "This workflow is intentionally disabled. See the file's header comment."

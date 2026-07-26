@@ -141,7 +141,7 @@ release and performance profile documented here are maintained for Linux.
 ```bash
 git clone --recursive https://github.com/vindeckyy/Solar-Flare.git
 cd Solar-Flare
-./scripts/cachyos-build.sh
+./scripts/linux-install.sh
 systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
 ```
 
@@ -150,6 +150,11 @@ Bazzite, and NixOS hosts. On NixOS it enters the repository's reproducible
 Nix shell and installs into `~/.local`. Read the
 [porting guide](docs/PORTING.md) for the required declarative host settings
 or before using an unsupported distribution.
+
+`scripts/linux-install.sh` is the maintained SolarFlare path.
+`scripts/linux_build.sh` is the inherited upstream Docker/CI builder and is
+not required for normal installs. `scripts/cachyos-build.sh` remains as a
+compatibility wrapper that forwards to `linux-install.sh`.
 
 ### Update an existing installation with the release binary
 

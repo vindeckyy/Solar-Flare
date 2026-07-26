@@ -6,6 +6,18 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+## Unreleased
+
+### Linux installer rename
+
+Renamed the multi-distro source installer from `scripts/cachyos-build.sh` to
+`scripts/linux-install.sh` so the name matches that it auto-detects Arch,
+Debian/Ubuntu, Fedora-family, openSUSE, Bazzite, and NixOS. Kept
+`scripts/cachyos-build.sh` as a compatibility wrapper, retained the
+`cmake-build-cachyos` build directory, and added `--skip-deps` as the clearer
+alias for `--no-pacman`. Documented that `scripts/linux_build.sh` remains the
+inherited upstream Docker/CI builder, not the end-user install path.
+
 ## 2026-07-26 — SolarFlare v1.0.7 (`v2026.726.1-solarflare`)
 
 ### SolarFlare identity system

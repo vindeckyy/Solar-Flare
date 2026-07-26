@@ -6,7 +6,7 @@
 # source tree (third-party/hermes-kms). DKMS-installs it so it survives
 # kernel upgrades, then optionally loads it.
 #
-# This script is invoked by scripts/cachyos-build.sh after `cmake --install`.
+# This script is invoked by scripts/linux-install.sh after `cmake --install`.
 # It is safe to re-run. It refuses to build if the kernel-headers package is
 # missing and prints the exact pacman / apt / dnf command to install it.
 #

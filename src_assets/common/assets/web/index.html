@@ -180,7 +180,7 @@
 
             <!-- upgrade command: the user runs the build script -->
             <div class="solarflare-update-cmd">
-              <code>git -C ~/Solar-Flare pull && ./scripts/cachyos-build.sh --no-pacman</code>
+              <code>git -C ~/Solar-Flare pull && ./scripts/linux-install.sh --skip-deps</code>
               <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="copyUpgradeCmd">
                 <copy :size="14" class="icon"></copy>
                 {{ upgradeCmdCopied ? $t('index.copied') : $t('index.copy') }}
@@ -420,11 +420,11 @@
        * Copy the cached upgrade command to the clipboard and flash the
        * button label so the user sees the feedback. The command is the
        * same one the README's "Quick install" section uses: pull the
-       * latest commit, then run the build script with --no-pacman since
+       * latest commit, then run the build script with --skip-deps since
        * the deps are already installed.
        */
       copyUpgradeCmd() {
-        const cmd = 'git -C ~/Solar-Flare pull && ./scripts/cachyos-build.sh --no-pacman';
+        const cmd = 'git -C ~/Solar-Flare pull && ./scripts/linux-install.sh --skip-deps';
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(cmd).then(() => {
             this.upgradeCmdCopied = true;
