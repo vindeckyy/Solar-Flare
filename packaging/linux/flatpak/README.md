@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/LizardByte/Sunshine/master/sunshine.png" />
+  <img src="https://raw.githubusercontent.com/vindeckyy/Solar-Flare/master/sunshine.png" alt="SolarFlare logo" />
   <h1 align="center">Sunshine</h1>
   <h4 align="center">Self-hosted game stream host for Moonlight.</h4>
 </div>

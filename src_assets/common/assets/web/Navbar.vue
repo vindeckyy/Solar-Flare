@@ -25,7 +25,7 @@
       <div class="container-fluid sf-nav-frame">
         <a class="navbar-brand solarflare-brand" href="./" title="SolarFlare home">
           <span class="sf-brand-orbit" aria-hidden="true"></span>
-          <img src="/images/logo-solarflare-45.svg" height="42" alt="" class="solarflare-logo">
+          <img src="/images/solarflare-mark.svg" height="42" alt="" class="solarflare-logo">
           <span class="sf-brand-copy">
             <span class="solarflare-wordmark">SolarFlare</span>
             <span class="sf-brand-descriptor">Host observatory</span>

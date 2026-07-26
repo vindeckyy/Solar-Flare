@@ -6,6 +6,21 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+## 2026-07-26 — v2026.726.1-solarflare
+
+### SolarFlare identity system
+
+Replaced the inherited Sunshine artwork and interim SolarFlare icons with the
+Vector Eclipse identity across the Linux application icon, Web UI, system tray
+states, favicon, documentation, README, and GitHub Pages site. Added
+size-appropriate raster assets and retained clear playing, pausing, and locked
+tray-state indicators.
+
+The Linux-only release pipeline now builds and validates the executable and
+runtime bundle before creating a GitHub release. Its release gate verifies the
+SolarFlare logo bytes inside the packaged Web UI and publishes SHA-256 checksums
+with each release.
+
 ## 2026-07-25 — v2026.725.1-solarflare
 
 Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.

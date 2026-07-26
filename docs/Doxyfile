@@ -26,7 +26,7 @@ DOCSET_BUNDLE_ID = io.github.vindeckyy.SolarFlare
 DOCSET_PUBLISHER_ID = io.github.vindeckyy.SolarFlare.documentation
 PROJECT_BRIEF = "Self-hosted game stream host for Moonlight."
 PROJECT_ICON = ../sunshine.ico
-PROJECT_LOGO = ../src_assets/common/assets/web/public/images/logo-solarflare-45.svg
+PROJECT_LOGO = ../src_assets/common/assets/web/public/images/solarflare-mark.svg
 PROJECT_NAME = SolarFlare
 
 # project specific settings

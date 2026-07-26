@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 36 410 116" role="img" aria-labelledby="title desc">
+  <title id="title">SolarFlare logo</title>
+  <desc id="desc">SolarFlare vector eclipse mark and wordmark for dark backgrounds.</desc>
+  <g transform="translate(28 30)">
+    <path d="M91.5 27.5A49 49 0 1 1 28.5 103.5" fill="none" stroke="#FFAD42" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M91.42 57.5A37 37 0 0 0 18.58 57.5Z" fill="#FF6B35"/>
+    <path d="M18.58 70.5A37 37 0 0 0 91.42 70.5Z" fill="#FF6B35"/>
+    <path d="M45 61 119 64 45 67 61 64Z" fill="#FFAD42"/>
+  </g>
+  <text x="178" y="92" fill="#EDF0ED" font-family="Inter, Aptos, 'Segoe UI Variable', 'Segoe UI', sans-serif" font-size="56" font-weight="650" letter-spacing="-2.1">Solar</text>
+  <text x="307" y="92" fill="#FFAD42" font-family="Inter, Aptos, 'Segoe UI Variable', 'Segoe UI', sans-serif" font-size="56" font-weight="650" letter-spacing="-2.1">Flare</text>
+  <text x="182" y="120" fill="#727E84" font-family="'SFMono-Regular', 'Cascadia Code', 'Roboto Mono', Consolas, monospace" font-size="12" font-weight="600" letter-spacing="3.2">HOST OBSERVATORY</text>
+</svg>

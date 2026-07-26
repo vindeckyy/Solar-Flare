@@ -1,63 +1,36 @@
 ---
 name: release
 
-# This workflow builds binaries for the SolarFlare fork and uploads
-# them to the GitHub release for the tag that triggered it.
+# Linux-only SolarFlare release pipeline.
 #
-# Tag convention:
-#   - v<YYYY>.<MMM>.<N>-solarflare   (new monthly release)
-#   - v<YYYY>.<MMM>.<N>-cachyos-fastpath (legacy, kept for back-compat)
+# Tag convention: v<YYYY>.<MDD>.<N>-solarflare
+# Release title: SolarFlare <YYYY>.<MDD>.<N>
 #
-# Trigger:
-#   - Push a tag matching v*
-#   - Or run it manually from the Actions tab (workflow_dispatch);
-#     use a `version` input like `manual-solarflare` to avoid clobbering
-#     an upstream LizardByte/Sunshine release tag.
-#
-# Matrix:
-#   - linux-x86_64: built inside the CachyOS Docker image so the resulting
-#                   binary is linked against CachyOS's glibc (~2.40+).
-#                   This is the one that actually works on CachyOS;
-#                   a binary built on Ubuntu 22.04 has glibc 2.35 and
-#                   will not load on Arch-derivatives newer than late 2023.
-#   - macos-x86_64, macos-arm64: stock GitHub-hosted runners.
-#   - windows-x86_64: stock GitHub-hosted runner, packaged as a zip.
-#
-# Artifacts uploaded per release:
-#   - sunshine-x86_64 (drop-in update executable)
-#   - solarflare-linux-x86_64.tar.gz (executable + runtime assets)
-#   - solarflare-macos-x86_64.tar.gz
-#   - solarflare-macos-arm64.tar.gz
-#   - solarflare-windows-x86_64.zip
+# A tag push builds and verifies every artifact first. The GitHub release is
+# created only after the executable, runtime bundle, and packaged logo assets
+# pass validation.
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*-solarflare'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g. v2026.718.5-solarflare)'
+        description: 'Release tag (e.g. v2026.726.1-solarflare)'
         required: true
-        default: 'manual-solarflare'
+        default: 'v2026.726.1-solarflare'
 
 permissions:
-  contents: write   # needed to create the release and upload assets
+  contents: write
 
 env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
 
 jobs:
-  # -------------------------------------------------------------------------
-  # Linux (CachyOS) — runs inside the CachyOS Docker image so the
-  # resulting binary is linked against a fresh enough glibc.
-  # -------------------------------------------------------------------------
-  build_linux_cachyos:
-    name: Linux (CachyOS glibc, x86_64)
+  build_linux:
+    name: Linux x86_64
     runs-on: ubuntu-24.04
-    container:
-      image: docker.io/cachyos/cachyos:latest
-      options: --privileged
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
@@ -65,168 +38,108 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Initialize pacman keyring (Docker)
-        run: |
-          pacman-key --init
-          pacman-key --populate archlinux cachyos
-          # Trust the cachyos packager keys
-          pacman -Sy --noconfirm cachyos-keyring && pacman -Sy --noconfirm archlinux-keyring || true
-
       - name: Install build dependencies
         run: |
-          pacman -Syu --noconfirm
-          pacman -S --needed --noconfirm \
-            base-devel cmake ninja git nodejs npm \
-            openssl curl libpulse libdrm libva libva-drm \
-            libx11 libxfixes libxrandr libxcb libxkbcommon \
-            libevdev libopus ffmpeg \
-            libpipewire libportal \
-            wayland wayland-protocols \
-            libudev0 libcap-miniupnpc libnatpmp \
-            vulkan-headers shaderc glslang \
-            boost miniupnpc nlohmann-json \
-            libpng libxext libxtst
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build git pkg-config \
+            libssl-dev libcurl4-openssl-dev libpulse-dev libdrm-dev libva-dev \
+            libx11-dev libxfixes-dev libxrandr-dev libxcb1-dev libxkbcommon-dev \
+            libevdev-dev libopus-dev ffmpeg \
+            libpipewire-0.3-dev libportal-dev \
+            libwayland-dev wayland-protocols \
+            libudev-dev libcap-dev libnatpmp-dev \
+            glslang-tools spirv-tools \
+            libboost-all-dev libminiupnpc-dev nlohmann-json3-dev \
+            libpng-dev libxext-dev libxtst-dev nodejs npm
+          npm ci --no-audit --no-fund
 
-      - name: Configure (CachyOS fast path)
+      - name: Configure
         run: |
           cmake -B cmake-build-release -G Ninja \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DBUILD_DOCS=OFF \
-              -DBUILD_TESTS=OFF \
-              -DSUNSHINE_ENABLE_TRAY=OFF \
-              -DFFMPEG_PREBUILT=ON \
-              -DSUNSHINE_ASSETS_DIR=./assets
-          # Echo the detected microarch so we know the fast path engaged
-          grep "CachyOS native build" cmake-build-release/CMakeFiles/CMakeOutput.log || \
-            echo "::warning::CachyOS native build flag not detected in cmake output"
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_DOCS=OFF \
+            -DBUILD_TESTS=OFF \
+            -DSUNSHINE_ENABLE_TRAY=OFF \
+            -DSUNSHINE_ENABLE_CUDA=OFF \
+            -DCUDA_FAIL_ON_MISSING=OFF \
+            -DFFMPEG_PREBUILT=ON \
+            -DSUNSHINE_ASSETS_DIR=./assets
 
-      - name: Build (ninja)
+      - name: Build
         run: cmake --build cmake-build-release -j2
 
-      - name: Stage binary + assets
+      - name: Stage Linux artifacts
         run: |
           install -m 0755 cmake-build-release/sunshine sunshine-x86_64
+          strip sunshine-x86_64
           mkdir -p stage/solarflare
-          install -m 0755 cmake-build-release/sunshine stage/solarflare/sunshine
-          # Bundle the Web UI and runtime assets for archive installations.
-          if [[ -d cmake-build-release/assets ]]; then
-            cp -r cmake-build-release/assets stage/solarflare/assets
-          fi
+          install -m 0755 sunshine-x86_64 stage/solarflare/sunshine
+          cp -r cmake-build-release/assets stage/solarflare/assets
+          install -m 0644 sunshine.svg stage/solarflare/sunshine.svg
+          install -m 0644 LICENSE stage/solarflare/LICENSE
+          tar -C stage -czf solarflare-linux-x86_64.tar.gz solarflare
 
-      - name: Tarball
+      - name: Verify binary and packaged logos
         run: |
-          cd stage
-          tar czf ../solarflare-linux-x86_64.tar.gz solarflare
+          set -euo pipefail
+          ./sunshine-x86_64 --version | tee version.txt
+          grep -q 'SolarFlare' version.txt
+          ! ldd sunshine-x86_64 | grep -q 'not found'
+          cmp sunshine.svg cmake-build-release/assets/web/images/solarflare-mark.svg
+          cmp sunshine.ico cmake-build-release/assets/web/images/sunshine.ico
+          tar -xOf solarflare-linux-x86_64.tar.gz \
+            solarflare/assets/web/images/solarflare-mark.svg | cmp - sunshine.svg
+          tar -xOf solarflare-linux-x86_64.tar.gz \
+            solarflare/assets/web/images/sunshine.ico | cmp - sunshine.ico
+          tar -xOf solarflare-linux-x86_64.tar.gz \
+            solarflare/sunshine.svg | cmp - sunshine.svg
 
-      - name: Upload as release asset
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+      - name: Upload verified workflow artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: |
+          name: release-linux-x86_64
+          path: |
             sunshine-x86_64
             solarflare-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  publish_release:
+    name: Publish verified Linux release
+    needs: build_linux
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout release sources
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Download verified artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: release-linux-x86_64
+          path: artifacts
+
+      - name: Final release gate
+        run: |
+          set -euo pipefail
+          test -s artifacts/sunshine-x86_64
+          test -s artifacts/solarflare-linux-x86_64.tar.gz
+          tar -xOf artifacts/solarflare-linux-x86_64.tar.gz \
+            solarflare/assets/web/images/solarflare-mark.svg | cmp - sunshine.svg
+          tar -xOf artifacts/solarflare-linux-x86_64.tar.gz \
+            solarflare/assets/web/images/sunshine.ico | cmp - sunshine.ico
+          (cd artifacts && sha256sum sunshine-x86_64 solarflare-linux-x86_64.tar.gz > SHA256SUMS)
+          release_version="${RELEASE_TAG#v}"
+          release_version="${release_version%-solarflare}"
+          echo "RELEASE_NAME=SolarFlare ${release_version}" >> "$GITHUB_ENV"
+
+      - name: Create release and upload Linux binaries
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_NAME }}
+          files: |
+            artifacts/sunshine-x86_64
+            artifacts/solarflare-linux-x86_64.tar.gz
+            artifacts/SHA256SUMS
           fail_on_unmatched_files: true
           generate_release_notes: true
-
-  # -------------------------------------------------------------------------
-  # macOS — stock GitHub-hosted runners. Two architectures.
-  # -------------------------------------------------------------------------
-  build_macos_intel:
-    name: macOS x86_64
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-        with:
-          submodules: recursive
-      - name: Install deps
-        run: |
-          brew update
-          brew install boost cmake ninja pkg-config openssl@3 opus ffmpeg libxkbcommon
-      - name: Configure
-        run: |
-          cmake -B cmake-build-release -G Ninja \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DBUILD_DOCS=OFF \
-              -DBUILD_TESTS=OFF \
-              -DFFMPEG_PREBUILT=ON
-      - name: Build
-        run: cmake --build cmake-build-release -j2
-      - name: Stage + tarball
-        run: |
-          mkdir -p stage/Sunshine.app/Contents/MacOS
-          cp cmake-build-release/sunshine stage/Sunshine.app/Contents/MacOS/sunshine
-          cd stage && tar czf ../solarflare-macos-x86_64.tar.gz Sunshine.app
-      - name: Upload
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: solarflare-macos-x86_64.tar.gz
-          fail_on_unmatched_files: true
-
-  build_macos_arm:
-    name: macOS arm64
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-        with:
-          submodules: recursive
-      - name: Install deps
-        run: |
-          brew update
-          brew install boost cmake ninja pkg-config openssl@3 opus ffmpeg libxkbcommon
-      - name: Configure
-        run: |
-          cmake -B cmake-build-release -G Ninja \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DBUILD_DOCS=OFF \
-              -DBUILD_TESTS=OFF \
-              -DFFMPEG_PREBUILT=ON
-      - name: Build
-        run: cmake --build cmake-build-release -j2
-      - name: Stage + tarball
-        run: |
-          mkdir -p stage/Sunshine.app/Contents/MacOS
-          cp cmake-build-release/sunshine stage/Sunshine.app/Contents/MacOS/sunshine
-          cd stage && tar czf ../solarflare-macos-arm64.tar.gz Sunshine.app
-      - name: Upload
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: solarflare-macos-arm64.tar.gz
-          fail_on_unmatched_files: true
-
-  # -------------------------------------------------------------------------
-  # Windows — stock runner, packaged as a zip.
-  # -------------------------------------------------------------------------
-  build_windows:
-    name: Windows x86_64
-    runs-on: windows-2022
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-        with:
-          submodules: recursive
-      - name: Set up MSVC
-        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756  # v1
-        with:
-          arch: x64
-      - name: Configure
-        run: |
-          cmake -B cmake-build-release -G Ninja `
-              -DCMAKE_BUILD_TYPE=Release `
-              -DBUILD_DOCS=OFF `
-              -DBUILD_TESTS=OFF `
-              -DFFMPEG_PREBUILT=ON
-      - name: Build
-        run: cmake --build cmake-build-release -j2
-      - name: Stage + zip
-        run: |
-          Compress-Archive -Path cmake-build-release/sunshine.exe, cmake-build-release/assets -DestinationPath solarflare-windows-x86_64.zip
-      - name: Upload
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          files: solarflare-windows-x86_64.zip
-          fail_on_unmatched_files: true
