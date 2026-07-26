@@ -249,7 +249,7 @@ Platform-specific dependencies and compiler requirements are documented in
 | `src_assets/common/assets/web/` | SolarFlare observatory interface |
 | `tests/` | Unit, integration, regression, and documentation contracts |
 | `packaging/` | Platform packaging and optional Linux performance services |
-| `scripts/` | Build, release, screenshot, and maintenance tooling |
+| `scripts/` | Linux installer, release, screenshot, and maintenance tooling |
 | `docs/` | User, operator, developer, and inherited configuration references |
 
 ## Documentation
