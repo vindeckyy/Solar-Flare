@@ -87,15 +87,17 @@ interaction and state changes; there are no ambient looping effects.
 ## Performance architecture
 
 ```mermaid
-flowchart LR
-    ML["Moonlight client"] <--> NET["SolarFlare network path"]
-    CAP["Display capture"] --> ENC["Hardware / software encoder"] --> NET
-    AUD["Audio capture + optional FX"] --> NET
-    UI["Observatory Web UI"] --> CFG["Host configuration"]
-    CFG --> CAP
-    CFG --> ENC
-    CFG --> AUD
-    CFG --> NET
+graph LR
+  ML[Moonlight client] --> NET[SolarFlare network path]
+  NET --> ML
+  CAP[Display capture] --> ENC[Hardware or software encoder]
+  ENC --> NET
+  AUD[Audio capture and optional FX] --> NET
+  UI[Observatory Web UI] --> CFG[Host configuration]
+  CFG --> CAP
+  CFG --> ENC
+  CFG --> AUD
+  CFG --> NET
 ```
 
 The fork-specific path is concentrated in four areas:
