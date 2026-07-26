@@ -8,6 +8,36 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ## Unreleased
 
+### Release documentation and dual-version tooling
+
+Documented SolarFlare v1.0.7 separately from its compatibility build tag,
+listed the exact Linux release assets (`sunshine-x86_64`,
+`solarflare-linux-x86_64.tar.gz`, `SHA256SUMS`), and rewrote the local release
+process. Expanded `scripts/release.sh` so README, changelog, source, and
+lockfile versions stay synchronized, with a regression test for that dual-version
+metadata path.
+
+### Web UI utility menu positioning
+
+Opened bottom-rail theme and user dropdowns toward page content and anchored
+them above the viewport edge so the menus stay fully visible on compact
+layouts. Added regression coverage for both menus.
+
+### Dependency security remediation
+
+Upgraded vulnerable PostCSS and brace-expansion releases. Replaced the
+vulnerable `serve` dependency chain used for test fixtures with Vite, and
+refreshed the website lockfile/workspace pins accordingly.
+
+### Documentation and support metadata sweep
+
+Corrected the release-binary `setcap` instructions to the packaging
+capabilities (`cap_sys_admin,cap_sys_nice+p`), restored `latency_mode` in the
+README configuration table, and refreshed the website install snippet,
+`SECURITY.md` support policy, and bug-report template away from inherited
+upstream packaging options. Clarified that release-process examples for
+`v1.0.8` are next-release templates, not the current published version.
+
 ### Linux installer rename
 
 Renamed the multi-distro source installer from `scripts/cachyos-build.sh` to
@@ -19,6 +49,7 @@ alias for `--no-pacman`. Documented that `scripts/linux_build.sh` remains the
 inherited upstream Docker/CI builder, not the end-user install path.
 
 ## 2026-07-26 — SolarFlare v1.0.7 (`v2026.726.1-solarflare`)
+
 
 ### SolarFlare identity system
 
