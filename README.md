@@ -12,12 +12,12 @@
   </p>
 
   <p>
-    <a href="https://vindeckyy.github.io/Solar-Flare/">Website</a> ·
-    <a href="#install">Install</a> ·
-    <a href="#control-surface">Interface</a> ·
-    <a href="#performance-architecture">Architecture</a> ·
-    <a href="#configuration">Configuration</a> ·
-    <a href="#build-and-test">Build</a> ·
+    <a href="https://vindeckyy.github.io/Solar-Flare/">Website</a> |
+    <a href="#install">Install</a> |
+    <a href="#control-surface">Interface</a> |
+    <a href="#performance-architecture">Architecture</a> |
+    <a href="#configuration">Configuration</a> |
+    <a href="#build-and-test">Build</a> |
     <a href="docs/CHANGELOG-SolarFlare.md">Changelog</a>
   </p>
 </div>
@@ -28,10 +28,10 @@
 
 ## Overview
 
-SolarFlare is a self-hosted game-streaming server for Moonlight clients. It
-combines a low-latency Linux data path with an original observatory-style Web
-UI for pairing devices, managing applications, tuning the host, and diagnosing
-the complete streaming pipeline.
+SolarFlare is a self-hosted game-streaming server for Moonlight clients. Low
+latency Linux capture and transport, plus an observatory-style Web UI for
+pairing devices, managing applications, tuning the host, and diagnosing the
+streaming pipeline.
 
 | | |
 |---|---|
@@ -60,14 +60,13 @@ the complete streaming pipeline.
 | **Audio** | Low-latency PipeWire hints plus optional AGC, voice activity detection, ducking, noise gating, and Opus controls |
 | **Operations** | Scoped API tokens, trusted-subnet pairing, local client catalog, structured logs, and focused regression coverage |
 
-SolarFlare exposes these capabilities as individual controls. Defaults are
-chosen for compatibility, and each tuning path can be disabled independently
-when comparing behavior on a particular host.
+SolarFlare exposes these as individual controls. Defaults stay compatible with
+upstream, and each tuning path can be disabled when comparing hosts.
 
 ## Control surface
 
-The interface is built as a host instrument panel. Motion is reserved for
-interaction and state changes; there are no ambient looping effects.
+The interface is a host instrument panel. Motion only for interaction and state
+changes; no ambient looping effects.
 
 <table>
   <tr>
@@ -100,7 +99,7 @@ graph LR
   CFG --> NET
 ```
 
-The fork-specific path is concentrated in four areas:
+The fork-specific path sits in four areas:
 
 1. **Capture:** X11, KMS, PipeWire/portal, headless compositor, and optional
    Hermes-KMS paths are selected according to the build and host environment.
@@ -110,7 +109,7 @@ The fork-specific path is concentrated in four areas:
 3. **Transport:** Link-speed detection, pacing, socket buffers, busy polling,
    QoS marking, and adaptive bitrate respond to local-network conditions.
 4. **Control:** The HTTPS UI, API scopes, pairing rules, and diagnostics expose
-   host state without placing cloud services in the streaming path.
+   host state. No cloud services sit in the streaming path.
 
 See [SolarFlare configuration](docs/CONFIGURATION.md) for fork controls and the
 [complete configuration reference](docs/configuration.md) for inherited host
@@ -198,7 +197,7 @@ definitions in `~/.config/sunshine/apps.json`.
 | Latency | `latency_mode` (`safe` / `aggressive`) | [Latency mode](docs/CONFIGURATION.md#latency_mode) |
 | Video | `nvenc_tuning_preset`, adaptive bitrate, codec and quality controls | [Complete reference](docs/configuration.md) |
 | Audio | `pipewire_latency_ms`, `sf_audio_*`, `sf_opus_*` | [Audio FX](docs/CONFIGURATION.md#audio-fx-pre-encoder-processing) |
-| Access | Scoped API tokens, trusted subnets, pairing, origin policy | [API](docs/api.md) · [Security](SECURITY.md) |
+| Access | Scoped API tokens, trusted subnets, pairing, origin policy | [API](docs/api.md) / [Security](SECURITY.md) |
 
 For a minimal per-application encoder override:
 
@@ -280,9 +279,8 @@ Platform-specific dependencies and compiler requirements are documented in
   configuration, packaging, or update paths.
 - **Acknowledgment:** SolarFlare's Linux capture, compositor, and stream-health
   design was informed by reviewing [papi-ux/polaris](https://github.com/papi-ux/polaris).
-  We appreciate the work from its contributors. SolarFlare remains a
-  Sunshine-derived project, and this acknowledgment distinguishes design
-  inspiration from incorporated source code.
+  Thanks to its contributors. SolarFlare remains a Sunshine-derived project;
+  that review was design inspiration, not incorporated source.
 
 ---
 

@@ -16,7 +16,7 @@ State-changing API endpoints (POST, DELETE) are protected against Cross-Site Req
 
 **For Non-Browser Applications:**
 - Non-browser clients (e.g. `curl`, scripts, custom apps) are **exempt** from CSRF protection
-- CSRF attacks require a browser to silently attach credentials to a cross-origin request — this threat
+- CSRF attacks require a browser to silently attach credentials to a cross-origin request. That threat
   does not apply to non-browser clients that explicitly provide credentials with every request
 - Requests with no `Origin` or `Referer` header (as is typical for non-browser clients) are automatically
   allowed without a CSRF token

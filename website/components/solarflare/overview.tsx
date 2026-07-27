@@ -54,11 +54,11 @@ export function Overview() {
               </p>
               <p>
                 It is a fork of LizardByte&apos;s Sunshine, focused on Linux and
-                AMD. On top of the GameStream-compatible transport it layers
+                AMD. On top of the GameStream-compatible transport it adds
                 link-aware network pacing, real-time capture scheduling,
                 per-application NVENC encoder profiles, a pre-encoder audio DSP
-                chain, and an original observatory-style Web UI that runs the
-                entire host from one instrument panel.
+                chain, and an observatory-style Web UI that runs the host from
+                one instrument panel.
               </p>
             </div>
 

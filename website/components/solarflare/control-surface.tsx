@@ -84,15 +84,15 @@ export function ControlSurface() {
             Control surface
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            A host instrument panel for the full pipeline
+            Host instrument panel for the full pipeline
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
             The observatory Web UI runs on the host at{' '}
             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground">
               https://localhost:47990
             </code>
-            . Every surface is dense, keyboard-navigable, and reserves motion for
-            real state changes. Switch tabs to see the actual screens.
+            . Dense layouts, keyboard navigation, and motion only for real state
+            changes. Switch tabs to see the actual screens.
           </p>
         </div>
 
@@ -130,7 +130,7 @@ export function ControlSurface() {
             <span className="h-3 w-3 rounded-full bg-primary/70" />
             <span className="h-3 w-3 rounded-full bg-muted-foreground/40" />
             <span className="ml-3 truncate font-mono text-xs text-muted-foreground">
-              https://localhost:47990 · {activeTab.short}
+              https://localhost:47990 - {activeTab.short}
             </span>
           </div>
 

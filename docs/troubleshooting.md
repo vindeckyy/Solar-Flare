@@ -121,7 +121,7 @@ alleviate or even solve this issue (without reducing the NIC speed).
 ### Packet loss (MTU)
 Although unlikely, some guests might work better with a lower
 [MTU](https://en.wikipedia.org/wiki/Maximum_transmission_unit) from the host.
-For example, an LG TV was found to have 30–60% packet loss when the host had MTU
+For example, an LG TV was found to have 30-60% packet loss when the host had MTU
 set to 1500 and 1472, but 0% packet loss with a MTU of 1428 set in the network card
 serving the stream (a Linux PC). It's unclear how that helped precisely, so it's a last
 resort suggestion.

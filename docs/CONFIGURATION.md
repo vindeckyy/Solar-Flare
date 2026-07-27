@@ -1,7 +1,7 @@
 # SolarFlare fork configuration
 
-The SolarFlare fork adds Linux-only tunables that let you dial the
-local-LAN fast path in or out without rebuilding. (Originally tuned on
+The SolarFlare fork adds Linux-only tunables for the local-LAN fast path.
+You can turn each one on or off without rebuilding. (Originally tuned on
 CachyOS; available on all distros supported by `scripts/linux-install.sh`.)
 All live under the `solarflare_t` struct in `src/config.h` and are read
 from the same `~/.config/sunshine/sunshine.conf` file as the upstream
@@ -17,10 +17,10 @@ still supported.
 
 | Key | Type | Default | Range | What it does |
 |---|---|---|---|---|
-| `busy_poll_us`        | int    | 50   | 0–10000 | `SO_BUSY_POLL` on the ENet UDP socket, in microseconds. 0 disables. |
-| `rate_cap_pct`        | int    | 80   | 50–95   | Percent of the negotiated link speed used as the rate-control pacer. |
+| `busy_poll_us`        | int    | 50   | 0-10000 | `SO_BUSY_POLL` on the ENet UDP socket, in microseconds. 0 disables. |
+| `rate_cap_pct`        | int    | 80   | 50-95   | Percent of the negotiated link speed used as the rate-control pacer. |
 | `enet_4mib_buffer`    | bool   | true | -       | Grow ENet UDP send/recv buffers to 4 MiB (Linux only). |
-| `pipewire_latency_ms` | int    | 8    | 1–40    | `PW_KEY_NODE_LATENCY` hint passed to the PipeWire compositor. |
+| `pipewire_latency_ms` | int    | 8    | 1-40    | `PW_KEY_NODE_LATENCY` hint passed to the PipeWire compositor. |
 | `cpu_pinning`         | bool   | true | -       | Push the capture thread onto `SCHED_RR` and pin it to a non-IRQ, non-SMT core. |
 | `dscp_qos`            | bool   | true | -       | Tag ENet packets with DSCP CS3 so routers prioritize streaming over bulk traffic (Linux only). |
 | `gpu_governor`        | bool   | true | -       | Set GPU to `performance` power profile during stream, restore on disconnect (Linux only). |

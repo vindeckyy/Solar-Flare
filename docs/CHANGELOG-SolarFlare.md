@@ -109,22 +109,21 @@ source-code attribution.
 SolarFlare's Web UI is now a responsive observatory console with a persistent
 desktop navigation rail, compact mobile controls, a magnetic-field host
 dashboard, denser configuration surfaces, and a fully local featured-client
-catalog. User-facing upstream branding is normalized to SolarFlare while
-protocol and configuration identifiers remain compatible. The release also
-adds focused UI contract tests, six README screenshots, and a reproducible
-all-tab screenshot script.
+catalog. User-facing branding is SolarFlare; protocol and configuration
+identifiers stay compatible. Also adds focused UI contract tests, six README
+screenshots, and a reproducible all-tab screenshot script.
 
 ## 2026-07-18
 
 ### Observatory Web UI and SolarFlare branding
 
-Rebuilt the host Web UI around a responsive observatory console: a persistent
+Rebuilt the host Web UI as a responsive observatory console: persistent
 desktop navigation rail, compact mobile control bar, magnetic-field dashboard,
 denser configuration surfaces, and shared theme bootstrap for first-run and
-authentication pages. The visual layer preserves existing endpoints,
-configuration serialization, theme variants, and the keyboard command palette.
-All localized presentation copy now normalizes the upstream product name to
-SolarFlare at runtime while protocol identifiers remain compatible.
+authentication pages. Existing endpoints, configuration serialization, theme
+variants, and the keyboard command palette stay the same. Localized copy
+shows SolarFlare as the product name at runtime; protocol identifiers stay
+compatible.
 
 ### Event-driven latency pipeline
 
@@ -182,7 +181,7 @@ out-of-bounds read.
 
 ## 2026-07-13/14
 
-### Morning sweep (Jul 13–14)
+### Morning sweep (Jul 13-14)
 
 General cleanup batch post-release: fixed the CONFIGURATION.md drift caught by the docs-drift agent (tunable count, `virtual_display_resolution` claim, stale file refs), added a `release.sh` script as the single source of truth for version bumps, fixed an RTSP OOB-read in the frame parser (fuzzer find), and patched a GVariant-interned string double-free in the heap path. Also probed for ccache/mold/lld during cmake, added GPL license headers, released capture resources on teardown, and documented the linux resource cleanup.
 

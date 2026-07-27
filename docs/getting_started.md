@@ -363,7 +363,7 @@ brew uninstall sunshine
 #### Installer (recommended)
 
 > [!CAUTION]
-> The msi installer is preferred moving forward. Before using a different type of installer, you should manually
+> Prefer the MSI installer. Before using a different installer type, manually
 > uninstall the previous installation.
 
 1. Download and install based on your architecture:

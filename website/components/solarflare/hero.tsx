@@ -7,7 +7,7 @@ const REPO = 'https://github.com/vindeckyy/Solar-Flare'
 const SPECS = [
   { k: 'Client protocol', v: 'Moonlight / GameStream' },
   { k: 'Control plane', v: 'https://localhost:47990' },
-  { k: 'Host focus', v: 'Linux x86-64 · AMD-first' },
+  { k: 'Host focus', v: 'Linux x86-64, AMD-first' },
   { k: 'Release', v: 'View latest release', href: `${REPO}/releases/latest` },
 ]
 
@@ -35,15 +35,14 @@ export function Hero() {
         </div>
 
         <h1 className="mt-6 max-w-3xl text-balance text-4xl font-semibold leading-[1.05] tracking-tight text-foreground md:text-6xl">
-          The game-streaming host, rebuilt as an{' '}
+          A game-streaming host with an{' '}
           <span className="text-primary">instrument panel</span>.
         </h1>
 
         <p className="mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground">
-          SolarFlare is a self-hosted streaming server for Moonlight clients. It
-          pairs a low-latency Linux data path with an observatory-style Web UI
-          for pairing devices, managing apps, tuning the host, and diagnosing
-          the full pipeline.
+          SolarFlare is a self-hosted streaming server for Moonlight clients. Low
+          latency Linux capture and transport, plus an observatory-style Web UI
+          for pairing, apps, host tuning, and pipeline diagnostics.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -105,13 +104,13 @@ export function Hero() {
             <span className="h-3 w-3 rounded-full bg-primary/70" />
             <span className="h-3 w-3 rounded-full bg-muted-foreground/40" />
             <span className="ml-3 truncate font-mono text-xs text-muted-foreground">
-              https://localhost:47990 · Host Status &amp; Telemetry
+              https://localhost:47990 - Host Status &amp; Telemetry
             </span>
           </div>
           <div className="relative aspect-[1440/891] w-full bg-background">
             <Image
               src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/sf-web-ui-home.png`}
-              alt="SolarFlare observatory Web UI home screen, with a sidebar for Home, PIN, Applications, Featured Apps, Configuration, and Troubleshooting, and a real-time control surface showing host condition, build vector, and platform."
+              alt="SolarFlare observatory Web UI home screen with sidebar navigation and host status controls."
               fill
               priority
               sizes="(max-width: 768px) 100vw, 1152px"

@@ -21,7 +21,7 @@ const STAGES = [
   {
     title: 'Automatic gain control',
     key: 'sf_audio_agc',
-    body: 'Measures the RMS level of each frame and rides a smooth gain correction toward a target loudness (−20 dBFS by default), clamped between configurable min and max gain with attack, hold, and release timing.',
+    body: 'Measures the RMS level of each frame and rides a smooth gain correction toward a target loudness (-20 dBFS by default), clamped between configurable min and max gain with attack, hold, and release timing.',
   },
   {
     title: 'Voice activity detection',
@@ -31,7 +31,7 @@ const STAGES = [
   {
     title: 'Speech ducking',
     key: 'sf_audio_ducking',
-    body: 'When you talk, game audio is attenuated (−12 dB by default) so speech stays intelligible during loud gameplay, ramping in and out smoothly to avoid audible pumping.',
+    body: 'When you talk, game audio is attenuated (-12 dB by default) so speech stays intelligible during loud gameplay, ramping in and out smoothly to avoid audible pumping.',
   },
   {
     title: 'Noise gate',
@@ -54,13 +54,13 @@ export function AudioFx() {
             Audio FX
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            A pre-encoder DSP chain, built into the host
+            Pre-encoder DSP on the host
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
             SolarFlare runs a lightweight audio pre-processor between the
             PipeWire capture callback and the Opus encoder. Every stage is
-            opt-in and defaults to off, so a vanilla install sounds exactly like
-            upstream until you turn a stage on from the Web UI.
+            opt-in and off by default, so a vanilla install matches upstream
+            until you turn a stage on in the Web UI.
           </p>
         </div>
 

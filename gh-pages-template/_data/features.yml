@@ -22,7 +22,7 @@
 - title: "Low Latency"
   icon_fa: "fas fa-globe"
   description: >
-    Sunshine is designed to provide the lowest latency possible to achieve optimal gaming performance.
+    Sunshine aims for low latency suitable for local-network gaming.
 
 - title: "Control"
   icon_fa: "fas fa-gamepad"

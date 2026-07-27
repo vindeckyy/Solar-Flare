@@ -10,7 +10,7 @@ export function Install() {
             Install
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            Up and streaming in a few commands
+            Install from source or update the binary
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
             The source installer detects Arch/CachyOS, Debian/Ubuntu,
@@ -63,7 +63,6 @@ export function Install() {
         <div className="mt-6 flex items-start gap-3 rounded-xl border border-border bg-card/60 p-5">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
           <p className="text-sm leading-relaxed text-muted-foreground">
-            <span className="text-foreground">Compatibility preserved.</span>{' '}
             SolarFlare keeps the executable name, service identifier, ports,
             state format, and{' '}
             <span className="font-mono text-foreground">~/.config/sunshine</span>{' '}

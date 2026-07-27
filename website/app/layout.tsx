@@ -18,7 +18,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
 export const metadata: Metadata = {
   title: 'SolarFlare: a game-streaming host for Moonlight',
   description:
-    'SolarFlare is a self-hosted, Linux and AMD-first game-streaming host for Moonlight, with an observatory-style Web UI, low-latency transport tuning, and advanced host controls.',
+    'SolarFlare is a self-hosted, Linux and AMD-first game-streaming host for Moonlight, with an observatory-style Web UI, low-latency transport tuning, and host controls.',
   keywords: [
     'SolarFlare',
     'Moonlight',

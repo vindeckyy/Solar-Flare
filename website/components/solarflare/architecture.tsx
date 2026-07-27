@@ -39,13 +39,13 @@ export function Architecture() {
             Performance architecture
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            An event-driven path from display to client
+            From display capture to the client
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
-            The fork-specific work is concentrated in four areas. Capture is
-            driven by frame arrival, per-session pacing bounds batches and
-            rejects stale frames, and the encoder applies live NVENC bitrate
-            changes when supported.
+            Fork work sits in four places. Capture follows frame arrival,
+            per-session pacing bounds batches and drops stale frames, and the
+            encoder can apply live NVENC bitrate changes when the hardware
+            supports it.
           </p>
         </div>
 

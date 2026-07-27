@@ -9,7 +9,7 @@ const TUNABLES = [
   { key: 'dscp_qos', def: 'true', desc: 'Tag ENet packets with DSCP CS3 for router QoS.' },
   { key: 'gpu_governor', def: 'true', desc: 'Force the GPU performance profile during a stream.' },
   { key: 'headless_virtual_display', def: 'false', desc: 'Create a virtual xrandr output when no display exists.' },
-  { key: 'skip_wayland_correlation', def: 'false', desc: 'Skip KMS↔Wayland correlation; leave false unless your compositor omits output metadata.' },
+  { key: 'skip_wayland_correlation', def: 'false', desc: 'Skip KMS/Wayland correlation; leave false unless your compositor omits output metadata.' },
   { key: 'latency_mode', def: 'safe', desc: 'safe or aggressive latency-first media behavior.' },
 ]
 
@@ -25,16 +25,15 @@ export function Configuration() {
             Configuration
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            Dial the fast path in or out. No rebuild required.
+            Tune the fast path without rebuilding
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
             Ten fork-specific tunables live in the same{' '}
             <code className="rounded bg-background px-1.5 py-0.5 font-mono text-sm text-primary">
               ~/.config/sunshine/sunshine.conf
             </code>{' '}
-            file. Each is opt-out: revert a knob to its upstream value to undo
-            that subsystem&apos;s tuning. Plus 24 audio &amp; Opus controls in the
-            Web UI.
+            file. Set a key back to its upstream value to undo that subsystem.
+            There are also 24 audio and Opus controls in the Web UI.
           </p>
         </div>
 
@@ -87,7 +86,7 @@ export function Configuration() {
                 '  "encoder-preset": 0',
                 '}',
                 '',
-                '// -1 host default · 0 latency · 1 balanced · 2 quality',
+                '// -1 host default, 0 latency, 1 balanced, 2 quality',
               ]}
             />
           </div>

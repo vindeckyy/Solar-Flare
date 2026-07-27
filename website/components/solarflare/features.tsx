@@ -49,11 +49,11 @@ export function Features() {
             Fork additions
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            Every subsystem, exposed as an individual control
+            Each subsystem has its own controls
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
-            Defaults are chosen for compatibility, and each tuning path can be
-            disabled independently when comparing behavior on a particular host.
+            Defaults stay compatible with upstream. Disable any tuning path when
+            you want a cleaner comparison on a given host.
           </p>
         </div>
 
