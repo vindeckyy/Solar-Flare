@@ -86,13 +86,12 @@ changes; no ambient looping effects.
 ## Performance architecture
 
 ```mermaid
-graph LR
-  ML[Moonlight client] --> NET[SolarFlare network path]
-  NET --> ML
-  CAP[Display capture] --> ENC[Hardware or software encoder]
-  ENC --> NET
-  AUD[Audio capture and optional FX] --> NET
-  UI[Observatory Web UI] --> CFG[Host configuration]
+flowchart TD
+  UI["Observatory Web UI"] --> CFG["Host configuration"]
+  CAP["Display capture"] --> ENC["Hardware or software encoder"]
+  ENC --> NET["SolarFlare network path"]
+  AUD["Audio capture and optional FX"] --> NET
+  NET --> ML["Moonlight client"]
   CFG --> CAP
   CFG --> ENC
   CFG --> AUD
