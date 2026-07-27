@@ -9,14 +9,13 @@
   <Navbar></Navbar>
   <div id="content" class="container">
 
-    <!-- SolarFlare observatory status deck -->
+    <!-- SolarFlare host status -->
     <section class="sf-command-deck my-4" aria-labelledby="sf-dashboard-title">
       <div class="sf-hero-copy">
-        <div class="sf-eyebrow"><span>SF/HOST</span> Real-time control surface</div>
-        <h1 id="sf-dashboard-title">Your stream,<br><em>in vector.</em></h1>
+        <div class="sf-eyebrow"><span>SF/HOST</span> Host status</div>
+        <h1 id="sf-dashboard-title">SolarFlare<br><em>is running.</em></h1>
         <p class="sf-hero-lede">
-          SolarFlare is online and tuned for direct, sub-frame local streaming.
-          Pair a client, map an application, or inspect the host without leaving this console.
+          Pair a client, add an application, or check the host from this page.
         </p>
         <div class="sf-hero-actions">
           <a class="btn btn-primary" href="./pin">
@@ -25,7 +24,7 @@
           </a>
           <a class="btn btn-outline-secondary" href="./apps">
             <layers :size="17" class="icon"></layers>
-            Open application map
+            Open applications
           </a>
         </div>
       </div>
@@ -48,13 +47,13 @@
         <div class="sf-deck-status">
           <span class="solarflare-status-dot" :class="solarflareStatusClass"></span>
           <span>
-            <small class="sf-metric-label">Host condition</small>
+            <small class="sf-metric-label">Host status</small>
             <strong>{{ solarflareStatusText }}</strong>
           </span>
         </div>
         <div class="sf-deck-metric">
-          <small class="sf-metric-label">Build vector</small>
-          <strong>{{ version ? 'v' + version.version : 'Probing…' }}</strong>
+          <small class="sf-metric-label">Version</small>
+          <strong>{{ version ? 'v' + version.version : 'Checking...' }}</strong>
         </div>
         <div class="sf-deck-metric">
           <small class="sf-metric-label">Platform</small>
@@ -394,7 +393,7 @@
         if (this.preReleaseBuildAvailable) return 'Pre-release available';
         if (this.stableBuildAvailable) return 'Update available';
         if (this.version) return 'Running latest';
-        return 'Loading…';
+        return 'Loading...';
       },
       /** Parse the text errors, calculating the text, the timestamp and the level */
       fancyLogs() {

@@ -11,7 +11,7 @@ const FEATURES = [
   {
     icon: MonitorPlay,
     title: 'Host control',
-    body: 'An observatory interface with a persistent desktop navigation rail, compact mobile controls, command search, and unified diagnostics.',
+    body: 'A responsive Web UI with command search, host status, and troubleshooting tools.',
   },
   {
     icon: Network,

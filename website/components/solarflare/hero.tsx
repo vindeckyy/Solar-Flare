@@ -35,14 +35,14 @@ export function Hero() {
         </div>
 
         <h1 className="mt-6 max-w-3xl text-balance text-4xl font-semibold leading-[1.05] tracking-tight text-foreground md:text-6xl">
-          A game-streaming host with an{' '}
-          <span className="text-primary">instrument panel</span>.
+          A game-streaming host{' '}
+          <span className="text-primary">you control</span>.
         </h1>
 
         <p className="mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground">
-          SolarFlare is a self-hosted streaming server for Moonlight clients. Low
-          latency Linux capture and transport, plus an observatory-style Web UI
-          for pairing, apps, host tuning, and pipeline diagnostics.
+          SolarFlare runs on your Linux PC and streams games or the desktop to
+          Moonlight clients. Its Web UI handles pairing, applications, settings,
+          and troubleshooting.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -110,7 +110,7 @@ export function Hero() {
           <div className="relative aspect-[1440/891] w-full bg-background">
             <Image
               src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/sf-web-ui-home.png`}
-              alt="SolarFlare observatory Web UI home screen with sidebar navigation and host status controls."
+              alt="SolarFlare Web UI home screen with sidebar navigation and host status controls."
               fill
               priority
               sizes="(max-width: 768px) 100vw, 1152px"

@@ -2,7 +2,7 @@ import { Smartphone, Monitor, Server, Tv, Gamepad2 } from 'lucide-react'
 
 const FACTS = [
   { k: 'Primary use', v: 'High-quality game & desktop streaming across a trusted local network' },
-  { k: 'Host focus', v: 'Linux x86-64, with native tuning for modern AMD and Intel CPUs' },
+  { k: 'Host focus', v: 'Linux x86-64, with tuning for modern AMD and Intel CPUs' },
   { k: 'Client protocol', v: 'Moonlight / NVIDIA GameStream-compatible transport' },
   { k: 'Control plane', v: 'Responsive HTTPS interface at localhost:47990' },
   { k: 'Upstream', v: 'A fork of LizardByte / Sunshine' },
@@ -54,11 +54,9 @@ export function Overview() {
               </p>
               <p>
                 It is a fork of LizardByte&apos;s Sunshine, focused on Linux and
-                AMD. On top of the GameStream-compatible transport it adds
-                link-aware network pacing, real-time capture scheduling,
-                per-application NVENC encoder profiles, a pre-encoder audio DSP
-                chain, and an observatory-style Web UI that runs the host from
-                one instrument panel.
+                AMD. SolarFlare adds controls for network pacing, capture
+                scheduling, NVENC profiles, and audio processing. The Web UI
+                keeps those settings beside pairing, applications, and logs.
               </p>
             </div>
 

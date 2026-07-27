@@ -3,7 +3,7 @@
 > [!IMPORTANT]
 > SolarFlare does not currently publish a container image. This document covers
 > inherited upstream Sunshine images, which do not contain SolarFlare's fork
-> tuning or observatory Web UI. Build SolarFlare from source for the supported
+> tuning or Web UI. Build SolarFlare from source for the supported
 > fork experience.
 
 ## Image tags

@@ -17,15 +17,15 @@ const TABS = [
     id: 'home',
     short: 'Home',
     label: 'Monitor the host',
-    desc: 'The observatory home surface shows host condition, build vector, and platform, with direct actions to pair a device or open the application map.',
+    desc: 'The home page shows host status, version, and platform, with direct links for pairing a device or managing applications.',
     image: '/sf-web-ui-home.png',
-    alt: 'SolarFlare home screen showing host condition Running Latest and platform Linux, with Pair a device and Open application map actions.',
+    alt: 'SolarFlare home screen showing host status and platform, with Pair a device and Open applications actions.',
   },
   {
     id: 'pin',
     short: 'Pair',
     label: 'Pair a client',
-    desc: 'Focused PIN entry with clear host state and a security warning, so Moonlight clients pair over a trusted subnet without any cloud round-trip.',
+    desc: 'Enter the PIN shown by Moonlight and confirm which device you are pairing. The page warns that paired clients can control the host.',
     image: '/sf-web-ui-pin.png',
     alt: 'SolarFlare PIN pairing screen with PIN and device name fields, a Send button, and a warning about granting client control of the host.',
   },
@@ -49,7 +49,7 @@ const TABS = [
     id: 'configuration',
     short: 'Configuration',
     label: 'Tune the host',
-    desc: 'Dense configuration surfaces with consistent hierarchy and command search, spanning general, headless stream, input, audio/video, network, and encoder sections.',
+    desc: 'Search or browse settings for general host behavior, headless streaming, input, audio/video, networking, and encoders.',
     image: '/sf-web-ui-configuration.png',
     alt: 'SolarFlare configuration page with a search bar and a category sidebar (General, Headless Stream, Input, Audio/Video, Network, encoders) beside general host settings.',
   },
@@ -81,18 +81,18 @@ export function ControlSurface() {
       <div className="mx-auto max-w-6xl px-4 md:px-6">
         <div className="max-w-2xl">
           <p className="font-mono text-xs uppercase tracking-wider text-primary">
-            Control surface
+            Web interface
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            Host instrument panel for the full pipeline
+            Manage the host from one page
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
-            The observatory Web UI runs on the host at{' '}
+            The Web UI runs on the host at{' '}
             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground">
               https://localhost:47990
             </code>
-            . Dense layouts, keyboard navigation, and motion only for real state
-            changes. Switch tabs to see the actual screens.
+            . It supports keyboard navigation and adapts to desktop and mobile
+            screens. Switch tabs to see each page.
           </p>
         </div>
 

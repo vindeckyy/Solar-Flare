@@ -28,7 +28,7 @@
           <img src="/images/solarflare-mark.svg" height="42" alt="" class="solarflare-logo">
           <span class="sf-brand-copy">
             <span class="solarflare-wordmark">SolarFlare</span>
-            <span class="sf-brand-descriptor">Host observatory</span>
+            <span class="sf-brand-descriptor">Game streaming host</span>
           </span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
@@ -231,7 +231,7 @@ export default {
   --bs-navbar-toggler-icon-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.9%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
 }
 
-/* SolarFlare observatory wordmark. Layout is defined in sunshine.css so the
+/* SolarFlare wordmark. Layout is defined in sunshine.css so the
  * shared rail and responsive control bar remain consistent on every page. */
 .solarflare-brand {
   display: inline-flex !important;

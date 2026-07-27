@@ -2,7 +2,7 @@
   <img src="docs/images/solarflare-mark-1024.png" width="192" alt="SolarFlare logo">
   <h1>SolarFlare</h1>
   <p><strong>A game-streaming host for Moonlight.</strong></p>
-  <p>Linux and AMD-first capture, transport, and host control tuned for predictable local-network latency.</p>
+  <p>A Linux game-streaming host for Moonlight, built for local networks.</p>
 
   <p>
     <a href="https://github.com/vindeckyy/Solar-Flare/releases/latest"><img src="https://img.shields.io/badge/release-v1.0.7-f97316?style=for-the-badge" alt="Latest release"></a>
@@ -14,7 +14,7 @@
   <p>
     <a href="https://vindeckyy.github.io/Solar-Flare/">Website</a> |
     <a href="#install">Install</a> |
-    <a href="#control-surface">Interface</a> |
+    <a href="#web-interface">Interface</a> |
     <a href="#performance-architecture">Architecture</a> |
     <a href="#configuration">Configuration</a> |
     <a href="#build-and-test">Build</a> |
@@ -22,21 +22,20 @@
   </p>
 </div>
 
-![SolarFlare host observatory](docs/images/web-ui-home.png)
+![SolarFlare Web UI](docs/images/web-ui-home.png)
 
 ---
 
 ## Overview
 
-SolarFlare is a self-hosted game-streaming server for Moonlight clients. Low
-latency Linux capture and transport, plus an observatory-style Web UI for
-pairing devices, managing applications, tuning the host, and diagnosing the
-streaming pipeline.
+SolarFlare is a self-hosted game-streaming server for Moonlight clients. It
+combines low-latency Linux capture and transport with a Web UI for pairing
+devices, managing applications, changing host settings, and checking logs.
 
 | | |
 |---|---|
 | **Primary use** | High-quality game and desktop streaming across a trusted local network |
-| **Host focus** | Linux x86-64, with native tuning for modern AMD and Intel CPUs |
+| **Host focus** | Linux x86-64, with build and runtime tuning for modern AMD and Intel CPUs |
 | **Client protocol** | Moonlight / NVIDIA GameStream-compatible transport |
 | **Control plane** | Responsive HTTPS interface at `https://localhost:47990` |
 | **Current release** | [`v1.0.7`](https://github.com/vindeckyy/Solar-Flare/releases/latest) |
@@ -53,20 +52,20 @@ streaming pipeline.
 
 | System | SolarFlare approach |
 |---|---|
-| **Host control** | An observatory interface with persistent desktop navigation, compact mobile controls, command search, and unified diagnostics |
+| **Host control** | A responsive Web UI with command search, host status, and troubleshooting tools |
 | **Network path** | Link-aware pacing, optional busy polling, expanded ENet buffers, DSCP tagging, and adaptive bitrate controls |
 | **Scheduling** | Capture-thread affinity, controlled real-time scheduling, native CPU tuning, and optional boot-time performance services |
 | **Video** | NVENC tuning profiles, per-application encoder overrides, headless display paths, and hardware-aware capture selection |
 | **Audio** | Low-latency PipeWire hints plus optional AGC, voice activity detection, ducking, noise gating, and Opus controls |
-| **Operations** | Scoped API tokens, trusted-subnet pairing, local client catalog, structured logs, and focused regression coverage |
+| **Operations** | Scoped API tokens, trusted-subnet pairing, a local client catalog, and structured logs |
 
 SolarFlare exposes these as individual controls. Defaults stay compatible with
 upstream, and each tuning path can be disabled when comparing hosts.
 
-## Control surface
+## Web interface
 
-The interface is a host instrument panel. Motion only for interaction and state
-changes; no ambient looping effects.
+The Web UI covers routine host setup and troubleshooting. Animation is limited
+to interactions and state changes.
 
 <table>
   <tr>
@@ -75,7 +74,7 @@ changes; no ambient looping effects.
   </tr>
   <tr>
     <td width="50%"><strong>Discover clients</strong><br><sub>A local catalog with no third-party runtime fetch.</sub><br><br><img src="docs/images/web-ui-featured.png" alt="SolarFlare featured client catalog"></td>
-    <td width="50%"><strong>Tune the host</strong><br><sub>Dense configuration surfaces with consistent hierarchy.</sub><br><br><img src="docs/images/web-ui-configuration.png" alt="SolarFlare configuration console"></td>
+    <td width="50%"><strong>Tune the host</strong><br><sub>Search or browse settings by category.</sub><br><br><img src="docs/images/web-ui-configuration.png" alt="SolarFlare configuration console"></td>
   </tr>
   <tr>
     <td width="50%"><strong>Inspect the pipeline</strong><br><sub>Logs, diagnostics, and recovery actions in one place.</sub><br><br><img src="docs/images/web-ui-troubleshooting.png" alt="SolarFlare troubleshooting console"></td>
@@ -245,7 +244,7 @@ Platform-specific dependencies and compiler requirements are documented in
 | Path | Purpose |
 |---|---|
 | `src/` | Streaming host, transport, capture, encode, audio, and configuration |
-| `src_assets/common/assets/web/` | SolarFlare observatory interface |
+| `src_assets/common/assets/web/` | SolarFlare Web UI |
 | `tests/` | Unit, integration, regression, and documentation contracts |
 | `packaging/` | Platform packaging and optional Linux performance services |
 | `scripts/` | Linux installer, release, screenshot, and maintenance tooling |

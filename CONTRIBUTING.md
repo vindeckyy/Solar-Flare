@@ -1,7 +1,7 @@
 # Contributing to SolarFlare
 
 SolarFlare accepts focused, testable changes that improve the Linux streaming
-path, host operations, or observatory interface without breaking Moonlight
+path, host operations, or Web UI without breaking Moonlight
 compatibility.
 
 This document defines fork policy. The detailed C++ style, localization,
@@ -31,7 +31,7 @@ fork integrations or regressions should be reported here.
   and Opus configuration.
 - Host access: scoped API tokens, trusted-subnet pairing, and security
   hardening around network-reachable surfaces.
-- The SolarFlare observatory Web UI and its responsive design system.
+- The SolarFlare Web UI and its responsive layout.
 - Multi-distribution build, install, release, and verification tooling.
 - Fork documentation and regression contracts.
 

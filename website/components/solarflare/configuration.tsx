@@ -25,10 +25,10 @@ export function Configuration() {
             Configuration
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            Tune the fast path without rebuilding
+            Change host settings without rebuilding
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
-            Ten fork-specific tunables live in the same{' '}
+            Ten SolarFlare settings live in the same{' '}
             <code className="rounded bg-background px-1.5 py-0.5 font-mono text-sm text-primary">
               ~/.config/sunshine/sunshine.conf
             </code>{' '}
