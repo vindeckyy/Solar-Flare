@@ -2,8 +2,9 @@
 
 ## General
 
-### Forgotten Credentials
-If you forgot your credentials to the web UI, try this.
+### Forgotten credentials
+
+Reset the Web UI username and password with the command for your package:
 
 @tabs{
   @tab{General | ```bash
@@ -21,75 +22,65 @@ If you forgot your credentials to the web UI, try this.
 }
 
 > [!TIP]
-> Remember to replace `{new-username}` and `{new-password}` with your new credentials.
-> Do not include the curly braces.
+> Replace `{new-username}` and `{new-password}` with the new credentials. Do not include the curly braces.
 
-### Unusual Mouse Behavior
-If you experience unusual mouse behavior, try attaching a physical mouse to the Sunshine host.
+### Unusual mouse behavior
 
-### Web UI Access
-Can't access the web UI?
+Attach a physical mouse to the SolarFlare host. Some systems do not report a usable pointer unless a mouse is connected.
 
-1. Check firewall rules.
+### Web UI access
 
-### Controller works on Steam but not in games
-One trick might be to change Steam settings and check or uncheck the configuration to support Xbox/PlayStation
-controllers and leave only support for Generic controllers.
+Check that the host firewall allows the Web UI port.
 
-Also, if you have many controllers already directly connected to the host, it might help to disable them so that the
-Sunshine-provided controller (connected to the guest) is the "first" one. In Linux this can be achieved on USB
-devices by finding the device in `/sys/bus/usb/devices/` and writing `0` to the `authorized` file.
+### Controller works in Steam but not in games
+
+In Steam's controller settings, disable Xbox and PlayStation controller support
+and leave Generic Gamepad support enabled.
+
+Games may also select a physical controller before SolarFlare's virtual
+controller. Disconnect or disable unused host controllers and try again. On
+Linux, find the USB device under `/sys/bus/usb/devices/` and write `0` to its
+`authorized` file.
 
 ### Network performance test
 
-For real-time game streaming the most important characteristic of the network
-path between server and client is not pure bandwidth but rather stability and
-consistency (low latency with low variance, minimal or no packet loss).
+Game streaming needs a stable path between the host and client. Low latency,
+low jitter, and little packet loss matter more than unused bandwidth.
 
-The network can be tested using the multi-platform tool [iPerf3](https://iperf.fr).
+Test the path with [iPerf3](https://iperf.fr).
 
-On the Sunshine host `iperf3` is started in server mode:
+Start `iperf3` in server mode on the SolarFlare host:
 
 ```bash
 iperf3 -s
 ```
 
-On the client device iperf3 is asked to perform a 60-second UDP test in a reverse
-direction (from server to client) at a given bitrate (e.g. 50 Mbps):
+Run a 60-second reverse UDP test from the client at the bitrate you plan to stream, such as 50 Mbps:
 
 ```bash
 iperf3 -c {HostIpAddress} -t 60 -u -R -b 50M
 ```
 
-Watch the output on the client for packet loss and jitter values. Both should be
-(very) low. Ideally, packet loss remains less than 5% and jitter below 1 ms.
+Check the client output for packet loss and jitter. Aim for less than 5% packet loss and less than 1 ms of jitter.
 
-For Android clients use
+Android clients can use
 [PingMaster](https://play.google.com/store/apps/details?id=com.appplanex.pingmasternetworktools).
+iOS clients can use
+[HE.NET Network Tools](https://apps.apple.com/us/app/he-net-network-tools/id858241710).
 
-For iOS clients use [HE.NET Network Tools](https://apps.apple.com/us/app/he-net-network-tools/id858241710).
+Testing across the internet requires forwarding TCP and UDP port 5201 to the host.
 
-If you are testing a remote connection (over the internet), you will need to
-forward the port 5201 (TCP and UDP) from your host.
+### Packet loss from buffer overruns
 
-### Packet loss (Buffer overrun)
-If the host PC (running Sunshine) has a much faster connection to the network
-than the slowest segment of the network path to the client device (running
-Moonlight), massive packet loss can occur: Sunshine emits its stream in bursts
-every 16 ms (for 60 fps), but those bursts can't be passed on fast enough to the
-client and must be buffered by one of the network devices inbetween. If the
-bitrate is high enough, these buffers will overflow and data will be discarded.
+Packet loss can occur when the host link is faster than the slowest link to the
+client. At 60 FPS, SolarFlare sends a burst about every 16 ms. A slower
+downstream link must buffer each burst, and a full buffer drops packets.
 
-This can easily happen if e.g., the host has a 2.5 Gbit/s connection and the
-client only 1 Gbit/s or Wi-Fi. Similarly, a 1 Gbps host may be too fast for a
-client having only a 100 Mbps interface.
+Common examples include a 2.5 Gbit/s host feeding a 1 Gbit/s or Wi-Fi client,
+and a 1 Gbit/s host feeding a 100 Mbit/s client.
 
-As a workaround the transmission speed of the host NIC can be reduced: 1 Gbps
-instead of 2.5 or 100 Mbps instead of 1 Gbps. A technically more advanced
-solution would be to configure traffic shaping rules at the OS level, so that
-only Sunshine's traffic is slowed down.
-
-Such a solution on Linux could look like that:
+You can reduce the host NIC speed to match the slower link. On Linux, traffic
+shaping can limit only the SolarFlare stream:
 
 ```bash
 # 1) Remove existing qdisc (pfifo_fast)
@@ -102,7 +93,7 @@ sudo tc qdisc add dev <NIC> root handle 1: htb default 1
 sudo tc class add dev <NIC> parent 1: classid 1:1 htb \
     rate 10000mbit ceil 10000mbit burst 32k
 
-# 4) Create class 1:10 for Sunshine game stream at 1 Gbit/s
+# 4) Create class 1:10 for the SolarFlare stream at 1 Gbit/s
 sudo tc class add dev <NIC> parent 1: classid 1:10 htb \
     rate 1000mbit ceil 1000mbit burst 32k
 
@@ -112,35 +103,36 @@ sudo tc filter add dev <NIC> protocol ip parent 1: prio 1 \
     match ip sport 47998 0xffff flowid 1:10
 ```
 
-In that way only the Sunshine traffic is limited by 1 Gbit. This is not persistent on reboots.
-If you use a different port for the game stream, you need to adjust the last command.
+These rules limit UDP source port 47998 to 1 Gbit/s and do not persist after a
+reboot. Change the last command if your stream uses a different port.
 
-Sunshine versions > 0.23.1 include improved networking code that should
-alleviate or even solve this issue (without reducing the NIC speed).
+SolarFlare includes the networking improvements added after Sunshine 0.23.1,
+which may prevent this problem without NIC speed limits.
 
-### Packet loss (MTU)
-Although unlikely, some guests might work better with a lower
-[MTU](https://en.wikipedia.org/wiki/Maximum_transmission_unit) from the host.
-For example, an LG TV was found to have 30-60% packet loss when the host had MTU
-set to 1500 and 1472, but 0% packet loss with a MTU of 1428 set in the network card
-serving the stream (a Linux PC). It's unclear how that helped precisely, so it's a last
-resort suggestion.
+### Packet loss from MTU
+
+A lower [MTU](https://en.wikipedia.org/wiki/Maximum_transmission_unit) may help
+some clients. One LG TV showed 30-60% packet loss with host MTU values of 1500
+and 1472, and no packet loss at 1428. The cause was not confirmed, so try this
+only after ruling out other network problems.
 
 ## Linux
 
-### Hardware Encoding fails
-Due to legal concerns, Mesa has disabled hardware decoding and encoding by default.
+### Hardware encoding fails
+
+Some Mesa packages disable hardware decoding and encoding because of patent restrictions.
 
 ```txt
 Error: Could not open codec [h264_vaapi]: Function not implemented
 ```
 
-If you see the above error in the Sunshine logs, compiling *Mesa* manually may be required. See the official Mesa3D
-[Compiling and Installing](https://docs.mesa3d.org/install.html) documentation for instructions.
+If this error appears in the SolarFlare logs, you may need to compile *Mesa*.
+Follow the official Mesa3D
+[Compiling and Installing](https://docs.mesa3d.org/install.html) instructions.
 
 > [!IMPORTANT]
-> You must re-enable the disabled encoders. You can do so by passing the following argument to the build
-> system. You may also want to enable decoders, however, that is not required for Sunshine and is not covered here.
+> Pass the following option to the build system to enable the encoders.
+> SolarFlare does not require the matching decoders.
 > ```bash
 > -Dvideo-codecs=h264enc,h265enc
 > ```
@@ -150,10 +142,10 @@ If you see the above error in the Sunshine logs, compiling *Mesa* manually may b
 > [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.
 
 ### Input not working
-After installation, the `udev` rules need to be reloaded. Our post-install script tries to do this for you
-automatically, but if it fails, you may need to restart your system.
 
-If the input is still not working, you may need to add your user to the `input` group.
+The installer reloads the `udev` rules. Restart the host if the reload failed.
+
+If input still does not work, add your user to the `input` group:
 
 ```bash
 sudo usermod -aG input $USER
@@ -161,21 +153,22 @@ sudo usermod -aG input $USER
 
 #### Multiseat
 
-If you run multiple concurrent Wayland sessions on separate logind seats (e.g. `seat0`, `seat1`),
-your compositor may ignore injected input unless Sunshine's virtual devices are assigned to the correct seat.
+A compositor may ignore injected input when concurrent Wayland sessions run on
+separate logind seats, such as `seat0` and `seat1`, unless SolarFlare's virtual
+devices use the correct seat.
 
-Sunshine determines its target seat from `XDG_SEAT`, which is typically set automatically by your display manager.
-If needed, you can override it manually in your systemd service file or shell environment before starting Sunshine.
+SolarFlare reads the target seat from `XDG_SEAT`, which the display manager
+usually sets. You can override it in the systemd service or shell environment
+before starting SolarFlare.
 
-When the seat is not `seat0`, Sunshine appends the seat name to its virtual device names, for example:
+For seats other than `seat0`, SolarFlare appends the seat name to each virtual device name:
 
 - Keyboard passthrough (seat1)
 - Sunshine PS5 (virtual) pad (seat1)
 
-Sunshine creates two mouse devices: a relative one and an absolute one.
+SolarFlare creates one relative mouse device and one absolute mouse device.
 
-To assign Sunshine's virtual devices to the correct seat, create this udev rules file
-(/etc/udev/rules.d/72-sunshine-virtual-seat.rules):
+Create `/etc/udev/rules.d/72-sunshine-virtual-seat.rules` to assign the virtual devices to the correct seat:
 ```udev
 SUBSYSTEM=="input", KERNEL=="input*", ATTR{name}=="*(seat1)*", TAG+="seat", ENV{ID_SEAT}="seat1"
 ```
@@ -186,15 +179,18 @@ Then reload udev:
 sudo udevadm control --reload-rules && sudo udevadm trigger -s input
 ```
 
-### KMS Streaming fails
-KMS screencasting requires elevated privileges which are not allowed for Flatpak or AppImage packages.
-This means that you must install Sunshine using the native package format of your distribution, if available.
-KMS capture will soon be phased out in favour of XDG Portal Capture (which works with all package types).
+### KMS streaming fails
 
-### KMS Streaming; some windows flicker/disappear on KDE Plasma 6.5+
-KWin's overlay support interferes with KMS capture. As of KWin 6.5 this is not yet set by default, but
-for future versions that enables this by default, you may be able to disable again via a special
-[environment variable](https://invent.kde.org/plasma/kwin/-/wikis/Environment-Variables#kwin_use_overlays):
+KMS capture needs privileges unavailable to Flatpak and AppImage packages.
+Install SolarFlare with your distribution's native package format, if
+available. XDG Portal Capture works with all package types and is replacing
+KMS capture.
+
+### Windows flicker or disappear with KMS on KDE Plasma 6.5+
+
+KWin overlays can interfere with KMS capture. Disable them with the
+[`KWIN_USE_OVERLAYS`](https://invent.kde.org/plasma/kwin/-/wikis/Environment-Variables#kwin_use_overlays)
+environment variable:
 
 ```bash
 export KWIN_USE_OVERLAYS=0
@@ -204,50 +200,50 @@ export KWIN_USE_OVERLAYS=0
 > Disabling overlays will reduce KWin's rendering efficiency. Consider using XDG Portal Capture instead.
 
 ### KMS streaming fails on Nvidia GPUs
-If KMS screen capture results in a black screen being streamed, you may need to
-set the parameter `modeset=1` for Nvidia's kernel module. This can be done by
-adding the following directive to the kernel command line:
+
+If KMS capture produces a black stream, enable modesetting for the Nvidia
+kernel module by placing this directive on the kernel command line:
 
 ```bash
 nvidia_drm.modeset=1
 ```
 
-Consult your distribution's documentation for details on how to do this. (Most
-often grub is used to load the kernel and set its command line.)
+Follow your distribution's instructions for changing the kernel command line.
+GRUB is the most common bootloader for this setup.
 
 ### AMD encoding latency issues
-If you notice unexpectedly high encoding latencies (e.g., in Moonlight's
-performance overlay) or strong fluctuations thereof, your system's Mesa
-libraries are outdated (<24.2). This is particularly problematic at higher
-resolutions (4K).
 
-Starting with Mesa-24.2, applications can request a
-[low-latency mode](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039)
-by running them with a special
-[environment variable](https://docs.mesa3d.org/envvars.html#envvar-AMD_DEBUG):
+High or unstable encoding latency in Moonlight's performance overlay can
+indicate Mesa older than 24.2, especially at 4K.
+
+Mesa 24.2 added a
+[low-latency encoding mode](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039),
+enabled through the
+[`AMD_DEBUG`](https://docs.mesa3d.org/envvars.html#envvar-AMD_DEBUG) environment
+variable:
 ```bash
 export AMD_DEBUG=lowlatencyenc
 ```
-Sunshine sets this variable automatically, no manual
-configuration is needed.
+SolarFlare sets this variable automatically.
 
-To check whether low-latency mode is being used, one can watch the VCLK and DCLK
-frequencies in amdgpu_top. Without this encoder tuning both clock frequencies
-will fluctuate strongly, whereas with active low-latency encoding they will stay
-high as long as the encoder is used.
+Use `amdgpu_top` to check VCLK and DCLK. Both clocks should remain high while
+low-latency encoding is active; without it, they may fluctuate.
 
 ### Gamescope compatibility
-Some users have reported stuttering issues when streaming games running within Gamescope.
+
+Games running inside Gamescope may stutter while streaming.
 
 ## macOS
 
 ### Dynamic session lookup failed
-If you get this error:
+
+This error means SolarFlare could not find the D-Bus session socket:
 
 > Dynamic session lookup supported but failed: launchd did not provide a socket path, verify that
 > org.freedesktop.dbus-session.plist is loaded!
 
-Try this.
+Load the launch agent:
+
 ```bash
 launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 ```
@@ -255,22 +251,23 @@ launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 ## Windows
 
 ### No gamepad detected
-You must install ViGEmBus to use virtual gamepads. You can install this from the troubleshooting tab of the web UI.
 
-Alternatively, you can manually install it from
-[ViGEmBus releases](https://github.com/nefarius/ViGEmBus/releases/latest). You must use version 1.17 or newer.
-
-After installation, it is recommended to restart your computer.
+Virtual gamepads require ViGEmBus 1.17 or newer. Install it from the Web UI's
+Troubleshooting page or download it from
+[ViGEmBus releases](https://github.com/nefarius/ViGEmBus/releases/latest), then
+restart Windows.
 
 ### Permission denied
-Since Sunshine runs as a service on Windows, it may not have the same level of access that your regular user account
-has. You may get permission denied errors when attempting to launch a game or application from a non-system drive.
 
-You will need to modify the security permissions on your disk. Ensure that user/principal SYSTEM has full
-permissions on the disk.
+SolarFlare runs as the `SYSTEM` account on Windows. A game or application on
+another drive may fail to launch if that account cannot read its files.
+
+Grant the `SYSTEM` principal read and execute access to the application's files
+and directories. Grant write access only where the application needs it.
 
 ### Stuttering
-If you experience stuttering using NVIDIA, try disabling `vsync:fast` in the NVIDIA Control Panel.
+
+For NVIDIA GPUs, disable `vsync:fast` in the NVIDIA Control Panel.
 
 <div class="section_buttons">
 
