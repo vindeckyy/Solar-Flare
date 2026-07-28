@@ -42,12 +42,10 @@ export function Install() {
             </div>
             <CodeBlock
               lines={[
-                'git clone --recursive \\',
-                '  https://github.com/vindeckyy/Solar-Flare.git',
+                'git clone --recursive https://github.com/vindeckyy/Solar-Flare.git',
                 'cd Solar-Flare',
                 './scripts/linux-install.sh',
-                'systemctl --user enable --now \\',
-                '  app-dev.lizardbyte.app.Sunshine.service',
+                'systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service',
               ]}
             />
           </div>
@@ -59,16 +57,12 @@ export function Install() {
             </div>
             <CodeBlock
               lines={[
-                'systemctl --user stop \\',
-                '  app-dev.lizardbyte.app.Sunshine.service',
-                'sudo curl --fail --location \\',
-                '  --output /usr/local/bin/sunshine \\',
+                'systemctl --user stop app-dev.lizardbyte.app.Sunshine.service',
+                'sudo curl --fail --location --output /usr/local/bin/sunshine \\',
                 '  https://github.com/vindeckyy/Solar-Flare/releases/latest/download/sunshine-x86_64',
                 'sudo chmod 0755 /usr/local/bin/sunshine',
-                "sudo setcap 'cap_sys_admin,cap_sys_nice+p' \\",
-                '  /usr/local/bin/sunshine',
-                'systemctl --user start \\',
-                '  app-dev.lizardbyte.app.Sunshine.service',
+                "sudo setcap 'cap_sys_admin,cap_sys_nice+p' /usr/local/bin/sunshine",
+                'systemctl --user start app-dev.lizardbyte.app.Sunshine.service',
               ]}
             />
           </div>

@@ -25,10 +25,10 @@ export function CodeBlock({
         </div>
       )}
       <pre className="overflow-x-auto p-4 font-mono text-[13px] leading-relaxed">
-        <code>
+        <code className="block min-w-max">
           {lines.map((line, i) => (
-            <span key={i} className="grid grid-cols-[2ch_1fr] gap-4">
-              <span className="select-none text-right text-muted-foreground/40">
+            <span key={i} className="flex gap-4 whitespace-pre">
+              <span className="w-5 shrink-0 select-none text-right text-muted-foreground/40">
                 {i + 1}
               </span>
               <span className="text-foreground/90">{line || '\u00A0'}</span>
