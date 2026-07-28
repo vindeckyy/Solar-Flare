@@ -354,7 +354,13 @@ third-party tool, you can use *QRes* as an example.
 #### Windows
 **Elevating Commands (Windows)**
 
-If you've installed SolarFlare as a service (default), you can specify if a command should be elevated with
+> [!NOTE]
+> SolarFlare does not publish Windows packages. The elevated-command option
+> below is inherited Sunshine Windows behavior for experimental or
+> self-built Windows hosts.
+
+If Sunshine is installed as a Windows service (the upstream installer
+default), you can specify if a command should be elevated with
 administrative privileges. Simply enable the elevated option in the WEB UI, or add it to the JSON configuration.
 This is an option for both prep-cmd and regular commands and will launch the process with the current user without a
 UAC prompt.

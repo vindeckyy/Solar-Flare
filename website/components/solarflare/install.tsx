@@ -1,4 +1,4 @@
-import { Terminal, PackageOpen, CheckCircle2 } from 'lucide-react'
+import { Terminal, PackageOpen, CheckCircle2, TriangleAlert } from 'lucide-react'
 import { CodeBlock } from './code-block'
 
 export function Install() {
@@ -10,13 +10,27 @@ export function Install() {
             Install
           </p>
           <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            Install from source or update the binary
+            Build from source for new installs
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
-            The source installer detects Arch/CachyOS, Debian/Ubuntu,
-            Fedora-family, openSUSE, Bazzite, and NixOS hosts. Then open{' '}
+            New users should always run{' '}
+            <span className="font-mono text-primary">./scripts/linux-install.sh</span>.
+            The installer detects Arch/CachyOS, Debian/Ubuntu, Fedora-family,
+            openSUSE, Bazzite, and NixOS. Then open{' '}
             <span className="font-mono text-primary">https://localhost:47990</span>,
             accept the host-local certificate, and pair a Moonlight client.
+          </p>
+        </div>
+
+        <div className="mt-8 flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-5">
+          <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+          <p className="text-sm leading-relaxed text-foreground">
+            Release binaries are only for updating an already working SolarFlare
+            install. Prefer Update now in the Web UI (tarball) when available.
+            The bare{' '}
+            <span className="font-mono text-foreground">sunshine-x86_64</span>{' '}
+            download is the executable only and does not install the Web UI,
+            desktop files, shaders, udev rules, or the systemd user unit.
           </p>
         </div>
 
@@ -41,7 +55,7 @@ export function Install() {
           <div className="min-w-0">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
               <PackageOpen className="h-4 w-4 text-primary" aria-hidden="true" />
-              Update with the release binary
+              Existing-install binary fallback
             </div>
             <CodeBlock
               lines={[

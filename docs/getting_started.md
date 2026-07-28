@@ -6,10 +6,13 @@
 > commands are documented in the repository [README](../README.md#install).
 > Upstream package links below install Sunshine, not the SolarFlare fork.
 
-SolarFlare publishes Linux x86-64 artifacts in the fork's
-[latest release][solarflare-latest-release]: `sunshine-x86_64`,
-`solarflare-linux-x86_64.tar.gz`, and `SHA256SUMS`. See the repository
-[installation guide](../README.md#install) before choosing an artifact.
+> [!CAUTION]
+> New SolarFlare users should always build fresh with
+> `./scripts/linux-install.sh`. The fork's
+> [latest release][solarflare-latest-release] publishes `sunshine-x86_64`,
+> `solarflare-linux-x86_64.tar.gz`, and `SHA256SUMS` for updating an already
+> working SolarFlare install only. See the repository
+> [installation guide](../README.md#install).
 
 The package tables below are retained as an upstream Sunshine reference.
 They describe LizardByte artifacts, not SolarFlare releases.

@@ -96,9 +96,9 @@ body:
       label: Package
       description: How you installed this SolarFlare build
       options:
-        - Linux - release binary (sunshine-x86_64)
-        - Linux - release tarball (solarflare-linux-x86_64.tar.gz)
         - Linux - source installer (scripts/linux-install.sh)
+        - Linux - release tarball (solarflare-linux-x86_64.tar.gz)
+        - Linux - release binary (sunshine-x86_64)
         - Linux - manual cmake build
         - Linux - Docker (not a maintained SolarFlare image)
         - other (not listed)

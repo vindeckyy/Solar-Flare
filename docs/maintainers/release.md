@@ -1,7 +1,8 @@
 # SolarFlare Release Process
 
 SolarFlare publishes Linux x86-64 binaries built and verified on the maintainer's
-system. GitHub Actions must not build release binaries.
+system for updating existing installs. New users must build from source with
+`./scripts/linux-install.sh`. GitHub Actions must not build release binaries.
 
 Two version identifiers are retained intentionally. Examples below use the
 *next* release identifiers so the commands stay copy-paste templates:
@@ -24,6 +25,9 @@ version never carries a `-dirty` suffix.
    maximum of two parallel jobs.
 4. Confirm `git status --short` is empty.
 5. Prepare concise notes that list the exact published asset names.
+   Include a red GitHub `CAUTION` callout stating that new users must build
+   with `./scripts/linux-install.sh` and that release binaries are only for
+   updating an already working SolarFlare install.
 
 ## Version and Tag
 

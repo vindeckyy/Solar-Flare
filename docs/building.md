@@ -261,6 +261,11 @@ It may be beneficial to build remotely in some cases. This will enable easier bu
 3. Trigger the *CI* workflow manually
 4. Download the artifacts/binaries from the workflow run summary
 
+> [!IMPORTANT]
+> CI workflow artifacts are not SolarFlare release packages. End users should
+> install with `./scripts/linux-install.sh` or update an existing install from
+> the published GitHub release assets documented in the repository README.
+
 <div class="section_buttons">
 
 | Previous                              |                            Next |

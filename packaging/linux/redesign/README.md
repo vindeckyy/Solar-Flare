@@ -31,7 +31,12 @@ NVIDIA card).
 
 Tracking them here makes a clean install reproducible.
 
-## Install paths after a pacman install
+## Install paths after an Arch packaging experiment
+
+> [!NOTE]
+> SolarFlare's maintained end-user path is `./scripts/linux-install.sh`, not a
+> published pacman package. The paths below describe optional in-tree Arch
+> packaging (`sunshine.install`) when that packaging is used locally.
 
 ```
 /usr/share/sunshine/redesign/systemd/cpu-performance.service
@@ -44,10 +49,10 @@ Tracking them here makes a clean install reproducible.
 /usr/share/sunshine/redesign/README.md
 ```
 
-The `sunshine.install` post-install hook runs the installer, which
-copies units to `/etc/systemd/system/` and helper scripts to
-`/usr/local/sbin/` (matching where the live box already keeps the
-existing `apply-tuned-undervolt.sh` and punktfunk helpers).
+When that Arch packaging path is used, the `sunshine.install` post-install
+hook runs the installer, which copies units to `/etc/systemd/system/` and
+helper scripts to `/usr/local/sbin/` (matching where the live box already
+keeps the existing `apply-tuned-undervolt.sh` and punktfunk helpers).
 
 ## Install on an existing box (developer working from a clone)
 
@@ -56,7 +61,8 @@ sudo ./packaging/linux/redesign/install-redesign-services.sh
 ```
 
 The script auto-detects whether files live at `/usr/share/sunshine/redesign/systemd/`
-(pacman install) or in the repo clone (developer path).
+(Arch packaging experiment) or in the repo clone (developer / `linux-install.sh`
+path).
 
 ## What's deliberately not in here
 

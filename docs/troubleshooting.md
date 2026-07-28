@@ -4,22 +4,16 @@
 
 ### Forgotten credentials
 
-Reset the Web UI username and password with the command for your package:
+Reset the Web UI username and password:
 
-@tabs{
-  @tab{General | ```bash
-    sunshine --creds {new-username} {new-password}
-    ```
-  }
-  @tab{AppImage | ```bash
-    ./sunshine.AppImage --creds {new-username} {new-password}
-    ```
-  }
-  @tab{Flatpak | ```bash
-    flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --creds {new-username} {new-password}
-    ```
-  }
-}
+```bash
+sunshine --creds {new-username} {new-password}
+```
+
+> [!NOTE]
+> AppImage and Flatpak packages are upstream Sunshine packaging, not SolarFlare
+> releases. If you are running those, use their package-specific `--creds`
+> commands from the upstream Sunshine docs instead.
 
 > [!TIP]
 > Replace `{new-username}` and `{new-password}` with the new credentials. Do not include the curly braces.
@@ -181,10 +175,11 @@ sudo udevadm control --reload-rules && sudo udevadm trigger -s input
 
 ### KMS streaming fails
 
-KMS capture needs privileges unavailable to Flatpak and AppImage packages.
-Install SolarFlare with your distribution's native package format, if
-available. XDG Portal Capture works with all package types and is replacing
-KMS capture.
+KMS capture needs `cap_sys_admin` (SolarFlare installs
+`cap_sys_admin,cap_sys_nice+p` via `./scripts/linux-install.sh` or after a
+binary update). Upstream Flatpak and AppImage packages cannot grant those
+privileges; SolarFlare does not publish those package formats. Prefer a
+source install, or use XDG Portal Capture when KMS is unavailable.
 
 ### Windows flicker or disappear with KMS on KDE Plasma 6.5+
 
