@@ -58,8 +58,7 @@ export function Install() {
             <CodeBlock
               lines={[
                 'systemctl --user stop app-dev.lizardbyte.app.Sunshine.service',
-                'sudo curl --fail --location --output /usr/local/bin/sunshine \\',
-                '  https://github.com/vindeckyy/Solar-Flare/releases/latest/download/sunshine-x86_64',
+                'sudo curl --fail --location --output /usr/local/bin/sunshine https://github.com/vindeckyy/Solar-Flare/releases/latest/download/sunshine-x86_64',
                 'sudo chmod 0755 /usr/local/bin/sunshine',
                 "sudo setcap 'cap_sys_admin,cap_sys_nice+p' /usr/local/bin/sunshine",
                 'systemctl --user start app-dev.lizardbyte.app.Sunshine.service',
