@@ -12,6 +12,8 @@
 #include <fstream>
 #include <cstdio>
 #include <filesystem>
+#include <format>
+#include <ranges>
 #include <thread>
 #include <unistd.h>
 
@@ -618,22 +620,20 @@ namespace platf {
       int init(const std::string &display_name, const ::video::config_t &config) {
         delay = std::chrono::nanoseconds {1s} / config.framerate;
 
-        // Sanitize the monitor index. parse_monitor_index() validates every
-        // character is an ASCII digit before delegating to from_view(); a
-        // non-numeric name like "Virtual-Virtual-1" (produced by KWin's
-        // double-prefixed virtual outputs) or "DP-1" would otherwise be
-        // decoded as an arbitrary negative number that becomes an
-        // out-of-bounds index into the KMS plane scan array and trips the
-        // encoder's monitor lookup with garbage like -1797036149.
-        constexpr std::int64_t kFallbackMonitor = 0;
-        std::int64_t parsed_index = util::parse_monitor_index(display_name, kFallbackMonitor);
-        if (!display_name.empty() && parsed_index == kFallbackMonitor &&
-            !std::all_of(display_name.begin(), display_name.end(),
-                         [](unsigned char c) { return std::isdigit(c); })) {
-          BOOST_LOG(warning) << "kmsgrab: display_name '"sv << display_name
-                             << "' is not a numeric monitor index; falling back to 0"sv;
+        // Resolve a legacy numeric monitor index, or a connector name such as
+        // DP-1 / HDMI-A-1 produced by kms_display_names().
+        std::vector<kms_monitor_name_entry_t> monitors;
+        monitors.reserve(card_descriptors.size());
+        for (const auto &card_descriptor : card_descriptors) {
+          for (const auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
+            monitors.push_back({
+              monitor_descriptor.type,
+              monitor_descriptor.index,
+              monitor_descriptor.monitor_index,
+            });
+          }
         }
-        int monitor_index = static_cast<int>(parsed_index);
+        int monitor_index = static_cast<int>(map_kms_display_name(display_name, monitors));
         int monitor = 0;
 
         fs::path card_dir {"/dev/dri"sv};
@@ -1822,7 +1822,12 @@ namespace platf {
 
         kms::print(plane.get(), fb.get(), crtc.get());
 
-        display_names.emplace_back(std::to_string(count++));
+        if (it != std::end(crtc_to_monitor)) {
+          display_names.emplace_back(format_kms_connector_name(it->second.type, it->second.index));
+        } else {
+          display_names.emplace_back(std::to_string(count));
+        }
+        count++;
       }
 
       cds.emplace_back(kms::card_descriptor_t {
@@ -1879,7 +1884,39 @@ namespace platf {
 
     kms::card_descriptors = std::move(cds);
 
+    {
+      std::string joined;
+      for (std::size_t i = 0; i < display_names.size(); ++i) {
+        if (i != 0) {
+          joined.push_back(' ');
+        }
+        joined += display_names[i];
+      }
+      BOOST_LOG(debug) << "Final KMS display_names return list: " << joined;
+    }
     return display_names;
+  }
+
+  std::string format_kms_connector_name(std::uint32_t connector_type, std::uint32_t connector_index) {
+    return std::format("{}-{}", drmModeGetConnectorTypeName(connector_type), connector_index);
+  }
+
+  std::int64_t map_kms_display_name(std::string_view display_name, const std::vector<kms_monitor_name_entry_t> &monitors) {
+    // Handle (legacy) monitor index strings by converting them to integer.
+    if (display_name.empty() || std::ranges::all_of(display_name, ::isdigit)) {
+      return util::from_view(display_name);
+    }
+
+    // display_name is a connector name (not empty and containing non-digits).
+    for (const auto &monitor : monitors) {
+      if (display_name == format_kms_connector_name(monitor.type, monitor.index)) {
+        BOOST_LOG(info) << "Mapped '"sv << display_name << "' to kmsgrab monitor index " << monitor.monitor_index;
+        return monitor.monitor_index;
+      }
+    }
+
+    BOOST_LOG(warning) << "Couldn't map '"sv << display_name << "' to a monitor index. Falling back to first monitor in list (index=0).";
+    return 0;
   }
 
 }  // namespace platf

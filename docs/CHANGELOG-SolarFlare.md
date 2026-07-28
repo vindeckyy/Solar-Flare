@@ -8,6 +8,15 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ## Unreleased
 
+### Linux connector display names (upstream #5423 / #5448)
+
+Ported LizardByte/Sunshine Linux display-name work so KMS and X11 list
+connector names (for example `DP-1`, `HDMI-A-1`) instead of only numeric
+indices. `output_name` still accepts a legacy numeric index. Matching uses the
+same connector string for list generation and lookup. Updated the Linux/FreeBSD
+Web UI placeholder and `en` locale copy, plus `docs/configuration.md`. Added
+unit coverage for connector formatting and name-to-index mapping.
+
 ### Release documentation and dual-version tooling
 
 Documented SolarFlare v1.0.7 separately from its compatibility build tag,
