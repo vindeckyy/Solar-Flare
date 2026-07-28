@@ -20,14 +20,15 @@ use `pkexec` plus `solarflare-update-apply` from `linux-install.sh`.
 
 ### Release binary vs source install
 
-New users should always build fresh with `./scripts/linux-install.sh`. The
-published Linux binaries are only for updating an already working SolarFlare
-install. Prefer Update now in the Web UI when that path is available.
-
-Build from source for Web UI changes, desktop files and icons, shaders, udev
-rules, the systemd user service unit, and installer helpers such as
-`solarflare-update-apply`. The bare `sunshine-x86_64` download is the
-executable only.
+> [!CAUTION]
+> New users should always build fresh with `./scripts/linux-install.sh`. The
+> published Linux binaries are only for updating an already working SolarFlare
+> install. Prefer Update now in the Web UI when that path is available.
+>
+> Build from source for Web UI changes, desktop files and icons, shaders, udev
+> rules, the systemd user service unit, and installer helpers such as
+> `solarflare-update-apply`. The bare `sunshine-x86_64` download is the
+> executable only.
 
 ### Linux connector display names (upstream #5423 / #5448)
 
