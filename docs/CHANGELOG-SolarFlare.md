@@ -6,6 +6,11 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+
+## 2026-07-28 — SolarFlare v1.0.8 (`v2026.728.1-solarflare`)
+
+Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.
+
 ## Unreleased
 
 ### Linux connector display names (upstream #5423 / #5448)

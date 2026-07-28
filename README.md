@@ -5,7 +5,7 @@
   <p>A Linux game-streaming host for Moonlight, built for local networks.</p>
 
   <p>
-    <a href="https://github.com/vindeckyy/Solar-Flare/releases/latest"><img src="https://img.shields.io/badge/release-v1.0.7-f97316?style=for-the-badge" alt="Latest release"></a>
+    <a href="https://github.com/vindeckyy/Solar-Flare/releases/latest"><img src="https://img.shields.io/badge/release-v1.0.8-f97316?style=for-the-badge" alt="Latest release"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-111827?style=for-the-badge" alt="GPL-3.0 license"></a>
     <a href="https://moonlight-stream.org/"><img src="https://img.shields.io/badge/client-Moonlight-22d3ee?style=for-the-badge" alt="Moonlight client"></a>
     <img src="https://img.shields.io/badge/primary%20target-Linux%20x86__64-0f172a?style=for-the-badge&logo=linux&logoColor=white" alt="Primary target Linux x86-64">
@@ -38,8 +38,8 @@ devices, managing applications, changing host settings, and checking logs.
 | **Host focus** | Linux x86-64, with build and runtime tuning for modern AMD and Intel CPUs |
 | **Client protocol** | Moonlight / NVIDIA GameStream-compatible transport |
 | **Control plane** | Responsive HTTPS interface at `https://localhost:47990` |
-| **Current release** | [`v1.0.7`](https://github.com/vindeckyy/Solar-Flare/releases/latest) |
-| **Build tag** | [`v2026.726.1-solarflare`](https://github.com/vindeckyy/Solar-Flare/releases/tag/v2026.726.1-solarflare) |
+| **Current release** | [`v1.0.8`](https://github.com/vindeckyy/Solar-Flare/releases/latest) |
+| **Build tag** | [`v2026.728.1-solarflare`](https://github.com/vindeckyy/Solar-Flare/releases/tag/v2026.728.1-solarflare) |
 
 > [!IMPORTANT]
 > SolarFlare preserves the executable name, service identifier, ports, state
@@ -117,7 +117,7 @@ options.
 
 ### Supported release profile
 
-SolarFlare v1.0.7 publishes three Linux x86-64 files:
+SolarFlare v1.0.8 publishes three Linux x86-64 files:
 
 | Asset | Purpose |
 |---|---|
