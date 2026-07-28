@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  Allow active local users to run the SolarFlare update apply helper via pkexec.
+-->
+<policyconfig>
+  <vendor>SolarFlare</vendor>
+  <vendor_url>https://github.com/vindeckyy/Solar-Flare</vendor_url>
+  <action id="org.vindeckyy.solarflare.update.apply">
+    <description>Install a staged SolarFlare update</description>
+    <message>Authentication is required to install this SolarFlare update</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@SUNSHINE_UPDATE_HELPER_PATH@</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>

@@ -26,6 +26,7 @@
 
 // lib includes
 #include <boost/algorithm/string.hpp>
+#include <boost/process/v1.hpp>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <openssl/evp.h>
@@ -33,6 +34,7 @@
 // local includes
 #include "crypto.h"
 #include "file_handler.h"
+#include "httpcommon.h"
 #include "logging.h"
 #include "platform/common.h"
 #include "rtsp.h"
@@ -41,6 +43,7 @@
 using namespace std::literals;
 
 namespace fs = std::filesystem;
+namespace bp = boost::process::v1;
 
 namespace update {
   namespace {
@@ -48,7 +51,11 @@ namespace update {
     constexpr auto UPDATE_REPO = "vindeckyy/Solar-Flare"sv;
     constexpr auto TARBALL_NAME = "solarflare-linux-x86_64.tar.gz"sv;
     constexpr auto SUMS_NAME = "SHA256SUMS"sv;
+#ifdef SUNSHINE_UPDATE_HELPER_PATH
+    constexpr auto HELPER_PATH = SUNSHINE_UPDATE_HELPER_PATH;
+#else
     constexpr auto HELPER_PATH = "/usr/local/libexec/solarflare-update-apply";
+#endif
     constexpr auto DOWNLOAD_TIMEOUT_S = 600L;
 
     struct state_t {
@@ -169,6 +176,10 @@ namespace update {
       if (!curl) {
         return false;
       }
+      if (http::restrict_protocols_to_https(curl) != CURLE_OK) {
+        curl_easy_cleanup(curl);
+        return false;
+      }
 
       FILE *fp = fopen(dest.c_str(), "wb");
       if (!fp) {
@@ -179,7 +190,6 @@ namespace update {
       curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
       curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
       curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
-      curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
       curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
       curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
       curl_easy_setopt(curl, CURLOPT_USERAGENT, "SolarFlare-Updater/1.0");
@@ -252,13 +262,49 @@ namespace update {
     }
 
     /**
-     * @brief Run a shell command, appending it to the log.
-     * @param cmd Command string.
-     * @return Exit code.
+     * @brief Render an argument vector for the updater log.
+     *
+     * @param command Executable followed by its arguments.
+     * @return Quoted log representation that is never executed.
      */
-    int run_logged(const std::string &cmd) {
-      append_log(cmd);
-      return ::system(cmd.c_str());
+    std::string command_log(const std::vector<std::string> &command) {
+      std::ostringstream log;
+      bool first = true;
+      for (const auto &argument : command) {
+        if (!first) {
+          log << ' ';
+        }
+        log << std::quoted(argument);
+        first = false;
+      }
+      return log.str();
+    }
+
+    /**
+     * @brief Run an executable with explicit arguments and append it to the log.
+     *
+     * @param command Executable followed by its arguments.
+     * @return Child exit code, or -1 when spawning or waiting fails.
+     */
+    int run_logged(const std::vector<std::string> &command) {
+      if (command.empty()) {
+        return -1;
+      }
+
+      append_log(command_log(command));
+      std::vector<std::string> arguments {command.begin() + 1, command.end()};
+      std::error_code error;
+      bp::child child(command.front(), bp::args(arguments), error);
+      if (error) {
+        append_log("# unable to start " + command.front() + ": " + error.message());
+        return -1;
+      }
+      child.wait(error);
+      if (error) {
+        append_log("# unable to wait for " + command.front() + ": " + error.message());
+        return -1;
+      }
+      return child.exit_code();
     }
 
     /**
@@ -332,8 +378,7 @@ namespace update {
         }
       }
 
-      append_log("setcap 'cap_sys_admin,cap_sys_nice+p' " + binary_dest.string());
-      const int cap_rc = ::system(("setcap 'cap_sys_admin,cap_sys_nice+p' '" + binary_dest.string() + "'").c_str());
+      const int cap_rc = run_logged({"setcap", "cap_sys_admin,cap_sys_nice+p", binary_dest.string()});
       if (cap_rc != 0) {
         BOOST_LOG(warning) << "setcap returned "sv << cap_rc << " for "sv << binary_dest;
         append_log("# warning: setcap exited " + std::to_string(cap_rc) + " (KMS may need a manual setcap)");
@@ -355,12 +400,7 @@ namespace update {
         return false;
       }
 
-      std::ostringstream cmd;
-      cmd << "pkexec " << HELPER_PATH
-          << " --staging '" << payload.string() << "'"
-          << " --binary '" << binary_dest.string() << "'"
-          << " --assets '" << assets_dest.string() << "'";
-      const int rc = run_logged(cmd.str());
+      const int rc = run_logged({"pkexec", HELPER_PATH, "--staging", payload.string(), "--binary", binary_dest.string(), "--assets", assets_dest.string()});
       if (rc != 0) {
         set_phase(phase_e::error, "Privileged apply failed (pkexec/helper exit " + std::to_string(rc) + ")", -1);
         return false;
@@ -390,8 +430,7 @@ namespace update {
       if (path_writable(binary_dest) && path_writable(assets_dest)) {
         append_log("# applying in-process (install paths are writable)");
         ok = install_payload(payload, binary_dest, assets_dest);
-      }
-      else {
+      } else {
         ok = apply_with_helper(payload, binary_dest, assets_dest);
       }
 
@@ -515,8 +554,7 @@ namespace update {
 
         const fs::path extract_dir = work / "extract";
         fs::create_directories(extract_dir, ec);
-        const std::string tar_cmd = "tar -xzf '" + tarball_path.string() + "' -C '" + extract_dir.string() + "'";
-        if (run_logged(tar_cmd) != 0) {
+        if (run_logged({"tar", "-xzf", tarball_path.string(), "-C", extract_dir.string()}) != 0) {
           set_phase(phase_e::error, "Failed to extract release tarball", -1);
           g.worker_running = false;
           return;
@@ -545,8 +583,7 @@ namespace update {
           append_log(std::string("# auto-apply deferred: ") + *err);
         }
         return;
-      }
-      catch (const std::exception &ex) {
+      } catch (const std::exception &ex) {
         set_phase(phase_e::error, std::string("Update failed: ") + ex.what(), -1);
       }
       g.worker_running = false;
@@ -701,8 +738,7 @@ namespace update {
       while (std::getline(ss, item, '.')) {
         try {
           parts.push_back(std::stoi(item));
-        }
-        catch (...) {
+        } catch (...) {
           parts.clear();
           return;
         }

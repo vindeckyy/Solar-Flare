@@ -15,6 +15,14 @@
 
 namespace http {
 
+  /**
+   * @brief Restrict a libcurl handle to HTTPS URLs.
+   *
+   * @param curl Initialized libcurl handle.
+   * @return libcurl result from applying the protocol restriction.
+   */
+  CURLcode restrict_protocols_to_https(CURL *curl);
+
   int init();
   int create_creds(const std::string &pkey, const std::string &cert);
   int save_user_creds(

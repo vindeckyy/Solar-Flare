@@ -7,6 +7,7 @@ elseif (APPLE)
     endif()
 elseif (UNIX)
     include(GNUInstallDirs)
+    set(SUNSHINE_UPDATE_HELPER_PATH "${CMAKE_INSTALL_FULL_LIBEXECDIR}/solarflare-update-apply")
 
     if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
         set(SUNSHINE_EXECUTABLE_PATH "sunshine")

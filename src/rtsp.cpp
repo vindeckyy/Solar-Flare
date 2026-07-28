@@ -16,6 +16,7 @@ extern "C" {
 #include <cctype>
 #include <format>
 #include <set>
+#include <stdexcept>
 #include <unordered_map>
 #include <utility>
 
@@ -42,6 +43,40 @@ using asio::ip::udp;
 using namespace std::literals;
 
 namespace rtsp_stream {
+  std::optional<announce_payload_t> parse_announce_payload(std::string_view payload) {
+    announce_payload_t parsed;
+    std::size_t begin = 0;
+    while (begin < payload.size()) {
+      auto end = payload.find_first_of("\r\n", begin);
+      if (end == std::string_view::npos) {
+        end = payload.size();
+      }
+
+      const auto line = payload.substr(begin, end - begin);
+      if (line.starts_with("s="sv)) {
+        parsed.client = line.substr(2);
+      } else if (line.starts_with("a="sv)) {
+        const auto separator = line.find(':');
+        if (separator == std::string_view::npos) {
+          return std::nullopt;
+        }
+
+        const auto name = line.substr(2, separator - 2);
+        auto value = line.substr(separator + 1);
+        if (!value.empty() && value.back() == ' ') {
+          value.remove_suffix(1);
+        }
+        parsed.attributes.emplace(name, value);
+      }
+
+      begin = end;
+      while (begin < payload.size() && (payload[begin] == '\r' || payload[begin] == '\n')) {
+        ++begin;
+      }
+    }
+    return parsed;
+  }
+
   void free_msg(PRTSP_MESSAGE msg) {
     freeMessage(msg);
 
@@ -155,7 +190,7 @@ namespace rtsp_stream {
         boost::asio::async_read(sock, boost::asio::buffer(begin, sizeof(encrypted_rtsp_header_t)), boost::bind(&socket_t::handle_read_encrypted_header, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
       } else {
         sock.async_read_some(
-          boost::asio::buffer(begin, (std::size_t) (std::end(msg_buf) - begin)),
+          boost::asio::buffer(begin, (std::size_t)(std::end(msg_buf) - begin)),
           boost::bind(
             &socket_t::handle_read_plaintext,
             shared_from_this(),
@@ -296,7 +331,7 @@ namespace rtsp_stream {
       }
 
       sock.async_read_some(
-        boost::asio::buffer(begin, (std::size_t) (std::end(msg_buf) - begin)),
+        boost::asio::buffer(begin, (std::size_t)(std::end(msg_buf) - begin)),
         boost::bind(
           &socket_t::handle_plaintext_payload,
           shared_from_this(),
@@ -357,14 +392,21 @@ namespace rtsp_stream {
             return (bool) std::isdigit(ch);
           });
 
-          content_length = (int) util::from_chars(begin, std::end(content));
+          if (begin != std::end(content)) {
+            const auto parsed_length = util::parse_integer<int>({begin, std::end(content)});
+            if (parsed_length && *parsed_length >= 0) {
+              content_length = *parsed_length;
+            } else {
+              BOOST_LOG(warning) << "Ignoring invalid Content-Length: "sv << content;
+            }
+          }
           break;
         }
       }
 
       if (end - socket->crlf >= content_length) {
         if (end - socket->crlf > content_length) {
-          BOOST_LOG(warning) << "(end - socket->crlf) > content_length -- "sv << (std::size_t) (end - socket->crlf) << " > "sv << content_length;
+          BOOST_LOG(warning) << "(end - socket->crlf) > content_length -- "sv << (std::size_t)(end - socket->crlf) << " > "sv << content_length;
         }
 
         fg.disable();
@@ -962,48 +1004,13 @@ namespace rtsp_stream {
     auto seqn_str = std::to_string(req->sequenceNumber);
     option.content = const_cast<char *>(seqn_str.c_str());
 
-    std::string_view payload {req->payload, (size_t) req->payloadLength};
-
-    std::vector<std::string_view> lines;
-
-    auto whitespace = [](char ch) {
-      return ch == '\n' || ch == '\r';
-    };
-
-    {
-      auto pos = std::begin(payload);
-      auto begin = pos;
-      while (pos != std::end(payload)) {
-        if (whitespace(*pos++)) {
-          lines.emplace_back(begin, pos - begin - 1);
-
-          while (pos != std::end(payload) && whitespace(*pos)) {
-            ++pos;
-          }
-          begin = pos;
-        }
-      }
+    const auto parsed_payload = parse_announce_payload({req->payload, static_cast<std::size_t>(req->payloadLength)});
+    if (!parsed_payload) {
+      respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
+      return;
     }
 
-    std::string_view client;
-    std::unordered_map<std::string_view, std::string_view> args;
-
-    for (auto line : lines) {
-      auto type = line.substr(0, 2);
-      if (type == "s="sv) {
-        client = line.substr(2);
-      } else if (type == "a=") {
-        auto pos = line.find(':');
-
-        auto name = line.substr(2, pos - 2);
-        auto val = line.substr(pos + 1);
-
-        if (val[val.size() - 1] == ' ') {
-          val = val.substr(0, val.size() - 1);
-        }
-        args.emplace(name, val);
-      }
-    }
+    auto args = parsed_payload->attributes;
 
     // Initialize any omitted parameters to defaults
     args.try_emplace("x-nv-video[0].encoderCscMode"sv, "0"sv);
@@ -1027,23 +1034,45 @@ namespace rtsp_stream {
     std::int64_t configuredBitrateKbps;
     config.audio.flags[audio::config_t::HOST_AUDIO] = session.host_audio;
     try {
-      config.audio.channels = (int) util::from_view(args.at("x-nv-audio.surround.numChannels"sv));
-      config.audio.mask = (int) util::from_view(args.at("x-nv-audio.surround.channelMask"sv));
-      config.audio.packetDuration = (int) util::from_view(args.at("x-nv-aqos.packetDuration"sv));
+      const auto int_arg = [&args](std::string_view name) {
+        const auto value = util::parse_integer<int>(args.at(name));
+        if (!value) {
+          throw std::invalid_argument {"invalid RTSP integer"};
+        }
+        return *value;
+      };
+      const auto int64_arg = [&args](std::string_view name) {
+        const auto value = util::parse_integer<std::int64_t>(args.at(name));
+        if (!value) {
+          throw std::invalid_argument {"invalid RTSP integer"};
+        }
+        return *value;
+      };
+      const auto uint32_arg = [&args](std::string_view name) {
+        const auto value = util::parse_integer<std::uint32_t>(args.at(name));
+        if (!value) {
+          throw std::invalid_argument {"invalid RTSP integer"};
+        }
+        return *value;
+      };
+
+      config.audio.channels = int_arg("x-nv-audio.surround.numChannels"sv);
+      config.audio.mask = int_arg("x-nv-audio.surround.channelMask"sv);
+      config.audio.packetDuration = int_arg("x-nv-aqos.packetDuration"sv);
 
       config.audio.flags[audio::config_t::HIGH_QUALITY] =
-        util::from_view(args.at("x-nv-audio.surround.AudioQuality"sv));
+        int_arg("x-nv-audio.surround.AudioQuality"sv);
 
-      config.controlProtocolType = (int) util::from_view(args.at("x-nv-general.useReliableUdp"sv));
-      config.packetsize = (int) util::from_view(args.at("x-nv-video[0].packetSize"sv));
-      config.minRequiredFecPackets = (int) util::from_view(args.at("x-nv-vqos[0].fec.minRequiredFecPackets"sv));
-      config.mlFeatureFlags = (int) util::from_view(args.at("x-ml-general.featureFlags"sv));
-      config.audioQosType = (int) util::from_view(args.at("x-nv-aqos.qosTrafficType"sv));
-      config.videoQosType = (int) util::from_view(args.at("x-nv-vqos[0].qosTrafficType"sv));
-      config.encryptionFlagsEnabled = (uint32_t) util::from_view(args.at("x-ss-general.encryptionEnabled"sv));
+      config.controlProtocolType = int_arg("x-nv-general.useReliableUdp"sv);
+      config.packetsize = int_arg("x-nv-video[0].packetSize"sv);
+      config.minRequiredFecPackets = int_arg("x-nv-vqos[0].fec.minRequiredFecPackets"sv);
+      config.mlFeatureFlags = int_arg("x-ml-general.featureFlags"sv);
+      config.audioQosType = int_arg("x-nv-aqos.qosTrafficType"sv);
+      config.videoQosType = int_arg("x-nv-vqos[0].qosTrafficType"sv);
+      config.encryptionFlagsEnabled = uint32_arg("x-ss-general.encryptionEnabled"sv);
 
       // Legacy clients use nvFeatureFlags to indicate support for audio encryption
-      if (util::from_view(args.at("x-nv-general.featureFlags"sv)) & 0x20) {
+      if (int_arg("x-nv-general.featureFlags"sv) & 0x20) {
         config.encryptionFlagsEnabled |= SS_ENC_AUDIO;
       }
 
@@ -1064,10 +1093,10 @@ namespace rtsp_stream {
         }
       }
 
-      config.monitor.height = (int) util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));
-      config.monitor.width = (int) util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));
-      config.monitor.framerate = (int) util::from_view(args.at("x-nv-video[0].maxFPS"sv));
-      config.monitor.framerateX100 = (int) util::from_view(args.at("x-nv-video[0].clientRefreshRateX100"sv));
+      config.monitor.height = int_arg("x-nv-video[0].clientViewportHt"sv);
+      config.monitor.width = int_arg("x-nv-video[0].clientViewportWd"sv);
+      config.monitor.framerate = int_arg("x-nv-video[0].maxFPS"sv);
+      config.monitor.framerateX100 = int_arg("x-nv-video[0].clientRefreshRateX100"sv);
       // Validate framerateX100 against framerate. Some clients (e.g. Moonlight Android) send the
       // client display's refresh rate as clientRefreshRateX100, which may differ from the requested
       // streaming framerate. Discard framerateX100 if the derived fps is not within 1% of framerate.
@@ -1078,17 +1107,17 @@ namespace rtsp_stream {
           config.monitor.framerateX100 = 0;
         }
       }
-      config.monitor.bitrate = (int) util::from_view(args.at("x-nv-vqos[0].bw.maximumBitrateKbps"sv));
-      config.monitor.slicesPerFrame = (int) util::from_view(args.at("x-nv-video[0].videoEncoderSlicesPerFrame"sv));
-      config.monitor.numRefFrames = (int) util::from_view(args.at("x-nv-video[0].maxNumReferenceFrames"sv));
-      config.monitor.encoderCscMode = (int) util::from_view(args.at("x-nv-video[0].encoderCscMode"sv));
-      config.monitor.videoFormat = (int) util::from_view(args.at("x-nv-vqos[0].bitStreamFormat"sv));
-      config.monitor.dynamicRange = (int) util::from_view(args.at("x-nv-video[0].dynamicRangeMode"sv));
-      config.monitor.chromaSamplingType = (int) util::from_view(args.at("x-ss-video[0].chromaSamplingType"sv));
-      config.monitor.enableIntraRefresh = (int) util::from_view(args.at("x-ss-video[0].intraRefresh"sv));
+      config.monitor.bitrate = int_arg("x-nv-vqos[0].bw.maximumBitrateKbps"sv);
+      config.monitor.slicesPerFrame = int_arg("x-nv-video[0].videoEncoderSlicesPerFrame"sv);
+      config.monitor.numRefFrames = int_arg("x-nv-video[0].maxNumReferenceFrames"sv);
+      config.monitor.encoderCscMode = int_arg("x-nv-video[0].encoderCscMode"sv);
+      config.monitor.videoFormat = int_arg("x-nv-vqos[0].bitStreamFormat"sv);
+      config.monitor.dynamicRange = int_arg("x-nv-video[0].dynamicRangeMode"sv);
+      config.monitor.chromaSamplingType = int_arg("x-ss-video[0].chromaSamplingType"sv);
+      config.monitor.enableIntraRefresh = int_arg("x-ss-video[0].intraRefresh"sv);
 
-      configuredBitrateKbps = util::from_view(args.at("x-ml-video.configuredBitrateKbps"sv));
-    } catch (std::out_of_range &) {
+      configuredBitrateKbps = int64_arg("x-ml-video.configuredBitrateKbps"sv);
+    } catch (const std::exception &) {
       respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
       return;
     }

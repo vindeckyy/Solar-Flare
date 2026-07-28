@@ -8,6 +8,9 @@
 
 // standard includes
 #include <atomic>
+#include <optional>
+#include <string_view>
+#include <unordered_map>
 
 // local includes
 #include "crypto.h"
@@ -16,6 +19,22 @@
 namespace rtsp_stream {
   /// @brief TCP port offset for the RTSP SETUP listener (relative to config::sunshine.port).
   constexpr auto RTSP_SETUP_PORT = 21;
+
+  /**
+   * @brief Parsed SDP fields from an RTSP ANNOUNCE payload.
+   */
+  struct announce_payload_t {
+    std::string_view client;  ///< SDP session name from the s= field.
+    std::unordered_map<std::string_view, std::string_view> attributes;  ///< SDP a= fields by name.
+  };
+
+  /**
+   * @brief Parse SDP fields used by an RTSP ANNOUNCE request.
+   *
+   * @param payload SDP payload from the request.
+   * @return Parsed fields, or std::nullopt when an a= field lacks a separator.
+   */
+  std::optional<announce_payload_t> parse_announce_payload(std::string_view payload);
 
   struct launch_session_t {
     uint32_t id;

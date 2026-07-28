@@ -5,9 +5,7 @@
  * @brief Definitions for x11 capture.
  */
 // standard includes
-#include <cctype>
 #include <fstream>
-#include <ranges>
 #include <thread>
 
 // plaform includes
@@ -39,6 +37,10 @@ using namespace std::literals;
 namespace platf {
   int load_xcb();
   int load_x11();
+
+  bool x11_output_is_active(bool connected, bool has_crtc) {
+    return connected && has_crtc;
+  }
 
   namespace x11 {
 #define _FN(x, ret, args) \
@@ -401,11 +403,15 @@ namespace platf {
 
       refresh();
 
-      int streamedMonitor = -1;
-      if (!display_name.empty() && std::ranges::all_of(display_name, ::isdigit)) {
-        // Resolve (legacy) monitor index from display_name.
-        streamedMonitor = (int) util::parse_monitor_index(display_name, -1);
+      if (display_name.empty()) {
+        width = xattr.width;
+        height = xattr.height;
+        env_width = xattr.width;
+        env_height = xattr.height;
+        return 0;
       }
+
+      const auto streamedMonitor = static_cast<int>(util::parse_monitor_index(display_name, -1));
 
       screen_res_t screenr {x11::rr::GetScreenResources(xdisplay.get(), xwindow)};
       int output = screenr->noutput;
@@ -415,7 +421,7 @@ namespace platf {
       int monitor = 0;
       for (int x = 0; x < output; ++x) {
         output_info_t out_info {x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x])};
-        if (out_info) {
+        if (out_info && x11_output_is_active(out_info->connection == RR_Connected, out_info->crtc != 0)) {
           // Match by numeric index when present; otherwise match the RandR output name.
           if ((streamedMonitor >= 0 && monitor == streamedMonitor) || (streamedMonitor < 0 && out_info->name == display_name)) {
             result = std::move(out_info);
@@ -426,7 +432,7 @@ namespace platf {
         }
       }
 
-      if (result_found && result->crtc) {
+      if (result_found) {
         crtc_info_t crt_info {x11::rr::GetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc)};
         BOOST_LOG(info)
           << "Streaming display: "sv << result->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
@@ -436,9 +442,8 @@ namespace platf {
         offset_x = crt_info->x;
         offset_y = crt_info->y;
       } else {
-        BOOST_LOG(warning) << "Couldn't get info for requested display ["sv << display_name << "], defaulting to recording entire virtual desktop"sv;
-        width = xattr.width;
-        height = xattr.height;
+        BOOST_LOG(warning) << "Couldn't get an active requested display ["sv << display_name << ']';
+        return -1;
       }
 
       env_width = xattr.width;
@@ -783,8 +788,8 @@ namespace platf {
     int monitor = 0;
     for (int x = 0; x < output; ++x) {
       output_info_t out_info {x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x])};
-      if (out_info) {
-        BOOST_LOG(info) << "Detected display: "sv << out_info->name << " (id: "sv << monitor++ << ")"sv << out_info->name << " connected: "sv << (out_info->connection == RR_Connected);
+      if (out_info && x11_output_is_active(out_info->connection == RR_Connected, out_info->crtc != 0)) {
+        BOOST_LOG(info) << "Detected display: "sv << out_info->name << " (id: "sv << monitor++ << ')';
         names.emplace_back(out_info->name);
       }
     }

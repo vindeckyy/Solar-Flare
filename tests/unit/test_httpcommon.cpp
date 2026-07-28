@@ -74,6 +74,13 @@ INSTANTIATE_TEST_SUITE_P(
   )
 );
 
+TEST(HttpCommonTest, RestrictsCurlHandlesToHttps) {
+  CURL *curl = curl_easy_init();
+  ASSERT_NE(curl, nullptr);
+  EXPECT_EQ(http::restrict_protocols_to_https(curl), CURLE_OK);
+  curl_easy_cleanup(curl);
+}
+
 // ponytail: M-4 -- password shorter than the floor must be rejected at write
 // time. We exercise save_user_creds directly with a scratch file so we don't
 // touch the real credentials.json on disk.

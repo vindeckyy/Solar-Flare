@@ -216,8 +216,12 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.metainfo.xml"
 
 # SolarFlare self-update helper + polkit policy (Linux package installs only)
 if(NOT ${SUNSHINE_BUILD_APPIMAGE} AND NOT ${SUNSHINE_BUILD_FLATPAK} AND NOT ${SUNSHINE_BUILD_HOMEBREW})
+    configure_file(
+            "${CMAKE_SOURCE_DIR}/packaging/linux/polkit/org.vindeckyy.solarflare.update.policy.in"
+            "${CMAKE_CURRENT_BINARY_DIR}/org.vindeckyy.solarflare.update.policy"
+            @ONLY)
     install(PROGRAMS "${CMAKE_SOURCE_DIR}/packaging/linux/solarflare-update-apply"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/libexec")
-    install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/polkit/org.vindeckyy.solarflare.update.policy"
+            DESTINATION "${CMAKE_INSTALL_LIBEXECDIR}")
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/org.vindeckyy.solarflare.update.policy"
             DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/polkit-1/actions")
 endif()

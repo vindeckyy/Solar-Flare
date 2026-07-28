@@ -29,7 +29,11 @@ TEST(UpdateTest, CompareVersionsOrdersBuildTags) {
 }
 
 TEST(UpdateTest, ApplyHelperPathIsStable) {
+#ifdef SUNSHINE_UPDATE_HELPER_PATH
+  EXPECT_EQ(update::apply_helper_path(), SUNSHINE_UPDATE_HELPER_PATH);
+#else
   EXPECT_EQ(update::apply_helper_path(), "/usr/local/libexec/solarflare-update-apply");
+#endif
 }
 
 TEST(UpdateTest, PhaseTokensAreStable) {

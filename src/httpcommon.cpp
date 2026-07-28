@@ -75,10 +75,9 @@ namespace http {
         // ponytail: pick the pair whose pkey has the highest mtime. mtime
         // is the cheapest sort key that's robust to the multi-instance
         // case (one of the older pairs is whichever instance wrote last).
-        auto newest = std::max_element(existing_pkies.begin(), existing_pkies.end(),
-          [](const fs::path &a, const fs::path &b) {
-            return fs::last_write_time(a) < fs::last_write_time(b);
-          });
+        auto newest = std::max_element(existing_pkies.begin(), existing_pkies.end(), [](const fs::path &a, const fs::path &b) {
+          return fs::last_write_time(a) < fs::last_write_time(b);
+        });
         auto pkey_path = *newest;
         auto cert_path = pkey_path;
         cert_path.replace_filename(std::string("cert-") + pkey_path.filename().string().substr(5));
@@ -256,11 +255,23 @@ namespace http {
     return 0;
   }
 
+  CURLcode restrict_protocols_to_https(CURL *curl) {
+#if LIBCURL_VERSION_NUM >= 0x075500
+    return curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
+#else
+    return curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+#endif
+  }
+
   bool download_file(const std::string &url, const std::string &file, long ssl_version) {
     // sonar complains about weak ssl and tls versions; however sonar cannot detect the fix
     CURL *curl = curl_easy_init();  // NOSONAR
     if (!curl) {
       BOOST_LOG(error) << "Couldn't create CURL instance";
+      return false;
+    }
+    if (restrict_protocols_to_https(curl) != CURLE_OK) {
+      curl_easy_cleanup(curl);
       return false;
     }
 
@@ -283,7 +294,6 @@ namespace http {
     // so we belt-and-suspenders here.
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());

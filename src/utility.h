@@ -8,13 +8,18 @@
 
 // standard includes
 #include <algorithm>
+#include <array>
+#include <charconv>
 #include <condition_variable>
+#include <cstdint>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <type_traits>
 #include <variant>
 #include <vector>
@@ -347,112 +352,93 @@ namespace util {
     return hex_vec(std::begin(c), std::end(c), rev);
   }
 
-  template<class T>
-  T from_hex(const std::string_view &hex, bool rev = false) {
-    std::uint8_t buf[sizeof(T)];
-
-    static char constexpr shift_bit = 'a' - 'A';
-
-    auto is_convertable = [](char ch) -> bool {
-      if (isdigit(ch)) {
-        return true;
-      }
-
-      ch |= shift_bit;
-
-      if ('a' > ch || ch > 'z') {
-        return false;
-      }
-
-      return true;
-    };
-
-    auto buf_size = std::count_if(std::begin(hex), std::end(hex), is_convertable) / 2;
-    auto padding = sizeof(T) - buf_size;
-
-    const char *data = hex.data() + hex.size() - 1;
-
-    auto convert = [](char ch) -> std::uint8_t {
-      if (ch >= '0' && ch <= '9') {
-        return (std::uint8_t) ch - '0';
-      }
-
-      return (std::uint8_t) (ch | (char) 32) - 'a' + (char) 10;
-    };
-
-    std::fill_n(buf + buf_size, padding, 0);
-
-    std::for_each_n(buf, buf_size, [&](auto &el) {
-      while (!is_convertable(*data)) {
-        --data;
-      }
-      std::uint8_t ch_r = convert(*data--);
-
-      while (!is_convertable(*data)) {
-        --data;
-      }
-      std::uint8_t ch_l = convert(*data--);
-
-      el = (ch_l << 4) | ch_r;
-    });
-
-    if (rev) {
-      std::reverse(std::begin(buf), std::end(buf));
+  /**
+   * @brief Decode one hexadecimal digit.
+   *
+   * @param character ASCII hexadecimal digit.
+   * @return The decoded nibble, or std::nullopt for a non-hexadecimal character.
+   */
+  inline std::optional<std::uint8_t> hex_digit(char character) {
+    if (character >= '0' && character <= '9') {
+      return static_cast<std::uint8_t>(character - '0');
     }
-
-    return *reinterpret_cast<T *>(buf);
+    if (character >= 'a' && character <= 'f') {
+      return static_cast<std::uint8_t>(character - 'a' + 10);
+    }
+    if (character >= 'A' && character <= 'F') {
+      return static_cast<std::uint8_t>(character - 'A' + 10);
+    }
+    return std::nullopt;
   }
 
-  inline std::string from_hex_vec(const std::string &hex, bool rev = false) {
-    std::string buf;
+  /**
+   * @brief Decode a hexadecimal byte sequence.
+   *
+   * The returned byte order matches the legacy @ref from_hex_vec behavior:
+   * @p rev false returns the least-significant byte first.
+   *
+   * @param hex Even-length ASCII hexadecimal input.
+   * @param rev Reverse the decoded byte order.
+   * @return Decoded bytes, or std::nullopt for malformed input.
+   */
+  inline std::optional<std::string> decode_hex(std::string_view hex, bool rev = false) {
+    if (hex.size() % 2 != 0) {
+      return std::nullopt;
+    }
 
-    static char constexpr shift_bit = 'a' - 'A';
-    auto is_convertable = [](char ch) -> bool {
-      if (isdigit(ch)) {
-        return true;
+    std::string bytes(hex.size() / 2, '\0');
+    for (std::size_t index = 0; index < bytes.size(); ++index) {
+      const auto high = hex_digit(hex[index * 2]);
+      const auto low = hex_digit(hex[index * 2 + 1]);
+      if (!high || !low) {
+        return std::nullopt;
       }
-
-      ch |= shift_bit;
-
-      if ('a' > ch || ch > 'z') {
-        return false;
-      }
-
-      return true;
-    };
-
-    auto buf_size = std::count_if(std::begin(hex), std::end(hex), is_convertable) / 2;
-    buf.resize(buf_size);
-
-    const char *data = hex.data() + hex.size() - 1;
-
-    auto convert = [](char ch) -> std::uint8_t {
-      if (ch >= '0' && ch <= '9') {
-        return (std::uint8_t) ch - '0';
-      }
-
-      return (std::uint8_t) (ch | (char) 32) - 'a' + (char) 10;
-    };
-
-    for (auto &el : buf) {
-      while (!is_convertable(*data)) {
-        --data;
-      }
-      std::uint8_t ch_r = convert(*data--);
-
-      while (!is_convertable(*data)) {
-        --data;
-      }
-      std::uint8_t ch_l = convert(*data--);
-
-      el = (ch_l << 4) | ch_r;
+      bytes[bytes.size() - index - 1] = static_cast<char>((*high << 4) | *low);
     }
 
     if (rev) {
-      std::reverse(std::begin(buf), std::end(buf));
+      std::reverse(bytes.begin(), bytes.end());
+    }
+    return bytes;
+  }
+
+  /**
+   * @brief Decode a hexadecimal representation into an object.
+   *
+   * @tparam T Trivially copyable destination type.
+   * @param hex Even-length ASCII hexadecimal input.
+   * @param rev Reverse the decoded destination bytes.
+   * @return Decoded value, or std::nullopt when @p hex is malformed or too large.
+   */
+  template<class T>
+  std::optional<T> from_hex(std::string_view hex, bool rev = false) {
+    static_assert(std::is_trivially_copyable_v<T>);
+
+    const auto decoded = decode_hex(hex);
+    if (!decoded || decoded->size() > sizeof(T)) {
+      return std::nullopt;
     }
 
-    return buf;
+    std::array<std::uint8_t, sizeof(T)> bytes {};
+    std::memcpy(bytes.data(), decoded->data(), decoded->size());
+    if (rev) {
+      std::reverse(bytes.begin(), bytes.end());
+    }
+
+    T value {};
+    std::memcpy(&value, bytes.data(), sizeof(value));
+    return value;
+  }
+
+  /**
+   * @brief Decode a hexadecimal byte sequence, returning empty on malformed input.
+   *
+   * @param hex ASCII hexadecimal input.
+   * @param rev Reverse the decoded byte order.
+   * @return Decoded bytes, or an empty string when @p hex is malformed.
+   */
+  inline std::string from_hex_vec(const std::string &hex, bool rev = false) {
+    return decode_hex(hex, rev).value_or(std::string {});
   }
 
   template<class T>
@@ -477,35 +463,43 @@ namespace util {
     return *reinterpret_cast<std::underlying_type_t<T> *>(&val);
   }
 
-  inline std::int64_t from_chars(const char *begin, const char *end) {
-    if (begin == end) {
-      return 0;
+  /**
+   * @brief Parse an integer from an entire string view.
+   *
+   * @tparam T Integral destination type.
+   * @param number Decimal input.
+   * @return Parsed value, or std::nullopt for malformed or out-of-range input.
+   */
+  template<class T>
+  std::optional<T> parse_integer(std::string_view number) {
+    static_assert(std::is_integral_v<T>);
+    if (number.empty()) {
+      return std::nullopt;
     }
 
-    std::int64_t res {};
-    std::int64_t mul = 1;
-    while (begin != --end) {
-      res += (std::int64_t) (*end - '0') * mul;
-
-      mul *= 10;
+    T value {};
+    const auto [end, error] = std::from_chars(number.data(), number.data() + number.size(), value);
+    if (error != std::errc {} || end != number.data() + number.size()) {
+      return std::nullopt;
     }
-
-    return *begin != '-' ? res + (std::int64_t) (*begin - '0') * mul : -res;
+    return value;
   }
 
-  inline std::int64_t from_view(const std::string_view &number) {
-    return from_chars(std::begin(number), std::end(number));
+  /**
+   * @brief Parse an integer with a zero fallback for legacy callers.
+   *
+   * @param number Decimal input.
+   * @return Parsed value, or zero for malformed or out-of-range input.
+   */
+  inline std::int64_t from_view(std::string_view number) {
+    return parse_integer<std::int64_t>(number).value_or(0);
   }
 
   /**
    * @brief Parse a numeric index from a string, returning a fallback if the
    *        string contains anything other than ASCII digits.
-   * @details The plain @ref from_view helper treats every byte as a decimal
-   *          digit (it does no validation), so a non-numeric string like
-   *          "Virtual-Virtual-1" or "DP-1" returns an arbitrary negative
-   *          number that can become a corrupt out-of-bounds index when used
-   *          to select a monitor/plane. This helper requires every character
-   *          to be '0'..'9' before parsing and returns @p fallback otherwise.
+   * @details This helper requires every character to be '0'..'9' and rejects
+   *          values outside the int64_t range.
    * @param text The string to parse.
    * @param fallback Value returned when @p text is empty or non-numeric.
    * @return The parsed non-negative integer, or @p fallback.
@@ -519,7 +513,7 @@ namespace util {
         return fallback;
       }
     }
-    return from_view(text);
+    return parse_integer<std::int64_t>(text).value_or(fallback);
   }
 
   template<class X, class Y>
@@ -982,7 +976,7 @@ namespace util {
 
   template<class It>
   std::string_view view(It begin, It end) {
-    return std::string_view {(const char *) begin, (std::size_t) (end - begin)};
+    return std::string_view {(const char *) begin, (std::size_t)(end - begin)};
   }
 
   template<class T>

@@ -7,12 +7,12 @@
 // standard includes
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <errno.h>
 #include <fcntl.h>
-#include <fstream>
-#include <cstdio>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <ranges>
 #include <thread>
 #include <unistd.h>
@@ -1693,7 +1693,9 @@ namespace platf {
         continue;
       }
       auto mode_file = path / "modes";
-      if (!fs::exists(mode_file)) continue;
+      if (!fs::exists(mode_file)) {
+        continue;
+      }
 
       std::ifstream f(mode_file);
       std::string first_line;
@@ -1903,8 +1905,11 @@ namespace platf {
 
   std::int64_t map_kms_display_name(std::string_view display_name, const std::vector<kms_monitor_name_entry_t> &monitors) {
     // Handle (legacy) monitor index strings by converting them to integer.
-    if (display_name.empty() || std::ranges::all_of(display_name, ::isdigit)) {
-      return util::from_view(display_name);
+    if (display_name.empty()) {
+      return 0;
+    }
+    if (const auto index = util::parse_monitor_index(display_name, -1); index >= 0) {
+      return index;
     }
 
     // display_name is a connector name (not empty and containing non-digits).

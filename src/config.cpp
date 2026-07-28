@@ -905,6 +905,19 @@ namespace config {
     input = temp.string();
   }
 
+  /**
+   * @brief Parse a signed integer from a configuration value.
+   *
+   * @param value Decimal or 0x-prefixed hexadecimal input.
+   * @return Parsed value, or std::nullopt when the input is malformed or out of range.
+   */
+  std::optional<int> parse_config_int(std::string_view value) {
+    if (value.starts_with("0x"sv)) {
+      return util::from_hex<int>(value.substr(2));
+    }
+    return util::parse_integer<int>(value);
+  }
+
   void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
     auto it = vars.find(name);
 
@@ -919,11 +932,10 @@ namespace config {
       val = val.substr(1, val.size() - 2);
     }
 
-    // If that integer is in hexadecimal
-    if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
-      input = util::from_hex<int>(val.substr(2));
+    if (const auto parsed = parse_config_int(val)) {
+      input = *parsed;
     } else {
-      input = (int) util::from_view(val);
+      BOOST_LOG(warning) << "config: invalid integer for "sv << name;
     }
 
     vars.erase(it);
@@ -943,11 +955,10 @@ namespace config {
       val = val.substr(1, val.size() - 2);
     }
 
-    // If that integer is in hexadecimal
-    if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
-      input = util::from_hex<int>(val.substr(2));
+    if (const auto parsed = parse_config_int(val)) {
+      input = *parsed;
     } else {
-      input = util::from_view(val);
+      BOOST_LOG(warning) << "config: invalid integer for "sv << name;
     }
 
     vars.erase(it);
@@ -1163,15 +1174,11 @@ namespace config {
         val = val.substr(1, val.size() - 2);
       }
 
-      int tmp;
-
-      // If the integer is a hexadecimal
-      if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
-        tmp = util::from_hex<int>(val.substr(2));
+      if (const auto parsed = parse_config_int(val)) {
+        input.emplace_back(*parsed);
       } else {
-        tmp = (int) util::from_view(val);
+        BOOST_LOG(warning) << "config: invalid integer for "sv << name;
       }
-      input.emplace_back(tmp);
     }
   }
 

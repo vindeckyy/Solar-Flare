@@ -20,6 +20,17 @@ namespace egl {
   class cursor_t;
 }
 
+namespace platf {
+  /**
+   * @brief Check whether an XRandR output can be selected for capture.
+   *
+   * @param connected Whether XRandR reports the output as connected.
+   * @param has_crtc Whether the output has an active CRTC.
+   * @return true when the output can produce a capture region.
+   */
+  bool x11_output_is_active(bool connected, bool has_crtc);
+}  // namespace platf
+
 namespace platf::x11 {
   struct cursor_ctx_raw_t;
   void freeCursorCtx(cursor_ctx_raw_t *ctx);

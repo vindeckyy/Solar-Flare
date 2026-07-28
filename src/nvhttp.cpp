@@ -8,9 +8,12 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <array>
+#include <cstdint>
 #include <filesystem>
 #include <format>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -312,40 +315,55 @@ namespace nvhttp {
   std::shared_ptr<rtsp_stream::launch_session_t> make_launch_session(bool host_audio, const args_t &args) {
     auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
 
+    const auto int_arg = [&args](const char *name, const char *default_value) {
+      return util::parse_integer<int>(get_arg(args, name, default_value));
+    };
+
     launch_session->id = ++session_id_counter;
 
-    auto rikey = util::from_hex_vec(get_arg(args, "rikey"), true);
-    std::copy(rikey.cbegin(), rikey.cend(), std::back_inserter(launch_session->gcm_key));
+    const auto rikey = util::decode_hex(get_arg(args, "rikey"), true);
+    if (!rikey) {
+      return {};
+    }
+    std::copy(rikey->cbegin(), rikey->cend(), std::back_inserter(launch_session->gcm_key));
 
     launch_session->host_audio = host_audio;
     std::stringstream mode = std::stringstream(get_arg(args, "mode", "0x0x0"));
     // Split mode by the char "x", to populate width/height/fps
-    int x = 0;
+    std::array<int *, 3> mode_values {&launch_session->width, &launch_session->height, &launch_session->fps};
+    std::size_t x = 0;
     std::string segment;
-    while (std::getline(mode, segment, 'x')) {
-      if (x == 0) {
-        launch_session->width = atoi(segment.c_str());
+    while (x < mode_values.size() && std::getline(mode, segment, 'x')) {
+      const auto value = util::parse_integer<int>(segment);
+      if (!value) {
+        return {};
       }
-      if (x == 1) {
-        launch_session->height = atoi(segment.c_str());
-      }
-      if (x == 2) {
-        launch_session->fps = atoi(segment.c_str());
-      }
-      x++;
+      *mode_values[x++] = *value;
     }
+
+    const auto appid = int_arg("appid", "0");
+    const auto enable_sops = int_arg("sops", "0");
+    const auto surround_info = int_arg("surroundAudioInfo", "196610");
+    const auto continuous_audio = int_arg("continuousAudio", "0");
+    const auto gcmap = int_arg("gcmap", "0");
+    const auto enable_hdr = int_arg("hdrMode", "0");
+    const auto corever = int_arg("corever", "0");
+    const auto rikey_id = util::parse_integer<std::uint32_t>(get_arg(args, "rikeyid"));
+    if (!appid || !enable_sops || !surround_info || !continuous_audio || !gcmap || !enable_hdr || !corever || !rikey_id) {
+      return {};
+    }
+
     launch_session->unique_id = (get_arg(args, "uniqueid", "unknown"));
-    launch_session->appid = (int) util::from_view(get_arg(args, "appid", "unknown"));
-    launch_session->enable_sops = util::from_view(get_arg(args, "sops", "0"));
-    launch_session->surround_info = (int) util::from_view(get_arg(args, "surroundAudioInfo", "196610"));
+    launch_session->appid = *appid;
+    launch_session->enable_sops = *enable_sops;
+    launch_session->surround_info = *surround_info;
     launch_session->surround_params = (get_arg(args, "surroundParams", ""));
-    launch_session->continuous_audio = util::from_view(get_arg(args, "continuousAudio", "0"));
-    launch_session->gcmap = (int) util::from_view(get_arg(args, "gcmap", "0"));
-    launch_session->enable_hdr = util::from_view(get_arg(args, "hdrMode", "0"));
+    launch_session->continuous_audio = *continuous_audio;
+    launch_session->gcmap = *gcmap;
+    launch_session->enable_hdr = *enable_hdr;
 
     // Encrypted RTSP is enabled with client reported corever >= 1
-    auto corever = util::from_view(get_arg(args, "corever", "0"));
-    if (corever >= 1) {
+    if (*corever >= 1) {
       launch_session->rtsp_cipher = crypto::cipher::gcm_t {
         launch_session->gcm_key,
         false
@@ -362,7 +380,7 @@ namespace nvhttp {
     RAND_bytes((unsigned char *) &launch_session->control_connect_data, sizeof(launch_session->control_connect_data));
 
     launch_session->iv.resize(16);
-    uint32_t prepend_iv = util::endian::big<uint32_t>((int) util::from_view(get_arg(args, "rikeyid")));
+    const uint32_t prepend_iv = util::endian::big<std::uint32_t>(*rikey_id);
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
     std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session->iv));
     return launch_session;
@@ -394,8 +412,12 @@ namespace nvhttp {
     std::string_view salt_view {sess.async_insert_pin.salt.data(), 32};
 
     auto salt = util::from_hex<std::array<uint8_t, 16>>(salt_view, true);
+    if (!salt) {
+      fail_pair(sess, tree, "Invalid salt");
+      return;
+    }
 
-    auto key = crypto::gen_aes_key(salt, pin);
+    auto key = crypto::gen_aes_key(*salt, pin);
     sess.cipher_key = std::make_unique<crypto::aes_t>(key);
 
     tree.put("root.paired", 1);
@@ -968,7 +990,14 @@ namespace nvhttp {
       return;
     }
 
-    auto appid = util::from_view(get_arg(args, "appid"));
+    const auto appid = util::parse_integer<int>(get_arg(args, "appid"));
+    const auto requested_host_audio = util::parse_integer<int>(get_arg(args, "localAudioPlayMode"));
+    if (!appid || !requested_host_audio) {
+      tree.put("root.resume", 0);
+      tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Invalid launch parameter");
+      return;
+    }
 
     auto current_appid = proc::proc.running();
     if (current_appid > 0) {
@@ -979,8 +1008,14 @@ namespace nvhttp {
       return;
     }
 
-    host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
+    host_audio = *requested_host_audio;
     auto launch_session = make_launch_session(host_audio, args);
+    if (!launch_session) {
+      tree.put("root.resume", 0);
+      tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Invalid launch parameter");
+      return;
+    }
 
     if (rtsp_stream::session_count() == 0) {
       // The display should be restored in case something fails as there are no other sessions.
@@ -1015,8 +1050,8 @@ namespace nvhttp {
       return;
     }
 
-    if (appid > 0) {
-      auto err = proc::proc.execute((int) appid, launch_session);
+    if (*appid > 0) {
+      auto err = proc::proc.execute(*appid, launch_session);
       if (err) {
         tree.put("root.<xmlattr>.status_code", err);
         tree.put("root.<xmlattr>.status_message", "Failed to start the specified application");
@@ -1086,9 +1121,22 @@ namespace nvhttp {
     // no active sessions we could be interfering with.
     const bool no_active_sessions {rtsp_stream::session_count() == 0};
     if (no_active_sessions && args.find("localAudioPlayMode"s) != std::end(args)) {
-      host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
+      const auto requested_host_audio = util::parse_integer<int>(get_arg(args, "localAudioPlayMode"));
+      if (!requested_host_audio) {
+        tree.put("root.resume", 0);
+        tree.put("root.<xmlattr>.status_code", 400);
+        tree.put("root.<xmlattr>.status_message", "Invalid resume parameter");
+        return;
+      }
+      host_audio = *requested_host_audio;
     }
     const auto launch_session = make_launch_session(host_audio, args);
+    if (!launch_session) {
+      tree.put("root.resume", 0);
+      tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Invalid resume parameter");
+      return;
+    }
 
     if (no_active_sessions) {
       // We want to prepare display only if there are no active sessions at
