@@ -44,11 +44,11 @@ if [[ -z "$BUILD_VERSION" || -z "$DISPLAY_VERSION" ]]; then
 fi
 
 if ! [[ "$BUILD_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "bad build version: '$BUILD_VERSION' — expected YYYY.MDD.REVISION" >&2
+  echo "bad build version: '$BUILD_VERSION' (expected YYYY.MDD.REVISION)" >&2
   exit 1
 fi
 if ! [[ "$DISPLAY_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "bad display version: '$DISPLAY_VERSION' — expected MAJOR.MINOR.PATCH" >&2
+  echo "bad display version: '$DISPLAY_VERSION' (expected MAJOR.MINOR.PATCH)" >&2
   exit 1
 fi
 
@@ -69,7 +69,7 @@ if [[ -n "$LATEST_TAG" ]]; then
 fi
 
 if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
-  echo "working tree dirty — commit or stash before releasing" >&2
+  echo "working tree dirty (commit or stash before releasing)" >&2
   exit 1
 fi
 
