@@ -2726,6 +2726,51 @@ p {
     text-decoration: underline;
 }
 
+.sf-update-status {
+    max-width: 36rem;
+}
+
+.sf-update-phase,
+.sf-update-percent,
+.sf-update-message {
+    font-size: 0.8rem;
+    opacity: 0.92;
+}
+
+.sf-update-progress {
+    height: 0.45rem;
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.sf-update-progress .progress-bar {
+    background-color: #f97316;
+}
+
+.sf-update-terminal-toggle {
+    color: inherit;
+    padding: 0.15rem 0.35rem;
+    line-height: 1;
+}
+
+.sf-update-terminal {
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 0.375rem;
+    background: #0b1220;
+    overflow: hidden;
+}
+
+.sf-update-terminal-body {
+    margin: 0;
+    max-height: 12rem;
+    overflow: auto;
+    padding: 0.75rem 0.9rem;
+    color: #e2e8f0;
+    font-size: 0.78rem;
+    font-family: var(--bs-font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 /* SolarFlare fork: global update banner that sits ABOVE the navbar so
  * it's the first thing the user sees on every page. Uses the same
  * scary-red treatment as the in-page banner, plus a subtle pulse so

@@ -512,6 +512,34 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Install the privileged self-update helper used by the Web UI Update now flow.
+# cmake --install also places these when packaging; this covers source installs
+# that may have an older tree without the install() rules yet.
+# ---------------------------------------------------------------------------
+step "post-install  self-update helper"
+if [[ "$IS_NIXOS" -eq 1 ]]; then
+  say "Skipping pkexec update helper on NixOS (user-writable ~/.local install)."
+elif [[ -f "$REPO_ROOT/packaging/linux/solarflare-update-apply" ]]; then
+  say "Installing solarflare-update-apply + polkit policy..."
+  sudo install -d /usr/local/libexec
+  sudo install -m 0755 "$REPO_ROOT/packaging/linux/solarflare-update-apply" /usr/local/libexec/solarflare-update-apply
+  if [[ -f "$REPO_ROOT/packaging/linux/polkit/org.vindeckyy.solarflare.update.policy" ]]; then
+    sudo install -d /usr/local/share/polkit-1/actions
+    # Prefer the system actions dir when present.
+    if [[ -d /usr/share/polkit-1/actions ]]; then
+      sudo install -m 0644 "$REPO_ROOT/packaging/linux/polkit/org.vindeckyy.solarflare.update.policy" \
+        /usr/share/polkit-1/actions/org.vindeckyy.solarflare.update.policy
+    else
+      sudo install -m 0644 "$REPO_ROOT/packaging/linux/polkit/org.vindeckyy.solarflare.update.policy" \
+        /usr/local/share/polkit-1/actions/org.vindeckyy.solarflare.update.policy
+    fi
+  fi
+  say "Self-update helper installed."
+else
+  warn "solarflare-update-apply missing; Web UI updates that need root will fail until it is installed."
+fi
+
+# ---------------------------------------------------------------------------
 # Install the Hermes-KMS kernel module from third-party/hermes-kms.
 # Builds + DKMS-installs hermes_kms.ko so the capture backend in
 # src/platform/linux/hermes_kms.cpp can talk to /dev/dri/card*. Requires

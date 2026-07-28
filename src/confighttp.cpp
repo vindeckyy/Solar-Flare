@@ -50,6 +50,7 @@
 #include "platform/common.h"
 #include "process.h"
 #include "rtsp.h"
+#include "update.h"
 #include "utility.h"
 #include "uuid.h"
 
@@ -2056,6 +2057,84 @@ namespace confighttp {
   }
 
   /**
+   * @brief Return the SolarFlare self-update status (phase, percent, command log).
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/update| GET| null}
+   */
+  void getUpdateStatus(const resp_https_t &response, const req_https_t &request) {
+    if (!require_scope(response, request, config::api_scope_t::CONFIG_GET)) {
+      return;
+    }
+
+    print_req(request);
+    send_response(response, update::to_json(update::status()));
+  }
+
+  /**
+   * @brief Start downloading and staging the latest Linux release.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/update/start| POST| null}
+   */
+  void startUpdate(const resp_https_t &response, const req_https_t &request) {
+    if (!require_scope(response, request, config::api_scope_t::STAR)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+
+    if (const auto err = update::start()) {
+      bad_request(response, request, *err);
+      return;
+    }
+
+    send_response(response, update::to_json(update::status()));
+  }
+
+  /**
+   * @brief Apply a staged SolarFlare update, optionally waiting for idle.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/update/apply| POST| {"when_idle":false}}
+   */
+  void applyUpdate(const resp_https_t &response, const req_https_t &request) {
+    if (!require_scope(response, request, config::api_scope_t::STAR)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+
+    bool when_idle = false;
+    if (!request->content.string().empty()) {
+      const auto tree = nlohmann::json::parse(request->content.string(), nullptr, false);
+      if (!tree.is_discarded() && tree.contains("when_idle")) {
+        when_idle = tree["when_idle"].get<bool>();
+      }
+    }
+
+    if (const auto err = update::apply(when_idle)) {
+      bad_request(response, request, *err);
+      return;
+    }
+
+    send_response(response, update::to_json(update::status()));
+  }
+
+  /**
    * @brief Get ViGEmBus driver version and installation status.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -2453,6 +2532,9 @@ namespace confighttp {
     server.resource["^/api/errors$"]["GET"] = getErrors;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/restart$"]["POST"] = restart;
+    server.resource["^/api/update$"]["GET"] = getUpdateStatus;
+    server.resource["^/api/update/start$"]["POST"] = startUpdate;
+    server.resource["^/api/update/apply$"]["POST"] = applyUpdate;
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
     server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
 

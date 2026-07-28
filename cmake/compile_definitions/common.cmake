@@ -217,6 +217,8 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Video.h"
         "${CMAKE_SOURCE_DIR}/src/upnp.cpp"
         "${CMAKE_SOURCE_DIR}/src/upnp.h"
+        "${CMAKE_SOURCE_DIR}/src/update.cpp"
+        "${CMAKE_SOURCE_DIR}/src/update.h"
         "${CMAKE_SOURCE_DIR}/src/cbs.cpp"
         "${CMAKE_SOURCE_DIR}/src/utility.h"
         "${CMAKE_SOURCE_DIR}/src/uuid.h"

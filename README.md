@@ -154,7 +154,18 @@ or before using an unsupported distribution.
 not required for normal installs. `scripts/cachyos-build.sh` remains as a
 compatibility wrapper that forwards to `linux-install.sh`.
 
-### Update an existing installation with the release binary
+### Update an existing installation
+
+Use **Update now** on the outdated Web UI banner. Open the chevron to watch
+the command log. That path downloads `solarflare-linux-x86_64.tar.gz`, checks
+`SHA256SUMS`, installs the binary and assets, then restarts. An active stream
+blocks apply until the session ends.
+
+If the install lives under `/usr/local`, you need the
+`solarflare-update-apply` helper from `./scripts/linux-install.sh` or
+`cmake --install`.
+
+Manual binary-only fallback:
 
 ```bash
 systemctl --user stop app-dev.lizardbyte.app.Sunshine.service
@@ -165,9 +176,6 @@ sudo chmod 0755 /usr/local/bin/sunshine
 sudo setcap 'cap_sys_admin,cap_sys_nice+p' /usr/local/bin/sunshine
 systemctl --user start app-dev.lizardbyte.app.Sunshine.service
 ```
-
-Then open `https://localhost:47990`, accept the host-local certificate, and
-pair a [Moonlight](https://moonlight-stream.org/) client using its PIN.
 
 ### Verify the host
 

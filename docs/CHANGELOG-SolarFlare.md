@@ -8,6 +8,14 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ## Unreleased
 
+### Web UI host updates
+
+The outdated banner can install the published Linux tarball. **Update now**
+fetches `solarflare-linux-x86_64.tar.gz`, checks `SHA256SUMS`, shows progress
+and a command log, then replaces the binary and assets and restarts. If a
+client is streaming, apply waits until the session ends. `/usr/local` installs
+use `pkexec` plus `solarflare-update-apply` from `linux-install.sh`.
+
 ## 2026-07-28: SolarFlare v1.0.8 (`v2026.728.1-solarflare`)
 
 ### Linux connector display names (upstream #5423 / #5448)

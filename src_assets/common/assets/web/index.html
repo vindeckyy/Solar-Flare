@@ -157,41 +157,16 @@
         </div>
 
         <div v-if="stableBuildAvailable">
-          <div class="alert alert-danger solarflare-update-banner my-3">
-            <!-- header row -->
-            <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
-              <div class="d-flex align-items-center gap-3 flex-wrap">
-                <alert-octagon :size="32" class="icon-lg solarflare-update-icon"></alert-octagon>
-                <div>
-                  <div class="solarflare-update-eyebrow">{{ $t('index.outdated_eyebrow') }}</div>
-                  <h4 class="mb-0 solarflare-update-title">
-                    {{ $t('index.outdated_title', { installed: version.version, latest: githubVersion.version }) }}
-                  </h4>
-                </div>
-              </div>
-              <div class="d-flex gap-2 flex-wrap">
-                <a class="btn btn-danger flex-shrink-0" :href="githubVersion.release.html_url" target="_blank">
-                  <download :size="18" class="icon"></download>
-                  {{ $t('index.download') }}
-                </a>
-              </div>
-            </div>
-
-            <!-- upgrade command: the user runs the build script -->
-            <div class="solarflare-update-cmd">
-              <code>cd /path/to/Solar-Flare && git pull && ./scripts/linux-install.sh --skip-deps</code>
-              <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="copyUpgradeCmd">
-                <copy :size="14" class="icon"></copy>
-                {{ upgradeCmdCopied ? $t('index.copied') : $t('index.copy') }}
-              </button>
-            </div>
-
-            <!-- collapsible release notes -->
-            <details class="mt-3">
-              <summary class="solarflare-update-summary">{{ $t('index.release_notes_for', { version: githubVersion.version }) }}</summary>
-              <div class="markdown-body release-notes mt-2" v-html="convertMarkdownToHtml(githubVersion.release.body)"></div>
-            </details>
-          </div>
+          <UpdateBanner
+            :visible="true"
+            :installed-version="version.version"
+            :latest-version="githubVersion.version"
+            :html-url="githubVersion.release.html_url"
+          ></UpdateBanner>
+          <details class="mt-2 mb-3">
+            <summary class="solarflare-update-summary">{{ $t('index.release_notes_for', { version: githubVersion.version }) }}</summary>
+            <div class="markdown-body release-notes mt-2" v-html="convertMarkdownToHtml(githubVersion.release.body)"></div>
+          </details>
         </div>
       </div>
     </div>
@@ -213,12 +188,12 @@
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
   import ResourceCard from './ResourceCard.vue'
+  import UpdateBanner from './UpdateBanner.vue'
   import SunshineVersion, { checkForUpdate } from './sunshine_version'
   import {
     AlertCircle,
     AlertOctagon,
     AlertTriangle,
-    Copy,
     FileText,
     Wrench,
     Package,
@@ -277,10 +252,10 @@
     components: {
       Navbar,
       ResourceCard,
+      UpdateBanner,
       AlertCircle,
       AlertOctagon,
       AlertTriangle,
-      Copy,
       FileText,
       Wrench,
       Package,
@@ -301,7 +276,6 @@
         platform: "",
         controllerEnabled: false,
         vigembus: null,
-        upgradeCmdCopied: false,
       }
     },
     async created() {
@@ -414,44 +388,6 @@
       },
       sanitizeLocaleHtml(html) {
         return sanitizeLocaleHtml(html);
-      },
-      /**
-       * Copy the cached upgrade command to the clipboard and flash the
-       * button label so the user sees the feedback. The command is the
-       * same one the README's "Quick install" section uses: pull the
-       * latest commit, then run the build script with --skip-deps since
-       * the deps are already installed.
-       */
-      copyUpgradeCmd() {
-        const cmd = 'cd /path/to/Solar-Flare && git pull && ./scripts/linux-install.sh --skip-deps';
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(cmd).then(() => {
-            this.upgradeCmdCopied = true;
-            setTimeout(() => { this.upgradeCmdCopied = false; }, 2000);
-          }).catch(() => {
-            // Fall back to the legacy execCommand path for older browsers
-            // / restrictive CSPs that block clipboard.writeText.
-            this._legacyCopy(cmd);
-          });
-        } else {
-          this._legacyCopy(cmd);
-        }
-      },
-      _legacyCopy(text) {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        try {
-          document.execCommand('copy');
-          this.upgradeCmdCopied = true;
-          setTimeout(() => { this.upgradeCmdCopied = false; }, 2000);
-        } catch (e) {
-          console.error('Copy failed:', e);
-        }
-        document.body.removeChild(ta);
       }
     }
   });

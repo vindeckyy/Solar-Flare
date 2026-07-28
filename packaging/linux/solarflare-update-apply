@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+#
+# @file packaging/linux/solarflare-update-apply
+# @brief Privileged helper that installs a staged SolarFlare release payload.
+#
+# Invoked by the host updater via pkexec. Re-checks the staging layout, keeps
+# .prev backups, installs the binary and assets, and reapplies file capabilities.
+#
+# Usage:
+#   solarflare-update-apply --staging DIR --binary PATH --assets DIR
+#
+set -euo pipefail
+
+STAGING=""
+BINARY=""
+ASSETS=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --staging) STAGING="${2:-}"; shift 2 ;;
+    --binary) BINARY="${2:-}"; shift 2 ;;
+    --assets) ASSETS="${2:-}"; shift 2 ;;
+    -h|--help)
+      sed -n '2,14p' "$0"
+      exit 0
+      ;;
+    *)
+      echo "unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$STAGING" || -z "$BINARY" || -z "$ASSETS" ]]; then
+  echo "usage: $0 --staging DIR --binary PATH --assets DIR" >&2
+  exit 2
+fi
+
+if [[ ! -x "$STAGING/sunshine" || ! -d "$STAGING/assets" ]]; then
+  echo "staging payload incomplete: $STAGING" >&2
+  exit 1
+fi
+
+if [[ "$STAGING" != /* || "$BINARY" != /* || "$ASSETS" != /* ]]; then
+  echo "staging, binary, and assets paths must be absolute" >&2
+  exit 1
+fi
+
+umask 022
+install -d "$(dirname "$BINARY")"
+install -d "$(dirname "$ASSETS")"
+
+BIN_NEW="${BINARY}.new"
+BIN_PREV="${BINARY}.prev"
+ASSETS_NEW="${ASSETS}.new"
+ASSETS_PREV="${ASSETS}.prev"
+
+rm -f "$BIN_NEW"
+cp -f "$STAGING/sunshine" "$BIN_NEW"
+chmod 0755 "$BIN_NEW"
+
+if [[ -e "$BINARY" ]]; then
+  rm -f "$BIN_PREV"
+  mv -f "$BINARY" "$BIN_PREV"
+fi
+mv -f "$BIN_NEW" "$BINARY"
+
+rm -rf "$ASSETS_NEW"
+cp -a "$STAGING/assets" "$ASSETS_NEW"
+if [[ -e "$ASSETS" ]]; then
+  rm -rf "$ASSETS_PREV"
+  mv -f "$ASSETS" "$ASSETS_PREV"
+fi
+mv -f "$ASSETS_NEW" "$ASSETS"
+
+if command -v setcap >/dev/null 2>&1; then
+  setcap 'cap_sys_admin,cap_sys_nice+p' "$BINARY" || {
+    echo "warning: setcap failed for $BINARY" >&2
+  }
+fi
+
+echo "SolarFlare update applied to $BINARY"

@@ -213,3 +213,11 @@ endif()
 # metadata file
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.metainfo.xml"
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
+
+# SolarFlare self-update helper + polkit policy (Linux package installs only)
+if(NOT ${SUNSHINE_BUILD_APPIMAGE} AND NOT ${SUNSHINE_BUILD_FLATPAK} AND NOT ${SUNSHINE_BUILD_HOMEBREW})
+    install(PROGRAMS "${CMAKE_SOURCE_DIR}/packaging/linux/solarflare-update-apply"
+            DESTINATION "${CMAKE_INSTALL_PREFIX}/libexec")
+    install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/polkit/org.vindeckyy.solarflare.update.policy"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/polkit-1/actions")
+endif()

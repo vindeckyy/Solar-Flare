@@ -55,6 +55,9 @@ The maintained release contains only these Linux x86-64 files:
 | `solarflare-linux-x86_64.tar.gz` | Executable, runtime and Web UI assets, icon, and license |
 | `SHA256SUMS` | SHA-256 checksums for the executable and runtime bundle |
 
+The Web UI updater downloads the tarball and `SHA256SUMS` from the GitHub
+release. Keep those asset names stable.
+
 Verify at minimum:
 
 ```bash

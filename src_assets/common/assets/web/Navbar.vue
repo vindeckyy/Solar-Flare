@@ -2,24 +2,19 @@
   <div class="sf-chrome">
     <!--
       SolarFlare fork: global "update available" banner. Shown on EVERY page
-      that includes Navbar.vue (apps, config, featured, pin, home, ...) so
-      the user can't avoid it by navigating away from the home page.
-      Hard to dismiss on purpose: clicking the dismiss button only hides it
-      for the current installed version, not for any future version bumps.
+      that includes Navbar.vue so the user can't avoid it by navigating away
+      from the home page. Hard to dismiss on purpose: clicking dismiss only
+      hides it for the current latest version.
     -->
-    <div v-if="bannerVisible" class="solarflare-global-update-banner alert alert-danger d-flex align-items-center gap-3 mb-0" role="alert">
-      <AlertOctagon :size="28" class="solarflare-update-icon flex-shrink-0"></AlertOctagon>
-      <div class="flex-grow-1">
-        <div class="solarflare-update-eyebrow">{{ $t('index.outdated_eyebrow') }}</div>
-        <div class="solarflare-update-title">
-          {{ $t('index.outdated_title', { installed: installedVersion, latest: updateInfo.latestVersion }) }}
-        </div>
-      </div>
-      <a class="btn btn-danger flex-shrink-0" :href="updateInfo.htmlUrl" target="_blank">
-        {{ $t('index.download') }}
-      </a>
-      <button type="button" class="btn-close flex-shrink-0" :aria-label="$t('_common.dismiss')" @click="dismissForVersion(updateInfo.latestVersion)"></button>
-    </div>
+    <UpdateBanner
+      :visible="bannerVisible"
+      :installed-version="installedVersion"
+      :latest-version="updateInfo ? updateInfo.latestVersion : ''"
+      :html-url="updateInfo ? updateInfo.htmlUrl : ''"
+      :dismissable="true"
+      :compact="true"
+      @dismiss="dismissForVersion"
+    ></UpdateBanner>
 
     <nav class="navbar navbar-expand-lg navbar-sunshine" aria-label="Primary navigation">
       <div class="container-fluid sf-nav-frame">
@@ -119,10 +114,11 @@
 </template>
 
 <script>
-import { AlertOctagon, CircleUserRound, Home, Info, Layers, Lock, LogOut, Settings, Shield, Star } from '@lucide/vue'
+import { CircleUserRound, Home, Info, Layers, Lock, LogOut, Settings, Shield, Star } from '@lucide/vue'
 import ThemeToggle from './ThemeToggle.vue'
 import Notification from './Notification.vue'
 import CommandPalette from './CommandPalette.vue'
+import UpdateBanner from './UpdateBanner.vue'
 import { checkForUpdate } from './sunshine_version'
 
 // localStorage key for "user has dismissed the banner for this specific
@@ -136,7 +132,7 @@ export default {
     ThemeToggle,
     Notification,
     CommandPalette,
-    AlertOctagon,
+    UpdateBanner,
     Home,
     Lock,
     Layers,
