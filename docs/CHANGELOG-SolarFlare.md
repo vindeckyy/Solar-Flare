@@ -7,11 +7,7 @@ Curated sections below group commits by feature and date, oldest commit first wi
 ---
 
 
-## 2026-07-28 — SolarFlare v1.0.8 (`v2026.728.1-solarflare`)
-
-Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.
-
-## Unreleased
+## 2026-07-28: SolarFlare v1.0.8 (`v2026.728.1-solarflare`)
 
 ### Linux connector display names (upstream #5423 / #5448)
 
@@ -61,6 +57,8 @@ Debian/Ubuntu, Fedora-family, openSUSE, Bazzite, and NixOS. Kept
 `cmake-build-cachyos` build directory, and added `--skip-deps` as the clearer
 alias for `--no-pacman`. Documented that `scripts/linux_build.sh` remains the
 inherited upstream Docker/CI builder, not the end-user install path.
+
+## Unreleased
 
 ## 2026-07-26: SolarFlare v1.0.7 (`v2026.726.1-solarflare`)
 

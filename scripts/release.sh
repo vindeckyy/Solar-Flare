@@ -163,7 +163,7 @@ lines = path.read_text().splitlines(keepends=True)
 insert_at = next((i for i, line in enumerate(lines) if i > 0 and line.startswith("## ")), len(lines))
 lines.insert(
     insert_at,
-    f"\n## {today} — SolarFlare v{display} (`v{build}-solarflare`)\n\n"
+    f"\n## {today}: SolarFlare v{display} (`v{build}-solarflare`)\n\n"
     "Release notes are published with the corresponding GitHub release. "
     "Compare this tag with the previous SolarFlare release for the complete change set.\n\n",
 )
