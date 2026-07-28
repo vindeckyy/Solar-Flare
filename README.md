@@ -121,15 +121,22 @@ SolarFlare v1.0.8 publishes three Linux x86-64 files:
 
 | Asset | Purpose |
 |---|---|
-| `sunshine-x86_64` | Stripped executable for updating an existing installation |
-| `solarflare-linux-x86_64.tar.gz` | Executable plus matching runtime and Web UI assets |
+| `sunshine-x86_64` | Stripped executable for updating an existing SolarFlare install |
+| `solarflare-linux-x86_64.tar.gz` | Executable plus matching runtime and Web UI assets for existing installs |
 | `SHA256SUMS` | SHA-256 checksums for both downloads |
+
+New users should always build fresh with `./scripts/linux-install.sh`. The
+release binaries are only for people updating an already working SolarFlare
+install. Prefer Update now in the Web UI when that path is available.
+
+Build from source for Web UI changes, desktop files and icons, shaders, udev
+rules, the systemd user service unit, and installer helpers such as
+`solarflare-update-apply`. The bare `sunshine-x86_64` file is the executable
+only.
 
 The `sunshine-x86_64` compatibility filename is intentional. SolarFlare keeps
 the executable and service names expected by existing Sunshine installations
-and Moonlight pairings. A fresh machine should use the source installer so the
-Web UI, desktop files, shaders, udev rules, and service unit are installed with
-the binary.
+and Moonlight pairings.
 
 The source tree retains inherited cross-platform code, but the SolarFlare
 release and performance profile documented here are maintained for Linux.
