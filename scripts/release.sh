@@ -11,7 +11,7 @@
 #   ./scripts/release.sh <build-version> <display-version> --dry-run
 #
 # Example:
-#   ./scripts/release.sh 2026.727.1 1.0.8 --no-push
+#   ./scripts/release.sh 2026.729.1 1.0.9 --no-push
 #
 # Side effects:
 #   1. Updates CMakeLists.txt, pyproject.toml, and uv.lock.
@@ -39,7 +39,7 @@ done
 
 if [[ -z "$BUILD_VERSION" || -z "$DISPLAY_VERSION" ]]; then
   echo "usage: $0 <build-version> <display-version> [--dry-run] [--no-push]" >&2
-  echo "  e.g. $0 2026.727.1 1.0.8" >&2
+  echo "  e.g. $0 2026.729.1 1.0.9" >&2
   exit 1
 fi
 

@@ -6,6 +6,7 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+## Unreleased
 
 ## 2026-07-28: SolarFlare v1.0.8 (`v2026.728.1-solarflare`)
 
@@ -45,8 +46,8 @@ Corrected the release-binary `setcap` instructions to the packaging
 capabilities (`cap_sys_admin,cap_sys_nice+p`), restored `latency_mode` in the
 README configuration table, and refreshed the website install snippet,
 `SECURITY.md` support policy, and bug-report template away from inherited
-upstream packaging options. Clarified that release-process examples for
-`v1.0.8` are next-release templates, not the current published version.
+upstream packaging options. Maintainer release-doc command examples stay as
+copy-paste templates for the next cut; the README lists the published version.
 
 ### Linux installer rename
 
@@ -57,8 +58,6 @@ Debian/Ubuntu, Fedora-family, openSUSE, Bazzite, and NixOS. Kept
 `cmake-build-cachyos` build directory, and added `--skip-deps` as the clearer
 alias for `--no-pacman`. Documented that `scripts/linux_build.sh` remains the
 inherited upstream Docker/CI builder, not the end-user install path.
-
-## Unreleased
 
 ## 2026-07-26: SolarFlare v1.0.7 (`v2026.726.1-solarflare`)
 

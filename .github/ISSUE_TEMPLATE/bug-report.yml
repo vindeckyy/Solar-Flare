@@ -51,10 +51,10 @@ body:
     attributes:
       label: SolarFlare version
       description: >
-        Public release (for example v1.0.7) and/or build tag
-        (for example v2026.726.1-solarflare). From `sunshine --version` or the
+        Public release (for example v1.0.8) and/or build tag
+        (for example v2026.728.1-solarflare). From `sunshine --version` or the
         Web UI home page.
-      placeholder: v1.0.7 / v2026.726.1-solarflare
+      placeholder: v1.0.8 / v2026.728.1-solarflare
     validations:
       required: true
   - type: dropdown
