@@ -73,7 +73,7 @@ to interactions and state changes.
     <td width="50%"><strong>Manage applications</strong><br><sub>Launch definitions, artwork, and import tools.</sub><br><br><img src="docs/images/web-ui-applications.png" alt="SolarFlare application catalog"></td>
   </tr>
   <tr>
-    <td width="50%"><strong>Discover clients</strong><br><sub>A local catalog with no third-party runtime fetch.</sub><br><br><img src="docs/images/web-ui-featured.png" alt="SolarFlare featured client catalog"></td>
+    <td width="50%"><strong>Discover clients</strong><br><sub>A local Moonlight client catalog with no third-party runtime fetch.</sub><br><br><img src="docs/images/web-ui-featured.png" alt="SolarFlare featured client catalog"></td>
     <td width="50%"><strong>Tune the host</strong><br><sub>Search or browse settings by category.</sub><br><br><img src="docs/images/web-ui-configuration.png" alt="SolarFlare configuration console"></td>
   </tr>
   <tr>
@@ -86,7 +86,7 @@ to interactions and state changes.
 
 ```mermaid
 flowchart TD
-  UI["Observatory Web UI"] --> CFG["Host configuration"]
+  UI["Web UI"] --> CFG["Host configuration"]
   CAP["Display capture"] --> ENC["Hardware or software encoder"]
   ENC --> NET["SolarFlare network path"]
   AUD["Audio capture and optional FX"] --> NET

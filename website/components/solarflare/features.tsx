@@ -36,7 +36,7 @@ const FEATURES = [
   {
     icon: ShieldCheck,
     title: 'Operations',
-    body: 'Scoped API tokens, trusted-subnet pairing, a local client catalog, structured tagged logs, and focused regression coverage.',
+    body: 'Scoped API tokens, trusted-subnet pairing, a local Moonlight client catalog, and structured tagged logs.',
   },
 ]
 

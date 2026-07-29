@@ -7,7 +7,7 @@ const REPO = 'https://github.com/vindeckyy/Solar-Flare'
 const SPECS = [
   { k: 'Client protocol', v: 'Moonlight / GameStream' },
   { k: 'Control plane', v: 'https://localhost:47990' },
-  { k: 'Host focus', v: 'Linux x86-64, AMD-first' },
+  { k: 'Host focus', v: 'Linux x86-64, AMD and Intel' },
   { k: 'Release', v: 'View latest release', href: `${REPO}/releases/latest` },
 ]
 
@@ -104,7 +104,7 @@ export function Hero() {
             <span className="h-3 w-3 rounded-full bg-primary/70" />
             <span className="h-3 w-3 rounded-full bg-muted-foreground/40" />
             <span className="ml-3 truncate font-mono text-xs text-muted-foreground">
-              https://localhost:47990 - Host Status &amp; Telemetry
+              https://localhost:47990 - Host status
             </span>
           </div>
           <div className="relative aspect-[1440/891] w-full bg-background">

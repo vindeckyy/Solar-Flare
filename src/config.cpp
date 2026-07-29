@@ -688,7 +688,7 @@ namespace config {
   // SolarFlare fork tunables. Defaults match the previously-hardcoded
   // values in src/network.cpp, src/stream.cpp, src/platform/linux/pipewire.cpp
   // and src/platform/linux/misc.cpp so a vanilla install behaves identically
-  // to a pre-config-fork build. See README.md > 'Configure' and
+  // to a pre-config-fork build. See README.md > Configuration and
   // docs/CONFIGURATION.md for the documented ranges.
   solarflare_t solarflare {
     50,  // busy_poll_us       (SO_BUSY_POLL on the ENet socket)

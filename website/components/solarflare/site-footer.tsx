@@ -60,8 +60,9 @@ export function SiteFooter() {
           <div className="max-w-sm">
             <Logo />
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              A Linux and AMD-first game-streaming host for Moonlight.
-              A Sunshine-derived project distributed under GPL-3.0-only.
+              A Linux game-streaming host for Moonlight, tuned for modern AMD
+              and Intel CPUs. A Sunshine-derived project distributed under
+              GPL-3.0-only.
             </p>
           </div>
           <nav className="grid grid-cols-2 gap-x-12 gap-y-2 sm:grid-cols-3" aria-label="Footer">

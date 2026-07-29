@@ -41,7 +41,7 @@ const TABS = [
     id: 'featured',
     short: 'Featured',
     label: 'Discover clients',
-    desc: 'A local catalog of Moonlight clients and tools (no third-party runtime fetch), with platform badges and direct download and source links.',
+    desc: 'A local catalog of Moonlight clients (no third-party runtime fetch), with platform badges and direct download and source links.',
     image: '/sf-web-ui-featured.png',
     alt: 'SolarFlare featured apps page showing Moonlight PC, Moonlight Mobile, and Moonlight Embedded clients with platform badges and get and source buttons.',
   },

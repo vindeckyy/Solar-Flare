@@ -53,10 +53,11 @@ export function Overview() {
                 leaves your LAN and no third-party server sits in the path.
               </p>
               <p>
-                It is a fork of LizardByte&apos;s Sunshine, focused on Linux and
-                AMD. SolarFlare adds controls for network pacing, capture
-                scheduling, NVENC profiles, and audio processing. The Web UI
-                keeps those settings beside pairing, applications, and logs.
+                It is a fork of LizardByte&apos;s Sunshine, focused on Linux with
+                tuning for modern AMD and Intel CPUs. SolarFlare adds controls
+                for network pacing, capture scheduling, NVENC profiles, and
+                audio processing. The Web UI keeps those settings beside
+                pairing, applications, and logs.
               </p>
             </div>
 

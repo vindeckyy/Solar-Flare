@@ -686,7 +686,7 @@
       "client": "Clients",
       "tool": "Tools"
     },
-    "description": "Find Moonlight clients, tools, and integrations for use with SolarFlare.",
+    "description": "Find Moonlight clients for use with SolarFlare.",
     "docs": "Docs",
     "documentation": "Documentation",
     "get": "Get",

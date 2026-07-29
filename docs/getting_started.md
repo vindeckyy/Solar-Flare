@@ -79,9 +79,9 @@ CUDA is used for NVFBC capture.
         <th>Package</th>
     </tr>
     <tr>
-        <td rowspan="8">13.1.1</td>
-        <td rowspan="8">590.48.01</td>
-        <td rowspan="8">50;52;60;61;62;70;72;75;80;86;87;89;90;100;101;103;120;121</td>
+        <td rowspan="9">13.1.1</td>
+        <td rowspan="9">590.48.01</td>
+        <td rowspan="9">50;52;60;61;62;70;72;75;80;86;87;89;90;100;101;103;120;121</td>
         <td>sunshine.AppImage</td>
     </tr>
     <tr>
@@ -89,6 +89,9 @@ CUDA is used for NVFBC capture.
     </tr>
     <tr>
         <td>sunshine-ubuntu-24.04-{arch}.deb</td>
+    </tr>
+    <tr>
+        <td>sunshine-ubuntu-26.04-{arch}.deb</td>
     </tr>
     <tr>
         <td>sunshine-debian-trixie-{arch}.deb</td>
@@ -543,6 +546,11 @@ on how to set up a headless streaming server without autologin and dummy plugs (
 
 ### Configuration
 
+> [!IMPORTANT]
+> SolarFlare users should follow the repository
+> [README](../README.md#web-interface) screenshots and setup steps. The images
+> below are inherited Sunshine UI captures kept for upstream reference.
+
 Sunshine is configured via the web ui, which is available on [https://localhost:47990](https://localhost:47990)
 by default. You may replace *localhost* with your internal ip address.
 
@@ -559,7 +567,9 @@ by default. You may replace *localhost* with your internal ip address.
    ![Applications](images/applications.png)
 3. Adjust any configuration settings as needed. You can search for options in the search bar.
    ![Configuration](images/configuration-search.png)
-4. Find Moonlight clients and other tools for Sunshine in the `Featured Apps` tab.
+4. Find Moonlight clients in the `Featured Apps` tab. SolarFlare ships a local
+   client catalog; upstream Sunshine builds may still show a broader third-party
+   list.
    ![Featured Apps](images/featured-apps.png)
 5. In Moonlight, you may need to add the PC manually.
 6. When Moonlight requests for you insert the pin:
