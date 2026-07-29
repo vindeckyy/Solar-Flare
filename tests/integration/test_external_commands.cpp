@@ -145,7 +145,13 @@ TEST_P(ExternalCommandTest, RunExternalCommand) {
 }
 
 // Platform-specific command strings
-constexpr auto SIMPLE_COMMAND = IS_WINDOWS ? "where cmd" : "which sh";
+/**
+ * @brief Cross-platform command used to verify command execution.
+ *
+ * Linux uses an absolute executable path because the restricted child
+ * environment may not preserve PATH for external command lookup.
+ */
+constexpr auto SIMPLE_COMMAND = IS_WINDOWS ? "where cmd" : "/bin/true";
 
 #ifdef UDEVADM_EXECUTABLE
   #define UDEV_TESTS \
