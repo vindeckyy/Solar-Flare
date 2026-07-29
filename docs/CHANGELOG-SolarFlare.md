@@ -11,8 +11,6 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.
 
-## Unreleased
-
 ### Web UI host updates
 
 The outdated banner can install the published Linux tarball. **Update now**
