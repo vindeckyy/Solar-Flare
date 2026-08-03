@@ -33,6 +33,7 @@ extern "C" {
 #include "display_device.h"
 #include "globals.h"
 #include "input.h"
+#include "latency_stats.h"
 #include "logging.h"
 #include "network.h"
 #include "platform/common.h"
@@ -1143,6 +1144,9 @@ namespace stream {
 
     server->map(SS_FRAME_FEC_PTYPE, [](session_t *session, const std::string_view &payload) {
       const auto rtt_ms = session->control.peer ? session->control.peer->roundTripTime : 0U;
+      if (session->control.peer) {
+        sunshine::latency_stats().rtt_ms.collect(static_cast<double>(session->control.peer->roundTripTime));
+      }
       auto stats = detail::parse_frame_fec_status(payload, rtt_ms);
       if (!stats) {
         BOOST_LOG(warning) << "SS_FRAME_FEC_STATUS malformed packet: "sv << payload.size();
@@ -1496,6 +1500,9 @@ namespace stream {
     auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
     auto video_epoch = std::chrono::steady_clock::now();
 
+    // Reset latency statistics so each stream starts with a clean slate
+    sunshine::latency_stats().reset();
+
     // Video traffic is sent on this thread
     platf::set_thread_name("stream::videoBroadcast");
     platf::adjust_thread_priority(platf::thread_priority_e::high);
@@ -1533,7 +1540,9 @@ namespace stream {
       const auto dequeue_time = std::chrono::steady_clock::now();
       if (packet->enqueued_at != std::chrono::steady_clock::time_point {}) {
         const auto queue_age = dequeue_time - packet->enqueued_at;
-        video_queue_dwell_logger.collect_and_log(std::chrono::duration<double, std::milli>(queue_age).count());
+        const auto queue_age_ms = std::chrono::duration<double, std::milli>(queue_age).count();
+        video_queue_dwell_logger.collect_and_log(queue_age_ms);
+        sunshine::latency_stats().network_queue_dwell_ms.collect(queue_age_ms);
         if (queue_age > queue_age_budget) {
           session->video.drop_until_idr = true;
           session->video.idr_events->raise(true);
@@ -1723,10 +1732,13 @@ namespace stream {
             }
           }
 
+          auto fec_start = std::chrono::steady_clock::now();
           frame_fec_latency_logger.first_point_now();
           // If video encryption is enabled, we allocate space for the encryption header before each shard
           auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets, session->video.cipher ? sizeof(video_packet_enc_prefix_t) : 0);
           frame_fec_latency_logger.second_point_now_and_log();
+          auto fec_end = std::chrono::steady_clock::now();
+          sunshine::latency_stats().network_fec_ms.collect(std::chrono::duration<double, std::milli>(fec_end - fec_start).count());
 
           auto peer_address = session->video.peer.address();
           auto batch_info = platf::batched_send_info_t {
@@ -1831,6 +1843,7 @@ namespace stream {
                 batch_info.deadline = frame_send_deadline;
                 batch_info.timed_out = false;
 
+                auto send_batch_start = std::chrono::steady_clock::now();
                 frame_send_batch_latency_logger.first_point_now();
                 // Use a batched send if it's supported on this platform.
                 if (!platf::send_batch(batch_info)) {
@@ -1852,6 +1865,8 @@ namespace stream {
                   }
                 }
                 frame_send_batch_latency_logger.second_point_now_and_log();
+                auto send_batch_end = std::chrono::steady_clock::now();
+                sunshine::latency_stats().network_send_ms.collect(std::chrono::duration<double, std::milli>(send_batch_end - send_batch_start).count());
 
                 if (batch_info.timed_out) {
                   BOOST_LOG(warning) << "Abandoning stale video frame after the UDP send deadline expired"sv;
@@ -1879,6 +1894,13 @@ namespace stream {
                                                           ratecontrol_frame_start + frame_pacing_offset;
 
           frame_network_latency_logger.second_point_now_and_log();
+
+          if (packet->frame_timestamp) {
+            auto network_total_ms = std::chrono::duration<double, std::milli>(
+              std::chrono::steady_clock::now() - *packet->frame_timestamp
+            ).count();
+            sunshine::latency_stats().network_total_ms.collect(network_total_ms);
+          }
 
           BOOST_LOG(verbose) << "Sent Frame seq ["sv << packet->frame_index() << "] pts ["sv << timestamp
                              << "] shards ["sv << shards.size() << "/"sv << shards.percentage << "%]"sv

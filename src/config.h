@@ -101,6 +101,33 @@ namespace config {
 
     struct {
       bool strict_rc_buffer;
+
+      // Rate-control mode. 0 = auto (let the driver choose, preserving
+      // the current auto-select logic); 1 = CQP; 2 = CBR; 3 = VBR;
+      // 4 = ICQ; 5 = QVBR; 6 = AVBR.
+      int rc_mode;
+
+      // Speed/quality trade-off level. 0 = driver default; >0 maps to
+      // the VA-API 'quality' option (valid ranges differ per codec).
+      int quality;
+
+      // QP bounds. 0 = unset (use codec default). Bounds QP from below
+      // and above to flatten encode-time variance.
+      int min_qp;
+      int max_qp;
+
+      // Slice count. 0 = use the client-requested slicesPerFrame;
+      // >0 overrides it (clamped to the encoder maximum).
+      int slice_count;
+
+      // Encoder queue depth (FFmpeg 'async_depth'). 0 = 1 (the
+      // historical default); >0 uses the requested depth.
+      int async_depth;
+
+      // Rate-control buffer size expressed in frames. 0 = auto (single
+      // frame VBV on the strict/intel/AV1 path); >0 sizes the VBV to
+      // N frames of the configured bitrate.
+      int rc_buffer_frames;
     } vaapi;
 
     struct {

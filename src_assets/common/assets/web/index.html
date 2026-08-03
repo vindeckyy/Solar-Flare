@@ -172,6 +172,8 @@
     </div>
 
     <!-- Resources -->
+    <StreamStats></StreamStats>
+
     <div class="my-4 sf-resource-grid">
       <Resource-Card :installed-version-not-stable="installedVersionNotStable"></Resource-Card>
     </div>
@@ -188,6 +190,7 @@
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
   import ResourceCard from './ResourceCard.vue'
+  import StreamStats from './StreamStats.vue'
   import UpdateBanner from './UpdateBanner.vue'
   import SunshineVersion, { checkForUpdate } from './sunshine_version'
   import {
@@ -252,6 +255,7 @@
     components: {
       Navbar,
       ResourceCard,
+      StreamStats,
       UpdateBanner,
       AlertCircle,
       AlertOctagon,

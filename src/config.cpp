@@ -573,6 +573,13 @@ namespace config {
 
     {
       false,  // strict_rc_buffer
+      0,  // rc_mode (0 = auto/driver)
+      0,  // quality (0 = driver default)
+      0,  // min_qp (0 = unset)
+      0,  // max_qp (0 = unset)
+      0,  // slice_count (0 = client-requested)
+      0,  // async_depth (0 = 1)
+      0,  // rc_buffer_frames (0 = auto)
     },  // vaapi
 
     {
@@ -1349,6 +1356,13 @@ namespace config {
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
     bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
+    int_between_f(vars, "vaapi_rc_mode", video.vaapi.rc_mode, {0, 6});
+    int_between_f(vars, "vaapi_quality", video.vaapi.quality, {0, 10});
+    int_between_f(vars, "vaapi_min_qp", video.vaapi.min_qp, {0, 63});
+    int_between_f(vars, "vaapi_max_qp", video.vaapi.max_qp, {0, 63});
+    int_between_f(vars, "vaapi_slice_count", video.vaapi.slice_count, {0, 255});
+    int_between_f(vars, "vaapi_async_depth", video.vaapi.async_depth, {0, 64});
+    int_between_f(vars, "vaapi_rc_buffer_frames", video.vaapi.rc_buffer_frames, {0, 100});
 
     int_f(vars, "vk_tune", video.vk.tune);
     int_f(vars, "vk_rc_mode", video.vk.rc_mode);

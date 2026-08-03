@@ -16,6 +16,7 @@
 #include <boost/pointer_cast.hpp>
 
 extern "C" {
+#include <libavutil/hwcontext.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/mastering_display_metadata.h>
 #include <libavutil/opt.h>
@@ -30,6 +31,7 @@ extern "C" {
 #include "error.h"
 #include "globals.h"
 #include "input.h"
+#include "latency_stats.h"
 #include "logging.h"
 #include "nvenc/nvenc_base.h"
 #include "platform/common.h"
@@ -999,7 +1001,7 @@ namespace video {
     {
       // Common options
       {
-        {"async_depth"s, 1},
+        {"async_depth"s, std::function<int()>([]() { return config::video.vaapi.async_depth > 0 ? config::video.vaapi.async_depth : 1; })},
         {"idr_interval"s, std::numeric_limits<int>::max()},
       },
       {},  // SDR-specific options
@@ -1012,7 +1014,7 @@ namespace video {
     {
       // Common options
       {
-        {"async_depth"s, 1},
+        {"async_depth"s, std::function<int()>([]() { return config::video.vaapi.async_depth > 0 ? config::video.vaapi.async_depth : 1; })},
         {"sei"s, 0},
         {"idr_interval"s, std::numeric_limits<int>::max()},
       },
@@ -1026,7 +1028,7 @@ namespace video {
     {
       // Common options
       {
-        {"async_depth"s, 1},
+        {"async_depth"s, std::function<int()>([]() { return config::video.vaapi.async_depth > 0 ? config::video.vaapi.async_depth : 1; })},
         {"sei"s, 0},
         {"idr_interval"s, std::numeric_limits<int>::max()},
       },
@@ -1449,6 +1451,7 @@ namespace video {
           // trim allocated but unused portion of the pool based on timeouts
           trim_imgs();
           img_out->frame_timestamp.reset();
+          img_out->capture_started_at = std::chrono::steady_clock::now();
           return true;
         } else {
           // sleep and retry if image pool is full
@@ -1466,6 +1469,13 @@ namespace video {
       bool artificial_reinit = false;
 
       auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
+        if (img && img->capture_started_at) {
+          auto capture_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - *img->capture_started_at
+          ).count();
+          sunshine::latency_stats().capture_ms.collect(capture_ms);
+        }
+
         KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
           if (!capture_ctx->images->running()) {
             capture_ctx = capture_ctxs.erase(capture_ctx);
@@ -2104,6 +2114,25 @@ namespace video {
       config.videoFormat <= 1 ? (1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat) : 0
     );
 
+    // Record the effective settings of the newly opened encoder. Fields
+    // that platform code (e.g. VA-API init_codec_options) stored earlier
+    // are preserved by reading the current snapshot first.
+    {
+      auto settings = sunshine::latency_stats().effective_settings();
+      auto &av_ctx = session->avcodec_ctx;
+      settings.codec = av_ctx->codec ? av_ctx->codec->name : video_format.name;
+      settings.hwdevice = hardware ? av_hwdevice_get_type_name(platform_formats->avcodec_base_dev_type) : "software";
+      settings.slices = av_ctx->slices;
+      settings.qmin = av_ctx->qmin;
+      settings.qmax = av_ctx->qmax;
+      settings.rc_buffer_size = av_ctx->rc_buffer_size;
+      settings.bit_rate = av_ctx->bit_rate;
+      if (av_ctx->framerate.num > 0 && av_ctx->framerate.den > 0) {
+        settings.framerate = (int) std::round(static_cast<double>(av_ctx->framerate.num) / av_ctx->framerate.den);
+      }
+      sunshine::latency_stats().set_effective_settings(std::move(settings));
+    }
+
     return session;
   }
 
@@ -2190,10 +2219,13 @@ namespace video {
     // the historical keepalive behavior promptly.
     if (auto img = images->pop(std::min(max_frametime, std::chrono::duration<double, std::milli> {5.0}))) {
       initial_frame_timestamp = img->frame_timestamp;
+      auto convert_start = std::chrono::steady_clock::now();
       if (session->convert(*img)) {
         BOOST_LOG(error) << "Could not convert initial image"sv;
         return;
       }
+      auto convert_end = std::chrono::steady_clock::now();
+      sunshine::latency_stats().convert_ms.collect(std::chrono::duration<double, std::milli>(convert_end - convert_start).count());
       initial_frame_converted = true;
     }
 
@@ -2243,10 +2275,13 @@ namespace video {
       } else if (!requested_idr_frame || images->peek()) {
         if (auto img = images->pop(max_frametime)) {
           frame_timestamp = img->frame_timestamp;
+          auto convert_start = std::chrono::steady_clock::now();
           if (session->convert(*img)) {
             BOOST_LOG(error) << "Could not convert image"sv;
             return;
           }
+          auto convert_end = std::chrono::steady_clock::now();
+          sunshine::latency_stats().convert_ms.collect(std::chrono::duration<double, std::milli>(convert_end - convert_start).count());
         } else if (!images->running()) {
           break;
         }
@@ -2261,6 +2296,8 @@ namespace video {
         return;
       }
       auto encode_end = std::chrono::steady_clock::now();
+      float encode_time_ms = std::chrono::duration<float, std::milli>(encode_end - encode_start).count();
+      sunshine::latency_stats().encode_ms.collect(encode_time_ms);
 
       session->request_normal_frame();
 
@@ -2269,7 +2306,6 @@ namespace video {
           adaptive_bitrate.update_network_stats(stats->first, stats->second);
         }
 
-        float encode_time_ms = std::chrono::duration<float, std::milli>(encode_end - encode_start).count();
         float elapsed_s = std::chrono::duration<float>(encode_end - last_encode_time).count();
         last_encode_time = encode_end;
 
@@ -2504,6 +2540,13 @@ namespace video {
     auto ec = platf::capture_e::ok;
     while (encode_session_ctx_queue.running()) {
       auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
+        if (img && img->capture_started_at) {
+          auto capture_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - *img->capture_started_at
+          ).count();
+          sunshine::latency_stats().capture_ms.collect(capture_ms);
+        }
+
         while (encode_session_ctx_queue.peek()) {
           auto encode_session_ctx = encode_session_ctx_queue.pop();
           if (!encode_session_ctx) {
@@ -2544,11 +2587,16 @@ namespace video {
             ctx->idr_events->pop();
           }
 
-          if (frame_captured && pos->session->convert(*img)) {
-            BOOST_LOG(error) << "Could not convert image"sv;
-            ctx->shutdown_event->raise(true);
+          if (frame_captured) {
+            auto convert_start = std::chrono::steady_clock::now();
+            if (pos->session->convert(*img)) {
+              BOOST_LOG(error) << "Could not convert image"sv;
+              ctx->shutdown_event->raise(true);
 
-            continue;
+              continue;
+            }
+            auto convert_end = std::chrono::steady_clock::now();
+            sunshine::latency_stats().convert_ms.collect(std::chrono::duration<double, std::milli>(convert_end - convert_start).count());
           }
 
           std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
@@ -2556,6 +2604,7 @@ namespace video {
             frame_timestamp = img->frame_timestamp;
           }
 
+          auto encode_start = std::chrono::steady_clock::now();
           if (auto enc_err = encode(ctx->frame_nr++, *pos->session, ctx->packets, ctx->channel_data, frame_timestamp)) {
             // ponytail: same site-1 pattern; here we raise the shutdown
             // event so the stream tears down instead of returning. The
@@ -2565,6 +2614,8 @@ namespace video {
 
             continue;
           }
+          auto encode_end = std::chrono::steady_clock::now();
+          sunshine::latency_stats().encode_ms.collect(std::chrono::duration<double, std::milli>(encode_end - encode_start).count());
 
           pos->session->request_normal_frame();
 
@@ -2582,6 +2633,7 @@ namespace video {
       auto pull_free_image_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
         img_out = img;
         img_out->frame_timestamp.reset();
+        img_out->capture_started_at = std::chrono::steady_clock::now();
         return true;
       };
 

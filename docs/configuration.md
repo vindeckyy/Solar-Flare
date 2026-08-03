@@ -3654,6 +3654,184 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### vaapi_rc_mode
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Rate-control mode for the VA-API encoder. Auto lets the driver decide. Modes not supported by the driver
+            are ignored with a warning in the log.
+            <ul>
+                <li>0 - Auto (default)</li>
+                <li>1 - CQP (Constant QP)</li>
+                <li>2 - CBR (Constant Bitrate)</li>
+                <li>3 - VBR (Variable Bitrate)</li>
+                <li>4 - ICQ (Intelligent Constant Quality)</li>
+                <li>5 - QVBR (Quality Variable Bitrate)</li>
+                <li>6 - AVBR (Average Variable Bitrate)</li>
+            </ul>
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_rc_mode = 3
+            @endcode</td>
+    </tr>
+</table>
+
+### vaapi_quality
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Speed/quality trade-off for the VA-API encoder. Lower values produce higher quality at the cost of speed.
+            Valid ranges differ per codec (H.264/AV1: 0-5, HEVC: 0-10); values above the codec maximum are clamped.
+            A value of 0 uses the driver default.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_quality = 1
+            @endcode</td>
+    </tr>
+</table>
+
+### vaapi_min_qp
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Minimum QP bound for the VA-API encoder. Caps per-frame quality to flatten encode-time variance.
+            A value of 0 uses the codec default.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_min_qp = 10
+            @endcode</td>
+    </tr>
+</table>
+
+### vaapi_max_qp
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Maximum QP bound for the VA-API encoder. Caps per-frame quality to flatten encode-time variance.
+            A value of 0 uses the codec default.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_max_qp = 40
+            @endcode</td>
+    </tr>
+</table>
+
+### vaapi_slice_count
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Number of slices per frame. A value of 0 uses the slice count requested by the client. Values above the
+            encoder maximum are clamped to what the driver supports.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_slice_count = 2
+            @endcode</td>
+    </tr>
+</table>
+
+### vaapi_async_depth
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Encoder queue depth (FFmpeg async_depth): the number of frames the encoder may have in flight. Higher
+            values can improve throughput at the cost of added latency. A value of 0 uses the default of 1.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_async_depth = 4
+            @endcode</td>
+    </tr>
+</table>
+
+### vaapi_rc_buffer_frames
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Rate-control buffer (VBV) size expressed in frames of the configured bitrate. A value of 0 uses the
+            automatic single-frame VBV on the strict/Intel/AV1 path and the driver default otherwise.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_rc_buffer_frames = 4
+            @endcode</td>
+    </tr>
+</table>
+
 ## Vulkan Encoder
 
 ### vk_tune

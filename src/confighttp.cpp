@@ -44,6 +44,7 @@
 #include "game_scanner.h"
 #include "globals.h"
 #include "httpcommon.h"
+#include "latency_stats.h"
 #include "logging.h"
 #include "network.h"
 #include "nvhttp.h"
@@ -1662,6 +1663,68 @@ namespace confighttp {
   }
 
   /**
+   * @brief Return host-side latency statistics and effective encoder
+   *        settings. Read-only.
+   * @details Used by the SolarFlare fork Web UI to break down capture,
+   *          conversion, encoding and network latency so config changes
+   *          can be evaluated empirically. Each metric is a min/max/avg
+   *          snapshot in milliseconds accumulated since the process
+   *          started (or since the last reset). Returns zeroed metrics
+   *          when no samples have been collected, so it is safe to poll
+   *          while no stream is active.
+   *
+   * @api_examples{/api/stream/latency| GET| null}
+   */
+  void getStreamLatency(const resp_https_t &response, const req_https_t &request) {
+    if (!require_scope(response, request, config::api_scope_t::LOGS_GET)) {
+      return;
+    }
+    print_req(request);
+
+    auto &stats = sunshine::latency_stats();
+
+    auto snapshot_to_json = [](const sunshine::stat_snapshot_t &snapshot) {
+      nlohmann::json tree;
+      tree["min"] = snapshot.min;
+      tree["max"] = snapshot.max;
+      tree["avg"] = snapshot.avg;
+      tree["samples"] = snapshot.samples;
+      return tree;
+    };
+
+    auto settings = stats.effective_settings();
+
+    nlohmann::json effective_settings;
+    effective_settings["codec"] = settings.codec;
+    effective_settings["hwdevice"] = settings.hwdevice;
+    effective_settings["vendor"] = settings.vendor;
+    effective_settings["va_entrypoint"] = settings.va_entrypoint;
+    effective_settings["rc_mode"] = settings.rc_mode;
+    effective_settings["quality"] = settings.quality;
+    effective_settings["slices"] = settings.slices;
+    effective_settings["async_depth"] = settings.async_depth;
+    effective_settings["qmin"] = settings.qmin;
+    effective_settings["qmax"] = settings.qmax;
+    effective_settings["rc_buffer_size"] = settings.rc_buffer_size;
+    effective_settings["bit_rate"] = settings.bit_rate;
+    effective_settings["framerate"] = settings.framerate;
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    tree["capture_ms"] = snapshot_to_json(stats.capture_ms.snapshot());
+    tree["convert_ms"] = snapshot_to_json(stats.convert_ms.snapshot());
+    tree["encode_ms"] = snapshot_to_json(stats.encode_ms.snapshot());
+    tree["network_total_ms"] = snapshot_to_json(stats.network_total_ms.snapshot());
+    tree["network_queue_dwell_ms"] = snapshot_to_json(stats.network_queue_dwell_ms.snapshot());
+    tree["network_fec_ms"] = snapshot_to_json(stats.network_fec_ms.snapshot());
+    tree["network_send_ms"] = snapshot_to_json(stats.network_send_ms.snapshot());
+    tree["rtt_ms"] = snapshot_to_json(stats.rtt_ms.snapshot());
+    tree["effective_settings"] = effective_settings;
+    send_response(response, tree);
+  }
+
+  /**
    * @brief Return process-wide error counters grouped by category.
    * @details Used by the SolarFlare fork Web UI to surface a 'recent errors'
    *          widget. Read-only; the counters are updated by every SUN_ERR()
@@ -2529,6 +2592,7 @@ namespace confighttp {
     server.resource["^/api/tokens/([\\w-]+)$"]["DELETE"] = deleteToken;
     server.resource["^/api/stream/network-stats$"]["POST"] = postNetworkStats;
     server.resource["^/api/stream/bitrate$"]["GET"] = getBitrate;
+    server.resource["^/api/stream/latency$"]["GET"] = getStreamLatency;
     server.resource["^/api/errors$"]["GET"] = getErrors;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/restart$"]["POST"] = restart;

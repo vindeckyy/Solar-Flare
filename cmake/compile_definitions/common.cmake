@@ -279,6 +279,8 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/error.cpp"
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.h"
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.cpp"
+        "${CMAKE_SOURCE_DIR}/src/latency_stats.h"
+        "${CMAKE_SOURCE_DIR}/src/latency_stats.cpp"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.h"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.c"
         ${PLATFORM_TARGET_FILES})

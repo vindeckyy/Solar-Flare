@@ -5,6 +5,8 @@
  * @brief Definitions for VA-API hardware accelerated capture.
  */
 // standard includes
+#include <algorithm>
+#include <array>
 #include <fcntl.h>
 #include <format>
 #include <sstream>
@@ -44,6 +46,7 @@ extern "C" {
 #include "graphics.h"
 #include "misc.h"
 #include "src/config.h"
+#include "src/latency_stats.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
@@ -266,9 +269,71 @@ namespace va {
         // Assume only a single slice is supported
         slice_attr.value = 1;
       }
+
+      // Override the client-requested slice count when the user explicitly
+      // asked for one, then clamp to the encoder maximum.
+      if (config::video.vaapi.slice_count > 0) {
+        ctx->slices = config::video.vaapi.slice_count;
+      }
       if (ctx->slices > slice_attr.value) {
         BOOST_LOG(info) << "Limiting slice count to encoder maximum: "sv << slice_attr.value;
         ctx->slices = slice_attr.value;
+      }
+
+      // Apply the user-requested QP bounds, if any. VA-API's FFmpeg
+      // encoders have no min_qp/max_qp options, so the AVCodecContext
+      // fields are used directly.
+      if (config::video.vaapi.min_qp > 0) {
+        ctx->qmin = config::video.vaapi.min_qp;
+      }
+      if (config::video.vaapi.max_qp > 0) {
+        ctx->qmax = config::video.vaapi.max_qp;
+      }
+
+      // Apply the user-requested quality level (speed/quality trade-off),
+      // clamped to the codec's maximum value. Lower is higher quality.
+      auto quality_applied = 0;
+      if (config::video.vaapi.quality > 0) {
+        auto quality_max = 5;
+        switch (ctx->codec_id) {
+          case AV_CODEC_ID_HEVC:
+            quality_max = 10;
+            break;
+          case AV_CODEC_ID_H264:
+          case AV_CODEC_ID_AV1:
+          default:
+            quality_max = 5;
+            break;
+        }
+        auto quality = std::min(config::video.vaapi.quality, quality_max);
+        if (quality != config::video.vaapi.quality) {
+          BOOST_LOG(warning) << "Clamping quality level " << config::video.vaapi.quality
+                             << " to codec maximum " << quality_max;
+        }
+        quality_applied = quality;
+        av_dict_set_int(options, "quality", quality, 0);
+      }
+
+      // Determine the effective rate-control mode. An explicit user
+      // request wins over the automatic selection below; the requested
+      // mode is only applied when the driver advertises support for it.
+      std::string rc_mode;
+      if (config::video.vaapi.rc_mode > 0) {
+        static const std::array<const char *, 7> rc_mode_names = {"auto", "CQP", "CBR", "VBR", "ICQ", "QVBR", "AVBR"};
+        static const std::array<int, 7> rc_mode_flags = {0, VA_RC_CQP, VA_RC_CBR, VA_RC_VBR, VA_RC_ICQ, VA_RC_QVBR, VA_RC_AVBR};
+
+        auto idx = std::min(config::video.vaapi.rc_mode, 6);
+        if (!(rc_attr.value & rc_mode_flags[idx])) {
+          BOOST_LOG(warning) << "Rate control mode "sv << rc_mode_names[idx]
+                             << " is not supported by this driver; using driver default"sv;
+        } else {
+          rc_mode = rc_mode_names[idx];
+          av_dict_set(options, "rc_mode", rc_mode.c_str(), 0);
+          if (idx == 1) {
+            // CQP mode requires an explicit QP value
+            av_dict_set_int(options, "qp", config::video.qp, 0);
+          }
+        }
       }
 
       // Use VBR with a single frame VBV when the user forces it and for known good cases:
@@ -282,9 +347,10 @@ namespace va {
       // When we have to resort to the default 1 second VBV for encoding quality reasons,
       // we stick to CBR in order to avoid encoding huge frames after bitrate undershoots
       // leave headroom available in the RC window.
-      if (config::video.vaapi.strict_rc_buffer ||
-          (vendor && strstr(vendor, "Intel")) ||
-          ctx->codec_id == AV_CODEC_ID_AV1) {
+      if (config::video.vaapi.rc_mode == 0 &&
+          (config::video.vaapi.strict_rc_buffer ||
+           (vendor && strstr(vendor, "Intel")) ||
+           ctx->codec_id == AV_CODEC_ID_AV1)) {
         ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
 
         if (rc_attr.value & VA_RC_VBR) {
@@ -297,11 +363,49 @@ namespace va {
           BOOST_LOG(warning) << "Using CQP with single frame VBV size"sv;
           av_dict_set_int(options, "qp", config::video.qp, 0);
         }
-      } else if (!(rc_attr.value & (VA_RC_CBR | VA_RC_VBR))) {
+      } else if (config::video.vaapi.rc_mode == 0 && !(rc_attr.value & (VA_RC_CBR | VA_RC_VBR))) {
         BOOST_LOG(warning) << "Using CQP rate control"sv;
         av_dict_set_int(options, "qp", config::video.qp, 0);
-      } else {
+      } else if (config::video.vaapi.rc_mode == 0) {
         BOOST_LOG(info) << "Using default rate control"sv;
+      }
+
+      // An explicit buffer size in frames overrides the single-frame VBV
+      // set above. Units match the existing code: bits for one frame.
+      if (config::video.vaapi.rc_buffer_frames > 0 && ctx->bit_rate > 0 && ctx->framerate.num > 0) {
+        ctx->rc_buffer_size = static_cast<int64_t>(ctx->bit_rate) *
+                              ctx->framerate.den *
+                              config::video.vaapi.rc_buffer_frames /
+                              ctx->framerate.num;
+        BOOST_LOG(info) << "Setting rate-control buffer size to " << config::video.vaapi.rc_buffer_frames
+                        << " frame(s)"sv;
+      }
+
+      // Record the effective settings for the /api/stream/latency endpoint.
+      // Fields set by the generic session code (codec, slices, QP bounds,
+      // buffer size, bitrate, framerate) are preserved by reading the
+      // current snapshot first.
+      {
+        auto settings = sunshine::latency_stats().effective_settings();
+        settings.vendor = vendor ? vendor : "";
+        switch (va_entrypoint) {
+          case VAEntrypointEncSliceLP:
+            settings.va_entrypoint = "EncSliceLP";
+            break;
+          case VAEntrypointEncSlice:
+            settings.va_entrypoint = "EncSlice";
+            break;
+          case VAEntrypointEncPicture:
+            settings.va_entrypoint = "EncPicture";
+            break;
+          default:
+            settings.va_entrypoint = "unknown";
+            break;
+        }
+        settings.rc_mode = rc_mode;
+        settings.quality = quality_applied;
+        settings.async_depth = config::video.vaapi.async_depth > 0 ? config::video.vaapi.async_depth : 1;
+        sunshine::latency_stats().set_effective_settings(std::move(settings));
       }
     }
 

@@ -389,6 +389,10 @@ namespace platf {
 
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
 
+    ///< Time the capture backend was handed this image; used to measure
+    ///< the capture backend duration for latency statistics.
+    std::optional<std::chrono::steady_clock::time_point> capture_started_at;
+
     virtual ~img_t() = default;
   };
 
