@@ -65,6 +65,15 @@ namespace stream {
     std::optional<std::pair<float, float>> parse_frame_fec_status(std::string_view payload, std::uint32_t rtt_ms);
 
     /**
+     * @brief Validate a frame FEC status and record its peer RTT when accepted.
+     *
+     * @param payload Packed big-endian SS_FRAME_FEC_STATUS payload.
+     * @param peer_rtt_ms Current ENet round-trip time, or no value when no peer exists.
+     * @return Packet-loss percentage and RTT, or no value for malformed input.
+     */
+    std::optional<std::pair<float, float>> process_frame_fec_status(std::string_view payload, std::optional<std::uint32_t> peer_rtt_ms);
+
+    /**
      * @brief Parse an IDX_INVALIDATE_REF_FRAMES control payload.
      * @param payload Packed first/last frame indexes.
      * @return Frame range, or no value when the payload is too short.

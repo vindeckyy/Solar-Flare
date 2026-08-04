@@ -126,6 +126,14 @@ namespace stream {
       return std::pair {loss_pct, static_cast<float>(rtt_ms)};
     }
 
+    std::optional<std::pair<float, float>> process_frame_fec_status(const std::string_view payload, const std::optional<std::uint32_t> peer_rtt_ms) {
+      auto stats = parse_frame_fec_status(payload, peer_rtt_ms.value_or(0U));
+      if (stats && peer_rtt_ms) {
+        sunshine::latency_stats().rtt_ms.collect(static_cast<double>(*peer_rtt_ms));
+      }
+      return stats;
+    }
+
     std::optional<std::pair<std::int64_t, std::int64_t>> parse_invalidate_ref_frames(std::string_view payload) {
       if (payload.size() < 2 * sizeof(std::int64_t)) {
         return std::nullopt;
@@ -1143,11 +1151,11 @@ namespace stream {
     });
 
     server->map(SS_FRAME_FEC_PTYPE, [](session_t *session, const std::string_view &payload) {
-      const auto rtt_ms = session->control.peer ? session->control.peer->roundTripTime : 0U;
+      std::optional<std::uint32_t> rtt_ms;
       if (session->control.peer) {
-        sunshine::latency_stats().rtt_ms.collect(static_cast<double>(session->control.peer->roundTripTime));
+        rtt_ms = session->control.peer->roundTripTime;
       }
-      auto stats = detail::parse_frame_fec_status(payload, rtt_ms);
+      auto stats = detail::process_frame_fec_status(payload, rtt_ms);
       if (!stats) {
         BOOST_LOG(warning) << "SS_FRAME_FEC_STATUS malformed packet: "sv << payload.size();
         return;
