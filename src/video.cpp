@@ -8,8 +8,8 @@
 #include <array>
 #include <atomic>
 #include <bitset>
-#include <fstream>
 #include <list>
+#include <memory>
 #include <thread>
 
 // lib includes
@@ -30,6 +30,7 @@ extern "C" {
 #include "display_device.h"
 #include "error.h"
 #include "globals.h"
+#include "gpu_governor.h"
 #include "input.h"
 #include "latency_stats.h"
 #include "logging.h"
@@ -506,6 +507,15 @@ namespace video {
     safe::signal_t reinit_event;
     const encoder_t *encoder_p;
     sync_util::sync_t<std::weak_ptr<platf::display_t>> display_wp;
+
+    /**
+     * @brief Owns AMD GPU performance-mode apply/restore for this capture.
+     *
+     * Always allocated in start_capture_async. When config::solarflare.gpu_governor
+     * is enabled on Linux, construction writes `performance` and destruction of
+     * this context restores `auto` via RAII (no manual restore in end_capture_async).
+     */
+    std::unique_ptr<gpu_governor_guard_t> gpu_governor;
   };
 
   struct capture_thread_sync_ctx_t {
@@ -3430,19 +3440,10 @@ namespace video {
     capture_thread_ctx.encoder_p = chosen_encoder;
     capture_thread_ctx.reinit_event.reset();
 
-    // ponytail: GPU governor — set GPU to performance mode during stream.
-    // Writes to AMD sysfs; silently no-ops on non-AMD / non-Linux.
-#ifdef __linux__
-    if (config::solarflare.gpu_governor) {
-      for (int card = 0; card < 4; ++card) {
-        auto path = "/sys/class/drm/card"s + std::to_string(card) + "/device/power_dpm_force_performance_level";
-        std::ofstream f(path);
-        if (f) {
-          f << "performance";
-        }
-      }
-    }
-#endif
+    // Raise AMD GPU power profile for the stream; context destruction restores.
+    capture_thread_ctx.gpu_governor = std::make_unique<gpu_governor_guard_t>(
+      config::solarflare.gpu_governor
+    );
 
     capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>(30);
 
@@ -3462,18 +3463,7 @@ namespace video {
 
     capture_thread_ctx.capture_thread.join();
 
-    // ponytail: restore GPU to auto power profile after stream.
-#ifdef __linux__
-    if (config::solarflare.gpu_governor) {
-      for (int card = 0; card < 4; ++card) {
-        auto path = "/sys/class/drm/card"s + std::to_string(card) + "/device/power_dpm_force_performance_level";
-        std::ofstream f(path);
-        if (f) {
-          f << "auto";
-        }
-      }
-    }
-#endif
+    // GPU governor restore is owned by capture_thread_async_ctx_t::gpu_governor.
   }
 
   int start_capture_sync(capture_thread_sync_ctx_t &ctx) {
