@@ -580,6 +580,7 @@
     "update_apply": "Apply update",
     "update_working": "Working...",
     "update_waiting_idle": "Waiting for stream to end...",
+    "update_cancel": "Cancel",
     "update_toggle_terminal": "Show commands",
     "update_terminal_empty": "# no commands yet",
     "update_phase_idle": "Idle",

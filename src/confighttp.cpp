@@ -2198,6 +2198,33 @@ namespace confighttp {
   }
 
   /**
+   * @brief Cancel a pending when-idle SolarFlare update apply.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/update/cancel| POST| null}
+   */
+  void cancelUpdate(const resp_https_t &response, const req_https_t &request) {
+    if (!require_scope(response, request, config::api_scope_t::CONFIG_SET)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+
+    if (const auto err = update::cancel()) {
+      bad_request(response, request, *err);
+      return;
+    }
+
+    send_response(response, update::to_json(update::status()));
+  }
+
+  /**
    * @brief Get ViGEmBus driver version and installation status.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -2599,6 +2626,7 @@ namespace confighttp {
     server.resource["^/api/update$"]["GET"] = getUpdateStatus;
     server.resource["^/api/update/start$"]["POST"] = startUpdate;
     server.resource["^/api/update/apply$"]["POST"] = applyUpdate;
+    server.resource["^/api/update/cancel$"]["POST"] = cancelUpdate;
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
     server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
 

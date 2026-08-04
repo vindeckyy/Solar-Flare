@@ -36,6 +36,12 @@
                 @click="onUpdateNow">
           {{ primaryButtonLabel }}
         </button>
+        <button v-if="canCancel"
+                type="button"
+                class="btn btn-outline-light"
+                @click="onCancelUpdate">
+          {{ $t('index.update_cancel') }}
+        </button>
         <a v-if="htmlUrl" class="btn btn-outline-light btn-sm" :href="htmlUrl" target="_blank" rel="noopener">
           {{ $t('index.release_notes_short') }}
         </a>
@@ -99,6 +105,9 @@ export default {
     },
     updateBusy() {
       return !!(this.updateStatus && this.updateStatus.busy)
+    },
+    canCancel() {
+      return this.updateStatus?.phase === 'waiting_idle'
     },
     indeterminate() {
       return !this.updateStatus || this.updateStatus.percent < 0
@@ -238,6 +247,28 @@ export default {
         }
         this.terminalOpen = true
         sessionStorage.setItem(TERMINAL_KEY, '1')
+        this.startPoll()
+      }
+      catch (e) {
+        this.actionError = String(e)
+        this.terminalOpen = true
+      }
+    },
+    async onCancelUpdate() {
+      this.actionError = ''
+      try {
+        const r = await apiFetch('./api/update/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        })
+        const body = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          this.actionError = body.error || r.statusText
+          this.terminalOpen = true
+          return
+        }
+        this.updateStatus = body
         this.startPoll()
       }
       catch (e) {
