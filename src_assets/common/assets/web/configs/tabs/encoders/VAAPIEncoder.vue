@@ -32,6 +32,9 @@ const props = defineProps([
         <option value="6">{{ $t('config.vaapi_rc_avbr') }}</option>
       </select>
       <div class="form-text">{{ $t('config.vaapi_rc_mode_desc') }}</div>
+      <div class="alert alert-warning mt-2 mb-0" v-if="config.vaapi_rc_mode !== 0" role="alert">
+        {{ $t('config.vaapi_rc_mode_explicit_warning') }}
+      </div>
     </div>
 
     <!-- Quality Level -->
