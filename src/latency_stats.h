@@ -20,6 +20,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <mutex>
 #include <string>
@@ -116,6 +117,18 @@ namespace sunshine {
      * @param settings The settings to store. Written at session open.
      */
     void set_effective_settings(effective_settings_t settings);
+
+    /**
+     * @brief Apply @p fn to the stored effective settings under one lock.
+     *
+     * The callback runs while the settings mutex is held, so read-mutate-
+     * write round trips that would otherwise need two lock acquisitions
+     * (get a copy, mutate, store it back) are atomic. Do not call back
+     * into latency_stats() from the callback.
+     *
+     * @param fn Callback that mutates the stored settings in place.
+     */
+    void update_effective_settings(const std::function<void(effective_settings_t &)> &fn);
 
     /**
      * @brief Return a copy of the stored effective encoder settings.

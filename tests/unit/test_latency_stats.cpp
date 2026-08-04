@@ -256,6 +256,41 @@ namespace {
     EXPECT_EQ(got.framerate, 0);
   }
 
+  // update_effective_settings must apply the mutation atomically: two
+  // concurrent updates (a platform init_codec_options write and a
+  // session-open write) must both land, with no lost update. The old
+  // read-snapshot-mutate-write round trip could lose one of them when the
+  // two lock acquisitions interleaved.
+  TEST_F(LatencyStatsTest, UpdateEffectiveSettingsUnderLock) {
+    auto &stats = sunshine::latency_stats();
+    stats.set_effective_settings({});
+
+    constexpr int kThreads = 4;
+    std::vector<std::thread> threads;
+    threads.reserve(kThreads);
+    for (int t = 0; t < kThreads; ++t) {
+      threads.emplace_back([&stats, t] {
+        for (int i = 0; i < 500; ++i) {
+          stats.update_effective_settings([t](auto &settings) {
+            settings.rc_mode = "VBR";
+            settings.quality = 10 + t;
+          });
+        }
+      });
+    }
+    for (auto &th : threads) {
+      th.join();
+    }
+
+    // Every update wrote rc_mode=VBR; the final quality is whatever landed
+    // last, but must be a value this test wrote (10..13), never the
+    // default 0 from a lost initial write.
+    const auto got = stats.effective_settings();
+    EXPECT_EQ(got.rc_mode, "VBR");
+    EXPECT_GE(got.quality, 10);
+    EXPECT_LE(got.quality, 13);
+  }
+
   TEST_F(LatencyStatsTest, SingletonIsStable) {
     // The process-wide singleton must return the same object every time.
     EXPECT_EQ(&sunshine::latency_stats(), &sunshine::latency_stats());

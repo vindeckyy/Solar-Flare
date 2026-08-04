@@ -2116,9 +2116,9 @@ namespace video {
 
     // Record the effective settings of the newly opened encoder. Fields
     // that platform code (e.g. VA-API init_codec_options) stored earlier
-    // are preserved by reading the current snapshot first.
-    {
-      auto settings = sunshine::latency_stats().effective_settings();
+    // are preserved: the update runs under one lock, so a concurrent
+    // platform-side write cannot be clobbered between a read and a write.
+    sunshine::latency_stats().update_effective_settings([&](auto &settings) {
       auto &av_ctx = session->avcodec_ctx;
       settings.codec = av_ctx->codec ? av_ctx->codec->name : video_format.name;
       settings.hwdevice = hardware ? av_hwdevice_get_type_name(platform_formats->avcodec_base_dev_type) : "software";
@@ -2130,8 +2130,7 @@ namespace video {
       if (av_ctx->framerate.num > 0 && av_ctx->framerate.den > 0) {
         settings.framerate = (int) std::round(static_cast<double>(av_ctx->framerate.num) / av_ctx->framerate.den);
       }
-      sunshine::latency_stats().set_effective_settings(std::move(settings));
-    }
+    });
 
     return session;
   }
