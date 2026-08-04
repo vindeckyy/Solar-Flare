@@ -20,6 +20,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <limits>
 #include <mutex>
 #include <string>
 
@@ -66,8 +67,12 @@ namespace sunshine {
     void reset();
 
   private:
-    std::atomic<double> min {0.0};  ///< Minimum observed value.
-    std::atomic<double> max {0.0};  ///< Maximum observed value.
+    // Min/max start at infinities so the first sample always wins the
+    // compare-exchange loop below even when two collectors race on the
+    // very first sample. snapshot() maps an empty accumulator back to
+    // all-zero fields, so the sentinels never leak out.
+    std::atomic<double> min {std::numeric_limits<double>::infinity()};  ///< Minimum observed value.
+    std::atomic<double> max {-std::numeric_limits<double>::infinity()};  ///< Maximum observed value.
     std::atomic<double> total {0.0};  ///< Sum of all observed values.
     std::atomic<std::uint32_t> samples {0};  ///< Number of collected samples.
   };

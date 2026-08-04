@@ -8,6 +8,7 @@
 
 // standard includes
 #include <algorithm>
+#include <limits>
 
 namespace sunshine {
 
@@ -16,15 +17,13 @@ namespace sunshine {
       value_ms = 0.0;
     }
 
-    auto s = samples.fetch_add(1, std::memory_order_relaxed) + 1;
+    samples.fetch_add(1, std::memory_order_relaxed);
     total.fetch_add(value_ms, std::memory_order_relaxed);
 
-    if (s == 1) {
-      min.store(value_ms, std::memory_order_relaxed);
-      max.store(value_ms, std::memory_order_relaxed);
-      return;
-    }
-
+    // Min/max are only ever updated through the compare-exchange loops
+    // below. The +/-infinity sentinels make the first sample win even
+    // when two collectors race on the very first sample, so there is no
+    // first-sample special case to race on.
     auto cur_min = min.load(std::memory_order_relaxed);
     while (value_ms < cur_min && !min.compare_exchange_weak(cur_min, value_ms, std::memory_order_relaxed)) {
     }
@@ -47,8 +46,8 @@ namespace sunshine {
   }
 
   void metric_accumulator_t::reset() {
-    min.store(0.0, std::memory_order_relaxed);
-    max.store(0.0, std::memory_order_relaxed);
+    min.store(std::numeric_limits<double>::infinity(), std::memory_order_relaxed);
+    max.store(-std::numeric_limits<double>::infinity(), std::memory_order_relaxed);
     total.store(0.0, std::memory_order_relaxed);
     samples.store(0, std::memory_order_relaxed);
   }

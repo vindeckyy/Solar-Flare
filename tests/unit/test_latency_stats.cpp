@@ -13,6 +13,12 @@
  */
 #include "../tests_common.h"
 
+// standard includes
+#include <atomic>
+#include <cmath>
+#include <thread>
+#include <vector>
+
 // local includes
 #include "src/latency_stats.h"
 
@@ -110,6 +116,91 @@ namespace {
     EXPECT_EQ(stats.network_fec_ms.snapshot().samples, 0u);
     EXPECT_EQ(stats.network_send_ms.snapshot().samples, 0u);
     EXPECT_EQ(stats.rtt_ms.snapshot().samples, 0u);
+  }
+
+  // Two collectors racing on the very first sample used to hit the old
+  // `if (s == 1) min.store/max.store` fast path: the second collector
+  // could read the sentinel-initialized min (0.0) and skip storing its
+  // (larger) value. With the infinity sentinels + CAS-only loops, every
+  // sample is guaranteed to be reflected in the final min/max regardless
+  // of interleaving.
+  TEST_F(LatencyStatsTest, ConcurrentCollectMinMaxIsExact) {
+    sunshine::metric_accumulator_t acc;
+
+    constexpr int kThreads = 8;
+    constexpr int kSamplesPerThread = 2000;
+    double expected_min = std::numeric_limits<double>::infinity();
+    double expected_max = -std::numeric_limits<double>::infinity();
+
+    std::vector<std::thread> threads;
+    threads.reserve(kThreads);
+    for (int t = 0; t < kThreads; ++t) {
+      threads.emplace_back([&acc, t] {
+        // Give each thread a distinct value range so the global min/max
+        // are known up front, and have every thread hammer the first
+        // sample simultaneously to stress the first-sample race.
+        const double base = 1.0 + t;
+        for (int i = 0; i < kSamplesPerThread; ++i) {
+          acc.collect(base + i * 0.001);
+        }
+      });
+    }
+    for (auto &th : threads) {
+      th.join();
+    }
+
+    // Global min/max over all threads' ranges.
+    for (int t = 0; t < kThreads; ++t) {
+      expected_min = std::min(expected_min, 1.0 + t);
+      expected_max = std::max(expected_max, 1.0 + t + (kSamplesPerThread - 1) * 0.001);
+    }
+
+    const auto s = acc.snapshot();
+    EXPECT_EQ(s.samples, static_cast<std::uint32_t>(kThreads * kSamplesPerThread));
+    EXPECT_DOUBLE_EQ(s.min, expected_min);
+    EXPECT_DOUBLE_EQ(s.max, expected_max);
+  }
+
+  // reset() is not synchronized with collect(): a collector that started
+  // before the reset may land samples after it. The telemetry consumer
+  // only needs approximate results, so this test documents the tolerance:
+  // the post-reset snapshot must never expose the +/-infinity sentinels
+  // (that would leak into the UI as "inf"), and a sample that lands
+  // after the reset is allowed to count — it belongs to the new window.
+  TEST_F(LatencyStatsTest, ResetMidCollectIsApproximate) {
+    sunshine::metric_accumulator_t acc;
+    std::atomic<bool> stop {false};
+    std::atomic<bool> started {false};
+
+    std::thread collector {[&] {
+      started.store(true, std::memory_order_release);
+      while (!stop.load(std::memory_order_acquire)) {
+        acc.collect(5.0);
+      }
+    }};
+
+    while (!started.load(std::memory_order_acquire)) {
+    }
+
+    // Let a few samples land, then reset while the collector keeps going.
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    acc.reset();
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+    // Must not leak the infinity sentinels, and all observed values must
+    // belong to the post-reset window (all 5.0 samples).
+    const auto s = acc.snapshot();
+    EXPECT_TRUE(std::isfinite(s.min));
+    EXPECT_TRUE(std::isfinite(s.max));
+    EXPECT_TRUE(std::isfinite(s.avg));
+    if (s.samples > 0) {
+      EXPECT_DOUBLE_EQ(s.min, 5.0);
+      EXPECT_DOUBLE_EQ(s.max, 5.0);
+      EXPECT_NEAR(s.avg, 5.0, 0.001);  // accumulated float error over many samples
+    }
+
+    stop.store(true, std::memory_order_release);
+    collector.join();
   }
 
   // ---------------------------------------------------------------------
