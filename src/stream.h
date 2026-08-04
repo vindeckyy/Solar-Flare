@@ -119,7 +119,16 @@ namespace stream {
 
     std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session);
     int start(session_t &session, const std::string &addr_string);
+
+    /**
+     * @brief Transition a running session to stopping and signal its workers.
+     *
+     * Clears process-wide latency samples after winning the state transition.
+     *
+     * @param session The session to stop.
+     */
     void stop(session_t &session);
+
     void join(session_t &session);
     state_e state(session_t &session);
     const std::string &client_cert(session_t &session);

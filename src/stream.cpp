@@ -2262,6 +2262,7 @@ namespace stream {
         return;
       }
 
+      sunshine::latency_stats().reset();
       session.shutdown_event->raise(true);
     }
 

@@ -6,7 +6,7 @@
           <h2 class="mb-0">{{ $t('index.stream_stats_title') }}</h2>
           <small class="text-muted">{{ $t('index.stream_stats_desc') }}</small>
         </div>
-        <span v-if="streaming" class="badge text-bg-success">{{ $t('index.stream_stats_streaming') }}</span>
+        <span v-if="hasSamples" class="badge text-bg-success">{{ $t('index.stream_stats_streaming') }}</span>
       </div>
 
       <div v-if="!hasSamples" class="text-muted">
@@ -44,6 +44,10 @@
  * Host-side stream latency panel. Polls /api/stream/latency every second
  * and shows the capture/convert/encode/network breakdown plus the
  * effective encoder settings of the active stream.
+ *
+ * The streaming badge and metric panels both key off hasSamples
+ * (capture_ms.samples > 0). After session teardown the host resets those
+ * samples, so the next poll hides the badge and shows the no-stream view.
  */
 export default {
   name: 'StreamStats',
@@ -56,9 +60,6 @@ export default {
   computed: {
     hasSamples() {
       return !!(this.stats && this.stats.capture_ms && this.stats.capture_ms.samples > 0)
-    },
-    streaming() {
-      return this.hasSamples
     },
     metrics() {
       if (!this.stats) {

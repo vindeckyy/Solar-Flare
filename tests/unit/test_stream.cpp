@@ -60,6 +60,34 @@ TEST(StreamAddressTests, IPv4AddressRejectsDifferentNetworkBytes) {
   EXPECT_FALSE(stream::detail::ipv4_address_matches(interface_address, local_address));
 }
 
+TEST(StreamSessionStopTests, SuccessfulRunningTransitionClearsLatencyBeforeShutdown) {
+  // session_t lives only in stream.cpp, so a live stop() call would need the
+  // full session plumbing. Assert the teardown order in source instead:
+  // win RUNNING->STOPPING, then clear latency samples, then raise shutdown.
+  const auto source = test_utils::read_repo_file("src/stream.cpp");
+  ASSERT_FALSE(source.empty());
+
+  const auto stop_start = source.find("void stop(session_t &session)");
+  const auto stop_end = source.find("void join(session_t &session)", stop_start);
+  ASSERT_NE(stop_start, std::string::npos);
+  ASSERT_NE(stop_end, std::string::npos);
+
+  const auto stop_body = source.substr(stop_start, stop_end - stop_start);
+  const auto transition = stop_body.find("compare_exchange_strong(expected, state_e::STOPPING)");
+  const auto early_return = stop_body.find("if (already_stopping)");
+  const auto reset = stop_body.find("sunshine::latency_stats().reset()");
+  const auto shutdown = stop_body.find("session.shutdown_event->raise(true)");
+
+  ASSERT_NE(transition, std::string::npos);
+  ASSERT_NE(early_return, std::string::npos);
+  ASSERT_NE(reset, std::string::npos);
+  ASSERT_NE(shutdown, std::string::npos);
+  EXPECT_EQ(stop_body.find("sunshine::latency_stats().reset()", reset + 1), std::string::npos);
+  EXPECT_LT(transition, early_return);
+  EXPECT_LT(early_return, reset);
+  EXPECT_LT(reset, shutdown);
+}
+
 TEST(StreamPacingTests, BatchIsLimitedByRemainingIntervalAllowance) {
   EXPECT_EQ(stream::detail::next_pacing_batch_size(64, 64, 88, 90), 2);
 }
