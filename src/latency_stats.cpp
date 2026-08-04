@@ -57,6 +57,11 @@ namespace sunshine {
     effective_settings_ = std::move(settings);
   }
 
+  void latency_stats_t::update_effective_settings(const std::function<void(effective_settings_t &)> &fn) {
+    std::lock_guard<std::mutex> lock(settings_mutex);
+    fn(effective_settings_);
+  }
+
   effective_settings_t latency_stats_t::effective_settings() const {
     std::lock_guard<std::mutex> lock(settings_mutex);
     return effective_settings_;

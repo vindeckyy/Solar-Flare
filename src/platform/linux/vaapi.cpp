@@ -383,10 +383,10 @@ namespace va {
 
       // Record the effective settings for the /api/stream/latency endpoint.
       // Fields set by the generic session code (codec, slices, QP bounds,
-      // buffer size, bitrate, framerate) are preserved by reading the
-      // current snapshot first.
-      {
-        auto settings = sunshine::latency_stats().effective_settings();
+      // buffer size, bitrate, framerate) are preserved: the update runs
+      // under one lock, so the snapshot cannot be clobbered by a
+      // concurrent session-open write in between a read and a write.
+      sunshine::latency_stats().update_effective_settings([&](auto &settings) {
         settings.vendor = vendor ? vendor : "";
         switch (va_entrypoint) {
           case VAEntrypointEncSliceLP:
@@ -405,8 +405,7 @@ namespace va {
         settings.rc_mode = rc_mode;
         settings.quality = quality_applied;
         settings.async_depth = config::video.vaapi.async_depth > 0 ? config::video.vaapi.async_depth : 1;
-        sunshine::latency_stats().set_effective_settings(std::move(settings));
-      }
+      });
     }
 
     int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
