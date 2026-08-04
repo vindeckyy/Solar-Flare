@@ -101,7 +101,9 @@ TEST(UpdateTest, CancelRejectsIdleAndBusyPhases) {
 }
 
 TEST(UpdateTest, CancelClearsApplyWhenIdleWhileWaiting) {
-#ifdef __linux__
+#ifndef __linux__
+  GTEST_SKIP() << "Linux updater cancel path only";
+#else
   update::test_access::force_phase(update::phase_e::waiting_idle, "Waiting for the stream to end");
   update::test_access::force_worker_running(true);
   update::test_access::force_apply_when_idle(true);
@@ -124,8 +126,55 @@ TEST(UpdateTest, CancelClearsApplyWhenIdleWhileWaiting) {
 #endif
 }
 
+TEST(UpdateTest, CancelCompletesOrphanWaitingIdleWithoutWorker) {
+#ifndef __linux__
+  GTEST_SKIP() << "Linux updater cancel path only";
+#else
+  update::test_access::force_phase(update::phase_e::waiting_idle, "Waiting for the stream to end");
+  update::test_access::force_worker_running(false);
+  update::test_access::force_apply_when_idle(true);
+
+  const auto err = update::cancel();
+  EXPECT_FALSE(err.has_value()) << (err ? *err : "");
+  EXPECT_FALSE(update::test_access::apply_when_idle());
+
+  const auto st = update::status();
+  EXPECT_EQ(st.phase, update::phase_e::ready);
+  EXPECT_NE(st.message.find("cancelled"), std::string::npos);
+  EXPECT_TRUE(st.can_apply);
+  EXPECT_FALSE(st.busy);
+
+  update::test_access::force_phase(update::phase_e::idle, "");
+  update::test_access::force_apply_when_idle(false);
+#endif
+}
+
+TEST(UpdateTest, IdleApplyHonorsCancelBeforeClaiming) {
+#ifndef __linux__
+  GTEST_SKIP() << "Linux updater cancel path only";
+#else
+  update::test_access::force_phase(update::phase_e::waiting_idle, "Waiting for the stream to end");
+  update::test_access::force_worker_running(true);
+  update::test_access::force_apply_when_idle(false);
+
+  update::test_access::apply_now_from_idle();
+
+  const auto st = update::status();
+  EXPECT_EQ(st.phase, update::phase_e::ready);
+  EXPECT_NE(st.message.find("cancelled"), std::string::npos);
+  EXPECT_TRUE(st.can_apply);
+  EXPECT_FALSE(st.busy);
+
+  update::test_access::force_phase(update::phase_e::idle, "");
+  update::test_access::force_worker_running(false);
+  update::test_access::force_apply_when_idle(false);
+#endif
+}
+
 TEST(UpdateTest, CancelAcceptsReadyPhase) {
-#ifdef __linux__
+#ifndef __linux__
+  GTEST_SKIP() << "Linux updater cancel path only";
+#else
   update::test_access::force_phase(update::phase_e::ready, "Update staged and verified");
   update::test_access::force_worker_running(false);
   update::test_access::force_apply_when_idle(false);

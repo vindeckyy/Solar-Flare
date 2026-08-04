@@ -312,11 +312,28 @@ namespace update {
 
     /**
      * @brief Restore @c ready after a when-idle apply is cancelled.
+     *
+     * Caller must hold @c g.mutex.
+     */
+    void complete_idle_cancel_unlocked() {
+      g.status.phase = phase_e::ready;
+      g.status.message = "Apply cancelled while waiting for idle";
+      g.status.percent = -1;
+      g.status.busy = false;
+      g.status.can_apply = true;
+      g.status.log.push_back("# apply cancelled while waiting for idle");
+      if (g.status.log.size() > 400) {
+        g.status.log.erase(g.status.log.begin(), g.status.log.begin() + 100);
+      }
+      g.worker_running = false;
+    }
+
+    /**
+     * @brief Restore @c ready after a when-idle apply is cancelled.
      */
     void complete_idle_cancel() {
-      set_phase(phase_e::ready, "Apply cancelled while waiting for idle", -1);
-      append_log("# apply cancelled while waiting for idle");
-      g.worker_running = false;
+      std::lock_guard lock(g.mutex);
+      complete_idle_cancel_unlocked();
     }
 
 #ifdef SUNSHINE_TESTS
@@ -335,6 +352,11 @@ namespace update {
     void test_complete_idle_cancel() {
       complete_idle_cancel();
     }
+
+    /**
+     * @brief Test hook: enter @c apply_now() as if the wait-idle worker just saw idle.
+     */
+    void test_apply_now_from_idle();
 #endif
 
     /**
@@ -463,22 +485,43 @@ namespace update {
 
     /**
      * @brief Perform apply once sessions allow it.
+     * @param from_waiting_idle When true, re-check @c apply_when_idle under the status
+     *                          lock and honor cancel before claiming @c applying.
      */
-    void apply_now() {
+    void apply_now(bool from_waiting_idle = false) {
       const auto binary_dest = self_exe();
       const fs::path assets_dest {SUNSHINE_ASSETS_DIR};
       fs::path payload;
+      bool claimed_from_idle = false;
       {
         std::lock_guard lock(g.mutex);
+        if (from_waiting_idle) {
+          // Close the cancel/apply TOCTOU: claim applying under the same lock as the
+          // idle flag so cancel() cannot return success while install still proceeds.
+          if (!g.apply_when_idle.load()) {
+            complete_idle_cancel_unlocked();
+            return;
+          }
+          g.apply_when_idle = false;
+          g.status.phase = phase_e::applying;
+          g.status.message = "Installing update";
+          g.status.percent = 90;
+          g.status.busy = true;
+          g.status.can_apply = false;
+          claimed_from_idle = true;
+        }
         payload = g.staging_payload;
       }
 
       if (binary_dest.empty() || payload.empty() || !fs::exists(payload)) {
         set_phase(phase_e::error, "No staged update payload is ready", -1);
+        g.worker_running = false;
         return;
       }
 
-      set_phase(phase_e::applying, "Installing update", 90);
+      if (!claimed_from_idle) {
+        set_phase(phase_e::applying, "Installing update", 90);
+      }
       bool ok = false;
       if (path_writable(binary_dest) && path_writable(assets_dest)) {
         append_log("# applying in-process (install paths are writable)");
@@ -498,6 +541,12 @@ namespace update {
       platf::restart();
     }
 
+#ifdef SUNSHINE_TESTS
+    void test_apply_now_from_idle() {
+      apply_now(true);
+    }
+#endif
+
     /**
      * @brief Wait for streaming sessions to end, then apply.
      */
@@ -510,7 +559,7 @@ namespace update {
           if (!g.apply_when_idle.load()) {
             break;
           }
-          apply_now();
+          apply_now(true);
           return;
         }
         std::this_thread::sleep_for(1s);
@@ -750,7 +799,9 @@ namespace update {
     }
 
     append_log("# update::apply()");
-    std::thread(apply_now).detach();
+    std::thread([] {
+      apply_now(false);
+    }).detach();
     return std::nullopt;
 #endif
   }
@@ -764,11 +815,18 @@ namespace update {
       if (g.status.phase != phase_e::ready && g.status.phase != phase_e::waiting_idle) {
         return "No update operation is in progress";
       }
+
+      // Clears the wait-idle loop so wait_idle_then_apply() / apply_now(true) honor cancel.
+      g.apply_when_idle = false;
+
+      // Orphan waiting_idle (no live wait worker): finish cancel here so the UI
+      // does not stay on Cancel forever.
+      if (g.status.phase == phase_e::waiting_idle && !g.worker_running.load()) {
+        complete_idle_cancel_unlocked();
+      }
     }
 
     append_log("# update::cancel()");
-    // Clears the wait-idle loop so wait_idle_then_apply() reaches complete_idle_cancel().
-    g.apply_when_idle = false;
     return std::nullopt;
 #endif
   }
@@ -870,6 +928,10 @@ namespace update {
 
     void complete_idle_cancel() {
       test_complete_idle_cancel();
+    }
+
+    void apply_now_from_idle() {
+      test_apply_now_from_idle();
     }
   }  // namespace test_access
 #endif

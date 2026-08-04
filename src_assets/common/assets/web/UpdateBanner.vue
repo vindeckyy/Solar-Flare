@@ -39,6 +39,7 @@
         <button v-if="canCancel"
                 type="button"
                 class="btn btn-outline-light"
+                :disabled="cancelInFlight"
                 @click="onCancelUpdate">
           {{ $t('index.update_cancel') }}
         </button>
@@ -88,6 +89,7 @@ export default {
       terminalOpen: sessionStorage.getItem(TERMINAL_KEY) === '1',
       pollTimer: null,
       actionError: '',
+      cancelInFlight: false,
     }
   },
   computed: {
@@ -255,6 +257,10 @@ export default {
       }
     },
     async onCancelUpdate() {
+      if (this.cancelInFlight) {
+        return
+      }
+      this.cancelInFlight = true
       this.actionError = ''
       try {
         const r = await apiFetch('./api/update/cancel', {
@@ -274,6 +280,9 @@ export default {
       catch (e) {
         this.actionError = String(e)
         this.terminalOpen = true
+      }
+      finally {
+        this.cancelInFlight = false
       }
     },
   },
