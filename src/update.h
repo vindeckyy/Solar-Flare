@@ -86,8 +86,9 @@ namespace update {
   /**
    * @brief Cancel a pending when-idle apply (or a no-op cancel while staged/ready).
    *
-   * Clears @c apply_when_idle so @c wait_idle_then_apply() exits to the cancelled
-   * branch. Rejected unless the phase is @c ready or @c waiting_idle.
+   * Clears @c apply_when_idle so @c wait_idle_then_apply() / @c apply_now() honor
+   * cancel. When phase is @c waiting_idle but no wait worker is alive, restores
+   * @c ready immediately. Rejected unless the phase is @c ready or @c waiting_idle.
    *
    * @return Empty on accept, otherwise an error string for the HTTP layer.
    */
@@ -163,6 +164,13 @@ namespace update {
      * @c apply_when_idle was cleared.
      */
     void complete_idle_cancel();
+
+    /**
+     * @brief Invoke @c apply_now(true) without a live wait-idle thread.
+     *
+     * Used to cover the cancel re-check at the start of idle apply.
+     */
+    void apply_now_from_idle();
   }  // namespace test_access
 #endif
 
