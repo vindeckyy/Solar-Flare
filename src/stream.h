@@ -123,12 +123,24 @@ namespace stream {
     /**
      * @brief Transition a running session to stopping and signal its workers.
      *
-     * Clears process-wide latency samples after winning the state transition.
+     * When this is the last live session (`running_sessions == 1`), clears
+     * process-wide latency samples after winning the state transition so the
+     * Stream Stats UI can drop stale activity promptly. Concurrent sessions
+     * are left alone; `join()` clears again when the last session drains.
      *
      * @param session The session to stop.
      */
     void stop(session_t &session);
 
+    /**
+     * @brief Wait for session worker threads to finish and finish teardown.
+     *
+     * Decrements `running_sessions`. When the count reaches zero, clears
+     * process-wide latency samples so late capture/encode samples that arrived
+     * after `stop()` cannot leave idle host stats non-empty.
+     *
+     * @param session The session whose workers should be joined.
+     */
     void join(session_t &session);
     state_e state(session_t &session);
     const std::string &client_cert(session_t &session);
