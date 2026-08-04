@@ -46,6 +46,9 @@ namespace fs = std::filesystem;
 namespace bp = boost::process::v1;
 
 namespace update {
+
+  std::string format_install_error(std::string_view what_failed, const std::error_code &primary, const std::error_code *rollback);
+
   namespace {
 
     constexpr auto UPDATE_REPO = "vindeckyy/Solar-Flare"sv;
@@ -308,6 +311,33 @@ namespace update {
     }
 
     /**
+     * @brief Restore @c ready after a when-idle apply is cancelled.
+     */
+    void complete_idle_cancel() {
+      set_phase(phase_e::ready, "Apply cancelled while waiting for idle", -1);
+      append_log("# apply cancelled while waiting for idle");
+      g.worker_running = false;
+    }
+
+#ifdef SUNSHINE_TESTS
+    /**
+     * @brief Test hook: write phase/message via the normal setter.
+     * @param phase Phase to store.
+     * @param message Status message.
+     */
+    void test_force_phase(phase_e phase, std::string message) {
+      set_phase(phase, std::move(message), -1);
+    }
+
+    /**
+     * @brief Test hook: run cancelled wait-idle cleanup.
+     */
+    void test_complete_idle_cancel() {
+      complete_idle_cancel();
+    }
+#endif
+
+    /**
      * @brief Copy staging payload onto the live install paths.
      * @param payload Extracted solarflare/ directory.
      * @param binary_dest Live binary path.
@@ -332,6 +362,12 @@ namespace update {
         return false;
       }
       fs::permissions(bin_tmp, fs::perms::owner_all | fs::perms::group_read | fs::perms::group_exec | fs::perms::others_read | fs::perms::others_exec, ec);
+      if (ec) {
+        set_phase(phase_e::error, format_install_error("Failed to set permissions on staged binary: ", ec), -1);
+        std::error_code remove_ec;
+        fs::remove(bin_tmp, remove_ec);
+        return false;
+      }
 
       if (fs::exists(binary_dest)) {
         fs::remove(bin_prev, ec);
@@ -343,9 +379,14 @@ namespace update {
       }
       fs::rename(bin_tmp, binary_dest, ec);
       if (ec) {
-        // Best-effort rollback of the rename.
-        fs::rename(bin_prev, binary_dest, ec);
-        set_phase(phase_e::error, "Failed to install new binary: " + ec.message(), -1);
+        const auto install_ec = ec;
+        if (fs::exists(bin_prev)) {
+          std::error_code rollback_ec;
+          fs::rename(bin_prev, binary_dest, rollback_ec);
+          set_phase(phase_e::error, format_install_error("Failed to install new binary: ", install_ec, rollback_ec ? &rollback_ec : nullptr), -1);
+        } else {
+          set_phase(phase_e::error, format_install_error("Failed to install new binary: ", install_ec), -1);
+        }
         return false;
       }
 
@@ -359,7 +400,8 @@ namespace update {
         set_phase(phase_e::error, "Failed to stage assets: " + ec.message(), -1);
         return false;
       }
-      if (fs::exists(assets_dest)) {
+      const bool had_previous_assets = fs::exists(assets_dest);
+      if (had_previous_assets) {
         fs::remove_all(assets_prev, ec);
         fs::rename(assets_dest, assets_prev, ec);
         if (ec) {
@@ -370,10 +412,21 @@ namespace update {
       }
       fs::rename(assets_tmp, assets_dest, ec);
       if (ec) {
+        const auto rename_ec = ec;
         fs::copy(assets_tmp, assets_dest, fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
-        fs::remove_all(assets_tmp, ec);
-        if (ec) {
-          set_phase(phase_e::error, "Failed to install assets: " + ec.message(), -1);
+        if (!ec) {
+          fs::remove_all(assets_tmp, ec);
+        } else {
+          const auto copy_ec = ec;
+          std::error_code cleanup_ec;
+          fs::remove_all(assets_tmp, cleanup_ec);
+          if (had_previous_assets && fs::exists(assets_prev)) {
+            std::error_code rollback_ec;
+            fs::rename(assets_prev, assets_dest, rollback_ec);
+            set_phase(phase_e::error, format_install_error("Failed to install assets: ", copy_ec ? copy_ec : rename_ec, rollback_ec ? &rollback_ec : nullptr), -1);
+          } else {
+            set_phase(phase_e::error, format_install_error("Failed to install assets: ", copy_ec ? copy_ec : rename_ec), -1);
+          }
           return false;
         }
       }
@@ -453,13 +506,16 @@ namespace update {
       append_log("# waiting until rtsp_stream::session_count() == 0");
       while (g.apply_when_idle.load()) {
         if (rtsp_stream::session_count() == 0) {
+          // Cancel may have cleared the flag between the while check and idle detection.
+          if (!g.apply_when_idle.load()) {
+            break;
+          }
           apply_now();
           return;
         }
         std::this_thread::sleep_for(1s);
       }
-      set_phase(phase_e::ready, "Apply cancelled while waiting for idle", -1);
-      g.worker_running = false;
+      complete_idle_cancel();
     }
 
     /**
@@ -699,6 +755,33 @@ namespace update {
 #endif
   }
 
+  std::optional<std::string> cancel() {
+#ifndef __linux__
+    return "Updates are only available on Linux";
+#else
+    {
+      std::lock_guard lock(g.mutex);
+      if (g.status.phase != phase_e::ready && g.status.phase != phase_e::waiting_idle) {
+        return "No update operation is in progress";
+      }
+    }
+
+    append_log("# update::cancel()");
+    // Clears the wait-idle loop so wait_idle_then_apply() reaches complete_idle_cancel().
+    g.apply_when_idle = false;
+    return std::nullopt;
+#endif
+  }
+
+  std::string format_install_error(std::string_view what_failed, const std::error_code &primary, const std::error_code *rollback) {
+    std::string message = std::string(what_failed) + primary.message();
+    if (rollback && *rollback) {
+      message += "; rollback also failed: ";
+      message += rollback->message();
+    }
+    return message;
+  }
+
   std::unordered_map<std::string, std::string> parse_sha256sums(std::string_view body) {
     std::unordered_map<std::string, std::string> out;
     std::string line;
@@ -766,5 +849,29 @@ namespace update {
   std::string apply_helper_path() {
     return HELPER_PATH;
   }
+
+#ifdef SUNSHINE_TESTS
+  namespace test_access {
+    void force_phase(phase_e phase, std::string message) {
+      test_force_phase(phase, std::move(message));
+    }
+
+    void force_apply_when_idle(bool value) {
+      g.apply_when_idle = value;
+    }
+
+    bool apply_when_idle() {
+      return g.apply_when_idle.load();
+    }
+
+    void force_worker_running(bool value) {
+      g.worker_running = value;
+    }
+
+    void complete_idle_cancel() {
+      test_complete_idle_cancel();
+    }
+  }  // namespace test_access
+#endif
 
 }  // namespace update

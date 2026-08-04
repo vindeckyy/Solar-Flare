@@ -9,6 +9,8 @@
 // standard includes
 #include <optional>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <unordered_map>
 #include <vector>
 
@@ -82,6 +84,25 @@ namespace update {
   std::optional<std::string> apply(bool when_idle);
 
   /**
+   * @brief Cancel a pending when-idle apply (or a no-op cancel while staged/ready).
+   *
+   * Clears @c apply_when_idle so @c wait_idle_then_apply() exits to the cancelled
+   * branch. Rejected unless the phase is @c ready or @c waiting_idle.
+   *
+   * @return Empty on accept, otherwise an error string for the HTTP layer.
+   */
+  std::optional<std::string> cancel();
+
+  /**
+   * @brief Build an install-failure status message, optionally with rollback detail.
+   * @param what_failed Short description of the primary failure (for example chmod).
+   * @param primary Error from the primary operation.
+   * @param rollback Optional error from a failed rollback; ignored when null or empty.
+   * @return Human-readable message including both failures when rollback is set.
+   */
+  std::string format_install_error(std::string_view what_failed, const std::error_code &primary, const std::error_code *rollback = nullptr);
+
+  /**
    * @brief Parse a SHA256SUMS body into filename -> lowercase hex digest.
    * @param body File contents.
    * @return Map of basename to digest. Lines that do not match are skipped.
@@ -102,5 +123,47 @@ namespace update {
    * @return Absolute path used by the engine and installer.
    */
   std::string apply_helper_path();
+
+#ifdef SUNSHINE_TESTS
+  /**
+   * @brief Test-only helpers for updater state transitions.
+   *
+   * Available only when the test binary is built (`SUNSHINE_TESTS`).
+   */
+  namespace test_access {
+    /**
+     * @brief Set the updater phase and message without starting a worker.
+     * @param phase Phase to store.
+     * @param message Status message.
+     */
+    void force_phase(phase_e phase, std::string message);
+
+    /**
+     * @brief Set the when-idle apply flag observed by @c wait_idle_then_apply().
+     * @param value New flag value.
+     */
+    void force_apply_when_idle(bool value);
+
+    /**
+     * @brief Read the when-idle apply flag.
+     * @return Current flag value.
+     */
+    bool apply_when_idle();
+
+    /**
+     * @brief Set whether a worker thread is marked as running.
+     * @param value New flag value.
+     */
+    void force_worker_running(bool value);
+
+    /**
+     * @brief Run the cancelled wait-idle cleanup (ready phase + clear worker).
+     *
+     * Mirrors the branch taken when @c wait_idle_then_apply() exits because
+     * @c apply_when_idle was cleared.
+     */
+    void complete_idle_cancel();
+  }  // namespace test_access
+#endif
 
 }  // namespace update
