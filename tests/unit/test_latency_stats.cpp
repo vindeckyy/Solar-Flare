@@ -116,6 +116,10 @@ namespace {
 
   TEST_F(LatencyStatsTest, ResetClearsEverySingletonMetric) {
     auto &stats = sunshine::latency_stats();
+    sunshine::effective_settings_t settings;
+    settings.codec = "hevc_vaapi";
+    settings.bit_rate = 60000000;
+    stats.set_effective_settings(settings);
     stats.capture_ms.collect(1.0);
     stats.convert_ms.collect(2.0);
     stats.encode_ms.collect(3.0);
@@ -135,6 +139,8 @@ namespace {
     EXPECT_EQ(stats.network_fec_ms.snapshot().samples, 0u);
     EXPECT_EQ(stats.network_send_ms.snapshot().samples, 0u);
     EXPECT_EQ(stats.rtt_ms.snapshot().samples, 0u);
+    EXPECT_EQ(stats.effective_settings().codec, "hevc_vaapi");
+    EXPECT_EQ(stats.effective_settings().bit_rate, 60000000);
   }
 
   TEST_F(LatencyStatsTest, CollectLatencySampleFansOutOneValue) {
