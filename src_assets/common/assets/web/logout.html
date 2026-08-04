@@ -14,10 +14,10 @@
             <img src="/images/solarflare-mark.svg" height="45" alt="SolarFlare" class="mb-3 solarflare-logo">
             <h1 class="h3 mb-3">{{ $t('logout.logged_out') }}</h1>
             <p class="text-muted mb-4">{{ $t('logout.logged_out_desc') }}</p>
-            <a class="btn btn-primary" href="./">
+            <button type="button" class="btn btn-primary" @click="login">
               <log-in :size="18" class="icon"></log-in>
               {{ $t('logout.login') }}
-            </a>
+            </button>
           </div>
         </div>
       </div>
@@ -35,6 +35,31 @@
   const app = createApp({
     components: {
       LogIn,
+    },
+    methods: {
+      /**
+       * @brief Force a fresh HTTP Basic Auth prompt, then enter the host UI.
+       *
+       * A plain link to `/` often does nothing after a cancelled or failed
+       * login because the browser already decided not to send credentials.
+       * Clear that sticky Basic Auth state the same way Navbar logout does,
+       * then navigate home so the browser prompts again.
+       */
+      login() {
+        const homeUrl = new URL('/', globalThis.location.href)
+        const request = new XMLHttpRequest()
+        const finish = () => {
+          globalThis.location.replace(homeUrl.toString())
+        }
+
+        request.open('GET', '/', true, 'sunshine-logout', Date.now().toString())
+        request.setRequestHeader('Cache-Control', 'no-store')
+        request.onload = finish
+        request.onerror = finish
+        request.ontimeout = finish
+        request.timeout = 5000
+        request.send()
+      },
     },
   });
 
