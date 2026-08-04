@@ -12,6 +12,57 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.
 
+## 2026-08-04: thermo-review cleanup (`fix/thermo-review-cleanup`)
+
+Quality-sweep fixes from `852efb4f` through `f6c61125`. This section is the
+docs reconciliation for that branch (no earlier Phase 0 stub).
+
+### Latency concurrency and telemetry reuse
+
+Made `metric_accumulator_t` concurrency-safe for racing collectors, and folded
+effective-settings updates into a single locked mutate helper so concurrent
+VA-API and session-open writers cannot drop a snapshot. Capture/convert/encode
+and network FEC/send paths now measure once and fan the same duration into the
+periodic logger and the latency accumulators.
+
+### FEC RTT ordering
+
+`SS_FRAME_FEC_PTYPE` validates the FEC status payload before recording RTT.
+Malformed reports warn and skip the RTT sample instead of collecting first.
+
+### Stream stats reset on teardown
+
+Latency accumulators clear when the last live session stops, and again when
+`running_sessions` reaches zero after workers drain, so concurrent streams and
+late worker samples cannot leave idle stats wrong. The Web UI stream-stats
+panel still polls `GET /api/stream/latency`.
+
+### AMD GPU governor RAII
+
+`gpu_governor_guard_t` owns AMD sysfs `performance` / `auto` writes for the
+async capture context. Restore runs on context destruction, not only the
+happy-path end-capture loop. Linux AMD DRM sysfs only (`card0`..`card3`).
+
+### VA-API strict RC buffer under explicit modes
+
+Single-frame VBV sizing from `vaapi_strict_rc_buffer` (and the Intel/AV1
+defaults) applies even when `vaapi_rc_mode` is explicit. Auto mode *selection*
+remains Auto-only. `vaapi_rc_buffer_frames` still overrides the single-frame
+size.
+
+### Updater cancel and install failure messaging
+
+Added `POST /api/update/cancel` (`config:set`, CSRF for browsers) for
+`ready` / `waiting_idle` applies, including orphan `waiting_idle` restore to
+`ready`. Install failures keep chmod/rollback detail instead of overwriting it.
+A cancel/apply idle race that could accept cancel while install continued is
+closed.
+
+### Stream latency labels
+
+English Web UI copy clarifies that the former "Network" total is capture-to-send
+and describes the stream-stats panel breakdown.
+
 ## 2026-07-29: SolarFlare v1.0.9 (`v2026.729.1-solarflare`)
 
 Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.

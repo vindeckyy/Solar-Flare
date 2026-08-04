@@ -23,7 +23,7 @@ still supported.
 | `pipewire_latency_ms` | int    | 8    | 1-40    | `PW_KEY_NODE_LATENCY` hint passed to the PipeWire compositor. |
 | `cpu_pinning`         | bool   | true | -       | Push the capture thread onto `SCHED_RR` and pin it to a non-IRQ, non-SMT core. |
 | `dscp_qos`            | bool   | true | -       | Tag ENet packets with DSCP CS3 so routers prioritize streaming over bulk traffic (Linux only). |
-| `gpu_governor`        | bool   | true | -       | Set GPU to `performance` power profile during stream, restore on disconnect (Linux only). |
+| `gpu_governor`        | bool   | true | -       | Raise AMD DRM cards to `performance` for async capture; RAII restores `auto` on teardown (Linux only). |
 | `headless_virtual_display` | bool | false | -    | If no displays detected, try creating a virtual xrandr output (Linux only, opt-in). |
 | `skip_wayland_correlation` | bool | false | -    | Skip Wayland monitor correlation during KMS display enumeration. Only needed if the compositor still fails to report output metadata; leaving it `false` preserves absolute mouse coordinates. |
 | `latency_mode`        | string | safe | safe/aggressive | Select bounded safe defaults or tighter latency-first media/scaling behavior. |
@@ -160,22 +160,17 @@ no common consumer router groks DSCP from those platforms the same way).
 
 ### `gpu_governor`
 
-When a streaming session is active, switch the GPU power profile to
-`performance` so clock speeds stay high and frame-pacing jitter is minimised.
-On disconnect, the profile is restored to whatever was active before
-(`auto` on AMD, the default nvidia-smi profile on NVIDIA).
+When async capture starts on Linux and this is enabled, write `performance`
+to `/sys/class/drm/cardN/device/power_dpm_force_performance_level` for DRM
+cards 0-3. A RAII guard (`gpu_governor_guard_t`) lives on the async capture
+context, so destruction restores `auto` even when teardown skips the
+happy-path end-capture loop. Missing or unwritable paths are skipped
+silently. Non-AMD hardware is a no-op.
 
-- AMD: writes `high` or `performance` to
-  `/sys/class/drm/card<N>/device/power_dpm_force_performance_level`.
-- NVIDIA: runs `nvidia-smi -acp MAX` and
-  `nvidia-smi --power-limit=<max> --scope=0` (the exact invocation depends
-  on driver version; falls back to `auto` on error).
-
-- **true** (default): governor is switched during stream, restored after.
+- **true** (default): raise to `performance` for the capture lifetime, restore `auto` on teardown.
 - **false**: no GPU power-profile changes.
 
-Linux-only. On headless servers or systems without a GPU power sysfs
-interface the call fails silently and nothing changes.
+Linux AMD sysfs only.
 
 ### `headless_virtual_display`
 
@@ -329,7 +324,7 @@ that, so a vanilla install is unchanged.
 | `pipewire_latency_ms`| `src/platform/linux/pipewire.cpp` |
 | `cpu_pinning`        | `src/platform/linux/misc.cpp` |
 | `dscp_qos`           | `src/network.cpp` |
-| `gpu_governor`       | `src/video.cpp` |
+| `gpu_governor`       | `src/gpu_governor.cpp`, `src/video.cpp` |
 | `headless_virtual_display` | `src/video.cpp` |
 | `skip_wayland_correlation` | `src/platform/linux/kmsgrab.cpp`, `src/platform/linux/misc.cpp` |
 | `latency_mode`       | `src/stream.cpp`, `src/video.cpp`, `src/audio.cpp` |

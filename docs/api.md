@@ -95,6 +95,36 @@ curl -u user:pass -H "X-CSRF-Token: your_token_here" \
 ## POST /api/restart
 @copydoc confighttp::restart()
 
+## GET /api/stream/latency
+@copydoc confighttp::getStreamLatency()
+
+Requires authentication. API tokens need the `logs:get` scope (same as
+`/api/logs`). Basic auth / admin `*` covers it.
+
+Each metric object is `{ "min", "max", "avg", "samples" }` in milliseconds.
+Metrics: `capture_ms`, `convert_ms`, `encode_ms`, `network_total_ms`
+(capture-to-send total), `network_queue_dwell_ms`, `network_fec_ms`,
+`network_send_ms`, `rtt_ms`. `effective_settings` holds the last encoder
+snapshot (`codec`, `hwdevice`, `vendor`, `va_entrypoint`, `rc_mode`,
+`quality`, `slices`, `async_depth`, `qmin`, `qmax`, `rc_buffer_size`,
+`bit_rate`, `framerate`). Accumulators reset when the last streaming
+session tears down; idle polls return zeros when no samples remain.
+
+## POST /api/update/cancel
+@copydoc confighttp::cancelUpdate()
+
+Requires authentication and CSRF validation for browser clients. API tokens
+need the `config:set` scope.
+
+Cancels a pending when-idle apply while phase is `ready` or `waiting_idle`.
+Success returns the updater status JSON (same shape as `GET /api/update`).
+Errors return HTTP 400 with a message, including when phase is not
+`ready`/`waiting_idle` ("No update operation is in progress") or the build
+is not Linux ("Updates are only available on Linux"). Cancelling
+`waiting_idle` clears the wait flag; if no wait worker is alive, phase
+returns to `ready` immediately. Cancel does not stop download, verify, or
+install once those phases have started.
+
 ## GET /api/vigembus/status
 @copydoc confighttp::getViGEmBusStatus()
 
