@@ -125,8 +125,9 @@ namespace config {
       int async_depth;
 
       // Rate-control buffer size expressed in frames. 0 = auto (single
-      // frame VBV on the strict/intel/AV1 path); >0 sizes the VBV to
-      // N frames of the configured bitrate.
+      // frame VBV on the strict/intel/AV1 path, including under an
+      // explicit rc_mode); >0 sizes the VBV to N frames of the
+      // configured bitrate and overrides the single-frame size.
       int rc_buffer_frames;
     } vaapi;
 

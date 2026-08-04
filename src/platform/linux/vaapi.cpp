@@ -61,6 +61,14 @@ namespace va {
   constexpr auto EXPORT_SURFACE_WRITE_ONLY = 0x0002;
   constexpr auto EXPORT_SURFACE_SEPARATE_LAYERS = 0x0004;
 
+  bool want_single_frame_vbv(bool strict_rc_buffer, bool is_intel, bool is_av1) {
+    return strict_rc_buffer || is_intel || is_av1;
+  }
+
+  std::int64_t rc_buffer_size_bits(std::int64_t bit_rate, int framerate_num, int framerate_den, int frames) {
+    return bit_rate * static_cast<std::int64_t>(framerate_den) * frames / framerate_num;
+  }
+
   using VADisplay = void *;
   using VAStatus = int;
   using VAGenericID = unsigned int;
@@ -317,12 +325,13 @@ namespace va {
       // Determine the effective rate-control mode. An explicit user
       // request wins over the automatic selection below; the requested
       // mode is only applied when the driver advertises support for it.
+      // Config parsing already clamps rc_mode to {0,6} via int_between_f.
       std::string rc_mode;
       if (config::video.vaapi.rc_mode > 0) {
         static const std::array<const char *, 7> rc_mode_names = {"auto", "CQP", "CBR", "VBR", "ICQ", "QVBR", "AVBR"};
         static const std::array<int, 7> rc_mode_flags = {0, VA_RC_CQP, VA_RC_CBR, VA_RC_VBR, VA_RC_ICQ, VA_RC_QVBR, VA_RC_AVBR};
 
-        auto idx = std::min(config::video.vaapi.rc_mode, 6);
+        auto idx = config::video.vaapi.rc_mode;
         if (!(rc_attr.value & rc_mode_flags[idx])) {
           BOOST_LOG(warning) << "Rate control mode "sv << rc_mode_names[idx]
                              << " is not supported by this driver; using driver default"sv;
@@ -336,9 +345,13 @@ namespace va {
         }
       }
 
-      // Use VBR with a single frame VBV when the user forces it and for known good cases:
+      // Single-frame VBV when the user forces it and for known good cases:
       // - Intel GPUs
       // - AV1
+      //
+      // Buffer sizing applies for both auto and explicit rc_mode. Automatic
+      // VBR/CBR/CQP *selection* below stays gated on rc_mode == 0 so an
+      // explicit user choice is not overwritten.
       //
       // VBR ensures the bitstream isn't full of filler data for bitrate undershoots and
       // single frame VBV ensures that we don't have large bitrate overshoots (at least
@@ -347,36 +360,54 @@ namespace va {
       // When we have to resort to the default 1 second VBV for encoding quality reasons,
       // we stick to CBR in order to avoid encoding huge frames after bitrate undershoots
       // leave headroom available in the RC window.
-      if (config::video.vaapi.rc_mode == 0 &&
-          (config::video.vaapi.strict_rc_buffer ||
-           (vendor && strstr(vendor, "Intel")) ||
-           ctx->codec_id == AV_CODEC_ID_AV1)) {
-        ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
+      const bool is_intel = vendor && strstr(vendor, "Intel");
+      const bool is_av1 = ctx->codec_id == AV_CODEC_ID_AV1;
+      const bool single_frame_vbv = want_single_frame_vbv(
+        config::video.vaapi.strict_rc_buffer,
+        is_intel,
+        is_av1
+      );
 
-        if (rc_attr.value & VA_RC_VBR) {
-          BOOST_LOG(info) << "Using VBR with single frame VBV size"sv;
-          av_dict_set(options, "rc_mode", "VBR", 0);
-        } else if (rc_attr.value & VA_RC_CBR) {
-          BOOST_LOG(info) << "Using CBR with single frame VBV size"sv;
-          av_dict_set(options, "rc_mode", "CBR", 0);
-        } else {
-          BOOST_LOG(warning) << "Using CQP with single frame VBV size"sv;
+      if (single_frame_vbv) {
+        ctx->rc_buffer_size = rc_buffer_size_bits(
+          ctx->bit_rate,
+          ctx->framerate.num,
+          ctx->framerate.den,
+          1
+        );
+      }
+
+      if (config::video.vaapi.rc_mode == 0) {
+        if (single_frame_vbv) {
+          if (rc_attr.value & VA_RC_VBR) {
+            BOOST_LOG(info) << "Using VBR with single frame VBV size"sv;
+            av_dict_set(options, "rc_mode", "VBR", 0);
+          } else if (rc_attr.value & VA_RC_CBR) {
+            BOOST_LOG(info) << "Using CBR with single frame VBV size"sv;
+            av_dict_set(options, "rc_mode", "CBR", 0);
+          } else {
+            BOOST_LOG(warning) << "Using CQP with single frame VBV size"sv;
+            av_dict_set_int(options, "qp", config::video.qp, 0);
+          }
+        } else if (!(rc_attr.value & (VA_RC_CBR | VA_RC_VBR))) {
+          BOOST_LOG(warning) << "Using CQP rate control"sv;
           av_dict_set_int(options, "qp", config::video.qp, 0);
+        } else {
+          BOOST_LOG(info) << "Using default rate control"sv;
         }
-      } else if (config::video.vaapi.rc_mode == 0 && !(rc_attr.value & (VA_RC_CBR | VA_RC_VBR))) {
-        BOOST_LOG(warning) << "Using CQP rate control"sv;
-        av_dict_set_int(options, "qp", config::video.qp, 0);
-      } else if (config::video.vaapi.rc_mode == 0) {
-        BOOST_LOG(info) << "Using default rate control"sv;
+      } else if (single_frame_vbv) {
+        BOOST_LOG(info) << "Using single frame VBV size with explicit rate control mode"sv;
       }
 
       // An explicit buffer size in frames overrides the single-frame VBV
-      // set above. Units match the existing code: bits for one frame.
+      // set above. Units match the existing code: bits for N frames.
       if (config::video.vaapi.rc_buffer_frames > 0 && ctx->bit_rate > 0 && ctx->framerate.num > 0) {
-        ctx->rc_buffer_size = static_cast<int64_t>(ctx->bit_rate) *
-                              ctx->framerate.den *
-                              config::video.vaapi.rc_buffer_frames /
-                              ctx->framerate.num;
+        ctx->rc_buffer_size = rc_buffer_size_bits(
+          ctx->bit_rate,
+          ctx->framerate.num,
+          ctx->framerate.den,
+          config::video.vaapi.rc_buffer_frames
+        );
         BOOST_LOG(info) << "Setting rate-control buffer size to " << config::video.vaapi.rc_buffer_frames
                         << " frame(s)"sv;
       }

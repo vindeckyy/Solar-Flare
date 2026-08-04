@@ -23,11 +23,23 @@
  * directly (mirroring the int_between_f conventions used in
  * src/config.cpp) so the parse/clamp logic is covered even on
  * platforms where the VA-API consumer code is compiled out.
+ *
+ * When SUNSHINE_BUILD_VAAPI is set, additional tests cover the
+ * single-frame VBV decision helpers used by the Linux encode path
+ * (strict_rc_buffer must still size the buffer under an explicit
+ * rc_mode; rc_buffer_frames must remain able to override that size).
  */
 #include "../tests_common.h"
 
+// standard includes
+#include <cstdint>
+
 // local includes
 #include "src/config.h"
+
+#ifdef SUNSHINE_BUILD_VAAPI
+  #include "src/platform/linux/vaapi.h"
+#endif
 
 namespace {
 
@@ -182,5 +194,66 @@ namespace {
     EXPECT_EQ(config::video.vaapi.async_depth, 0);
     EXPECT_EQ(config::video.vaapi.rc_buffer_frames, 0);
   }
+
+#ifdef SUNSHINE_BUILD_VAAPI
+  // ---------------------------------------------------------------------
+  // Single-frame VBV decision / sizing helpers (vaapi encode path)
+  // ---------------------------------------------------------------------
+
+  TEST(VaapiRcBufferHelpers, WantSingleFrameVbvForStrictIntelOrAv1) {
+    EXPECT_FALSE(va::want_single_frame_vbv(false, false, false));
+    EXPECT_TRUE(va::want_single_frame_vbv(true, false, false));
+    EXPECT_TRUE(va::want_single_frame_vbv(false, true, false));
+    EXPECT_TRUE(va::want_single_frame_vbv(false, false, true));
+    EXPECT_TRUE(va::want_single_frame_vbv(true, true, true));
+  }
+
+  TEST(VaapiRcBufferHelpers, StrictBufferAppliesIndependentOfExplicitRcMode) {
+    // The encode path used to gate buffer sizing on rc_mode == 0, which
+    // made strict_rc_buffer silently inert under an explicit mode. The
+    // helper decision must remain true whenever strict/Intel/AV1 apply;
+    // callers keep auto mode *selection* separate from sizing.
+    constexpr bool strict = true;
+    constexpr bool not_intel = false;
+    constexpr bool not_av1 = false;
+    EXPECT_TRUE(va::want_single_frame_vbv(strict, not_intel, not_av1));
+
+    // Explicit rc_mode values (1..6) must not be part of the decision.
+    for (int rc_mode = 1; rc_mode <= 6; ++rc_mode) {
+      (void) rc_mode;
+      EXPECT_TRUE(va::want_single_frame_vbv(strict, not_intel, not_av1));
+    }
+  }
+
+  TEST(VaapiRcBufferHelpers, RcBufferSizeBitsMatchesHistoricalFormula) {
+    // 10 Mbps @ 60 fps -> one frame is bit_rate / 60.
+    constexpr std::int64_t bit_rate = 10'000'000;
+    constexpr int fps_num = 60;
+    constexpr int fps_den = 1;
+
+    EXPECT_EQ(va::rc_buffer_size_bits(bit_rate, fps_num, fps_den, 1), bit_rate / 60);
+    EXPECT_EQ(va::rc_buffer_size_bits(bit_rate, fps_num, fps_den, 3), (bit_rate * 3) / 60);
+
+    // Fractional rate: 60000/1001 (~59.94 fps).
+    EXPECT_EQ(
+      va::rc_buffer_size_bits(bit_rate, 60000, 1001, 1),
+      bit_rate * 1001 / 60000
+    );
+  }
+
+  TEST(VaapiRcBufferHelpers, RcBufferFramesOverrideBeatsSingleFrameSize) {
+    constexpr std::int64_t bit_rate = 8'000'000;
+    constexpr int fps_num = 30;
+    constexpr int fps_den = 1;
+
+    const auto single = va::rc_buffer_size_bits(bit_rate, fps_num, fps_den, 1);
+    const auto frames = 4;
+    const auto overridden = va::rc_buffer_size_bits(bit_rate, fps_num, fps_den, frames);
+
+    EXPECT_EQ(single, bit_rate / 30);
+    EXPECT_EQ(overridden, (bit_rate * frames) / 30);
+    EXPECT_GT(overridden, single);
+  }
+#endif
 
 }  // namespace
