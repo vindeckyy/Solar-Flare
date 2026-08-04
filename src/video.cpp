@@ -77,6 +77,23 @@ namespace video {
       BOOST_LOG(error) << "No display devices are active at the moment! Cannot probe the encoders.";
       return false;
     }
+
+    /**
+     * @brief Record elapsed capture time for an image with a valid start time.
+     *
+     * @param img Captured image, which may be empty or lack a capture start time.
+     */
+    void collect_capture_latency(const std::shared_ptr<platf::img_t> &img) {
+      if (!img || !img->capture_started_at) {
+        return;
+      }
+
+      const auto capture_ms = std::chrono::duration<double, std::milli>(
+                                std::chrono::steady_clock::now() - *img->capture_started_at
+      )
+                                .count();
+      sunshine::latency_stats().capture_ms.collect(capture_ms);
+    }
   }  // namespace
 
   void free_ctx(AVCodecContext *ctx) {
@@ -1469,12 +1486,7 @@ namespace video {
       bool artificial_reinit = false;
 
       auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
-        if (img && img->capture_started_at) {
-          auto capture_ms = std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - *img->capture_started_at
-          ).count();
-          sunshine::latency_stats().capture_ms.collect(capture_ms);
-        }
+        collect_capture_latency(img);
 
         KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
           if (!capture_ctx->images->running()) {
@@ -2218,13 +2230,12 @@ namespace video {
     // the historical keepalive behavior promptly.
     if (auto img = images->pop(std::min(max_frametime, std::chrono::duration<double, std::milli> {5.0}))) {
       initial_frame_timestamp = img->frame_timestamp;
-      auto convert_start = std::chrono::steady_clock::now();
-      if (session->convert(*img)) {
+      if (sunshine::measure_latency_on_success(sunshine::latency_stats().convert_ms, [&session, &img] {
+            return session->convert(*img);
+          })) {
         BOOST_LOG(error) << "Could not convert initial image"sv;
         return;
       }
-      auto convert_end = std::chrono::steady_clock::now();
-      sunshine::latency_stats().convert_ms.collect(std::chrono::duration<double, std::milli>(convert_end - convert_start).count());
       initial_frame_converted = true;
     }
 
@@ -2274,13 +2285,12 @@ namespace video {
       } else if (!requested_idr_frame || images->peek()) {
         if (auto img = images->pop(max_frametime)) {
           frame_timestamp = img->frame_timestamp;
-          auto convert_start = std::chrono::steady_clock::now();
-          if (session->convert(*img)) {
+          if (sunshine::measure_latency_on_success(sunshine::latency_stats().convert_ms, [&session, &img] {
+                return session->convert(*img);
+              })) {
             BOOST_LOG(error) << "Could not convert image"sv;
             return;
           }
-          auto convert_end = std::chrono::steady_clock::now();
-          sunshine::latency_stats().convert_ms.collect(std::chrono::duration<double, std::milli>(convert_end - convert_start).count());
         } else if (!images->running()) {
           break;
         }
@@ -2539,12 +2549,7 @@ namespace video {
     auto ec = platf::capture_e::ok;
     while (encode_session_ctx_queue.running()) {
       auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
-        if (img && img->capture_started_at) {
-          auto capture_ms = std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - *img->capture_started_at
-          ).count();
-          sunshine::latency_stats().capture_ms.collect(capture_ms);
-        }
+        collect_capture_latency(img);
 
         while (encode_session_ctx_queue.peek()) {
           auto encode_session_ctx = encode_session_ctx_queue.pop();
@@ -2587,15 +2592,14 @@ namespace video {
           }
 
           if (frame_captured) {
-            auto convert_start = std::chrono::steady_clock::now();
-            if (pos->session->convert(*img)) {
+            if (sunshine::measure_latency_on_success(sunshine::latency_stats().convert_ms, [&pos, &img] {
+                  return pos->session->convert(*img);
+                })) {
               BOOST_LOG(error) << "Could not convert image"sv;
               ctx->shutdown_event->raise(true);
 
               continue;
             }
-            auto convert_end = std::chrono::steady_clock::now();
-            sunshine::latency_stats().convert_ms.collect(std::chrono::duration<double, std::milli>(convert_end - convert_start).count());
           }
 
           std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
@@ -2603,8 +2607,9 @@ namespace video {
             frame_timestamp = img->frame_timestamp;
           }
 
-          auto encode_start = std::chrono::steady_clock::now();
-          if (auto enc_err = encode(ctx->frame_nr++, *pos->session, ctx->packets, ctx->channel_data, frame_timestamp)) {
+          if (auto enc_err = sunshine::measure_latency_on_success(sunshine::latency_stats().encode_ms, [&ctx, &pos, &frame_timestamp] {
+                return encode(ctx->frame_nr++, *pos->session, ctx->packets, ctx->channel_data, frame_timestamp);
+              })) {
             // ponytail: same site-1 pattern; here we raise the shutdown
             // event so the stream tears down instead of returning. The
             // cause string is the only thing the Web UI can show.
@@ -2613,8 +2618,6 @@ namespace video {
 
             continue;
           }
-          auto encode_end = std::chrono::steady_clock::now();
-          sunshine::latency_stats().encode_ms.collect(std::chrono::duration<double, std::milli>(encode_end - encode_start).count());
 
           pos->session->request_normal_frame();
 

@@ -24,6 +24,25 @@
 
 namespace {
 
+  /**
+   * @brief Test logger that records each received latency sample.
+   */
+  class recording_latency_logger_t {
+  public:
+    /**
+     * @brief Record a latency sample received by the test logger.
+     *
+     * @param value_ms Sample value in milliseconds.
+     */
+    void collect_and_log(double value_ms) {
+      ++samples;
+      last_value_ms = value_ms;
+    }
+
+    std::uint32_t samples {0};  ///< Number of received samples.
+    double last_value_ms {0.0};  ///< Most recently received sample.
+  };
+
   class LatencyStatsTest: public ::testing::Test {
   protected:
     void TearDown() override {
@@ -116,6 +135,47 @@ namespace {
     EXPECT_EQ(stats.network_fec_ms.snapshot().samples, 0u);
     EXPECT_EQ(stats.network_send_ms.snapshot().samples, 0u);
     EXPECT_EQ(stats.rtt_ms.snapshot().samples, 0u);
+  }
+
+  TEST_F(LatencyStatsTest, CollectLatencySampleFansOutOneValue) {
+    recording_latency_logger_t logger;
+    sunshine::metric_accumulator_t accumulator;
+
+    sunshine::collect_latency_sample(3.75, logger, accumulator);
+
+    EXPECT_EQ(logger.samples, 1u);
+    EXPECT_DOUBLE_EQ(logger.last_value_ms, 3.75);
+    const auto snapshot = accumulator.snapshot();
+    EXPECT_EQ(snapshot.samples, 1u);
+    EXPECT_DOUBLE_EQ(snapshot.avg, 3.75);
+  }
+
+  TEST_F(LatencyStatsTest, MeasureLatencyOnSuccessSkipsFailedOperation) {
+    sunshine::metric_accumulator_t accumulator;
+    std::uint32_t calls = 0;
+
+    const auto result = sunshine::measure_latency_on_success(accumulator, [&calls] {
+      ++calls;
+      return -1;
+    });
+
+    EXPECT_EQ(result, -1);
+    EXPECT_EQ(calls, 1u);
+    EXPECT_EQ(accumulator.snapshot().samples, 0u);
+  }
+
+  TEST_F(LatencyStatsTest, MeasureLatencyOnSuccessRecordsSuccessfulOperation) {
+    sunshine::metric_accumulator_t accumulator;
+    std::uint32_t calls = 0;
+
+    const auto result = sunshine::measure_latency_on_success(accumulator, [&calls] {
+      ++calls;
+      return 0;
+    });
+
+    EXPECT_EQ(result, 0);
+    EXPECT_EQ(calls, 1u);
+    EXPECT_EQ(accumulator.snapshot().samples, 1u);
   }
 
   // Two collectors racing on the very first sample used to hit the old

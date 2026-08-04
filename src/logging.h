@@ -171,6 +171,15 @@ namespace logging {
         logger(severity, message, "ms", interval_in_seconds) {
     }
 
+    /**
+     * @brief Collect and periodically log a precomputed duration.
+     *
+     * @param duration_ms Duration in milliseconds.
+     */
+    void collect_and_log(double duration_ms) {
+      logger.collect_and_log(duration_ms);
+    }
+
     void first_point(const std::chrono::steady_clock::time_point &point) {
       if (logger.is_enabled()) {
         point1 = point;

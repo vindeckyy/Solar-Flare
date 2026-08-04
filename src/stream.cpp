@@ -1732,13 +1732,12 @@ namespace stream {
             }
           }
 
-          auto fec_start = std::chrono::steady_clock::now();
-          frame_fec_latency_logger.first_point_now();
+          const auto fec_start = std::chrono::steady_clock::now();
           // If video encryption is enabled, we allocate space for the encryption header before each shard
           auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets, session->video.cipher ? sizeof(video_packet_enc_prefix_t) : 0);
-          frame_fec_latency_logger.second_point_now_and_log();
-          auto fec_end = std::chrono::steady_clock::now();
-          sunshine::latency_stats().network_fec_ms.collect(std::chrono::duration<double, std::milli>(fec_end - fec_start).count());
+          const auto fec_end = std::chrono::steady_clock::now();
+          const auto fec_ms = std::chrono::duration<double, std::milli>(fec_end - fec_start).count();
+          sunshine::collect_latency_sample(fec_ms, frame_fec_latency_logger, sunshine::latency_stats().network_fec_ms);
 
           auto peer_address = session->video.peer.address();
           auto batch_info = platf::batched_send_info_t {
@@ -1843,8 +1842,7 @@ namespace stream {
                 batch_info.deadline = frame_send_deadline;
                 batch_info.timed_out = false;
 
-                auto send_batch_start = std::chrono::steady_clock::now();
-                frame_send_batch_latency_logger.first_point_now();
+                const auto send_batch_start = std::chrono::steady_clock::now();
                 // Use a batched send if it's supported on this platform.
                 if (!platf::send_batch(batch_info)) {
                   // Batched send is not available, so send each packet individually.
@@ -1864,9 +1862,9 @@ namespace stream {
                     platf::send(send_info);
                   }
                 }
-                frame_send_batch_latency_logger.second_point_now_and_log();
-                auto send_batch_end = std::chrono::steady_clock::now();
-                sunshine::latency_stats().network_send_ms.collect(std::chrono::duration<double, std::milli>(send_batch_end - send_batch_start).count());
+                const auto send_batch_end = std::chrono::steady_clock::now();
+                const auto send_ms = std::chrono::duration<double, std::milli>(send_batch_end - send_batch_start).count();
+                sunshine::collect_latency_sample(send_ms, frame_send_batch_latency_logger, sunshine::latency_stats().network_send_ms);
 
                 if (batch_info.timed_out) {
                   BOOST_LOG(warning) << "Abandoning stale video frame after the UDP send deadline expired"sv;
