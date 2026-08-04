@@ -24,6 +24,7 @@
 #include <limits>
 #include <mutex>
 #include <string>
+#include <utility>
 
 namespace sunshine {
 
@@ -77,6 +78,43 @@ namespace sunshine {
     std::atomic<double> total {0.0};  ///< Sum of all observed values.
     std::atomic<std::uint32_t> samples {0};  ///< Number of collected samples.
   };
+
+  /**
+   * @brief Send one precomputed latency sample to a periodic logger and accumulator.
+   *
+   * @tparam PeriodicLogger Logger type exposing collect_and_log(double).
+   * @param value_ms Sample value in milliseconds.
+   * @param logger Periodic logger that receives the sample.
+   * @param accumulator Latency accumulator that receives the same sample.
+   */
+  template<typename PeriodicLogger>
+  void collect_latency_sample(double value_ms, PeriodicLogger &logger, metric_accumulator_t &accumulator) {
+    logger.collect_and_log(value_ms);
+    accumulator.collect(value_ms);
+  }
+
+  /**
+   * @brief Measure an operation and collect its duration only when it succeeds.
+   *
+   * The operation result must evaluate to false on success, matching the
+   * conversion integer and encode optional error results used by the video
+   * pipeline.
+   *
+   * @tparam Operation Callable type.
+   * @param accumulator Latency accumulator that receives successful durations.
+   * @param operation Operation to invoke exactly once.
+   * @return The operation result.
+   */
+  template<typename Operation>
+  auto measure_latency_on_success(metric_accumulator_t &accumulator, Operation &&operation) {
+    const auto start = std::chrono::steady_clock::now();
+    auto result = std::invoke(std::forward<Operation>(operation));
+    if (!result) {
+      const auto end = std::chrono::steady_clock::now();
+      accumulator.collect(std::chrono::duration<double, std::milli>(end - start).count());
+    }
+    return result;
+  }
 
   /**
    * @brief Effective encoder settings of the active stream.

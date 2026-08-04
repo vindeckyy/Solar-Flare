@@ -47,3 +47,13 @@ TEST_P(LogLevelsTest, PutMessage) {
 
   ASSERT_TRUE(log_checker::line_contains(log_file, test_message));
 }
+
+TEST(LoggingTest, TimeDeltaLoggerAcceptsPrecomputedDuration) {
+  constexpr std::string_view message = "Precomputed timing sample";
+  logging::time_delta_periodic_logger logger(tests, message, std::chrono::seconds::zero());
+
+  logger.collect_and_log(12.5);
+  logger.collect_and_log(8.0);
+
+  EXPECT_TRUE(log_checker::line_contains(log_file, "Precomputed timing sample (min/max/avg): 12.50ms/12.50ms/12.50ms"));
+}
