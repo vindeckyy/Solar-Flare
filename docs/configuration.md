@@ -3635,9 +3635,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Enabling this option can avoid dropped frames over the network during scene changes, but video quality may
-            be reduced during motion.
-            @note{This option only applies for H.264 and HEVC when using VA-API [encoder](#encoder) on AMD GPUs.}
+            Prefer a single-frame VBV buffer so bitrate overshoots stay smaller across scene changes. That can avoid
+            dropped frames over the network, but video quality may drop during motion.
+            Single-frame sizing still applies when [vaapi_rc_mode](#vaapi_rc_mode) is an explicit mode (not only
+            Auto). Automatic VBR/CBR/CQP *selection* stays Auto-only (`vaapi_rc_mode = 0`). Intel GPUs and AV1 also
+            use single-frame VBV by default. An explicit [vaapi_rc_buffer_frames](#vaapi_rc_buffer_frames) value
+            overrides the single-frame size.
+            @note{The user toggle is most relevant for H.264 and HEVC on AMD VA-API; Intel and AV1 already take the
+            single-frame path.}
         </td>
     </tr>
     <tr>
@@ -3660,8 +3665,12 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Rate-control mode for the VA-API encoder. Auto lets the driver decide. Modes not supported by the driver
-            are ignored with a warning in the log.
+            Rate-control mode for the VA-API encoder. Auto (`0`) lets SolarFlare pick VBR/CBR/CQP from driver
+            capabilities (including the single-frame VBV path when
+            [vaapi_strict_rc_buffer](#vaapi_strict_rc_buffer), Intel, or AV1 applies). Values `1`-`6` request an
+            explicit mode; unsupported modes are ignored with a warning and the driver default is used. Explicit
+            modes are not overwritten by Auto selection, but single-frame VBV sizing (and
+            [vaapi_rc_buffer_frames](#vaapi_rc_buffer_frames) overrides) still apply independently of the mode.
             <ul>
                 <li>0 - Auto (default)</li>
                 <li>1 - CQP (Constant QP)</li>
@@ -3814,8 +3823,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Rate-control buffer (VBV) size expressed in frames of the configured bitrate. A value of 0 uses the
-            automatic single-frame VBV on the strict/Intel/AV1 path and the driver default otherwise.
+            Rate-control buffer (VBV) size expressed in frames of the configured bitrate. A value of 0 keeps the
+            automatic single-frame VBV when [vaapi_strict_rc_buffer](#vaapi_strict_rc_buffer), Intel, or AV1
+            requires it (including under an explicit [vaapi_rc_mode](#vaapi_rc_mode)), and leaves the driver
+            default otherwise. Any value greater than 0 overrides that single-frame size.
         </td>
     </tr>
     <tr>
@@ -4304,11 +4315,12 @@ identical to a build without this configuration section. }
     <tr>
         <td>Description</td>
         <td colspan="2">
-            When a streaming session is active, switch the GPU power profile to
-            `performance` so clock speeds stay high and frame-pacing jitter is minimised.
-            On disconnect, the profile is restored to `auto`. Supports AMD (sysfs
-            `power_dpm_force_performance_level`) and NVIDIA (`nvidia-smi -acp MAX`).
-            @note{Linux only.}
+            When async capture starts on Linux, raise AMD DRM cards to `performance` via
+            `/sys/class/drm/cardN/device/power_dpm_force_performance_level` (cards 0-3). An RAII guard owned by
+            the capture context restores `auto` when that context is destroyed, including teardown paths that skip
+            the happy-path end-capture loop. Missing or unwritable sysfs nodes are skipped silently. Non-AMD
+            hardware and non-Linux builds are no-ops.
+            @note{Linux AMD sysfs only.}
         </td>
     </tr>
     <tr>

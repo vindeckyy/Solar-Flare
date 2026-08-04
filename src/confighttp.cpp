@@ -1665,13 +1665,15 @@ namespace confighttp {
   /**
    * @brief Return host-side latency statistics and effective encoder
    *        settings. Read-only.
-   * @details Used by the SolarFlare fork Web UI to break down capture,
-   *          conversion, encoding and network latency so config changes
-   *          can be evaluated empirically. Each metric is a min/max/avg
-   *          snapshot in milliseconds accumulated since the process
-   *          started (or since the last reset). Returns zeroed metrics
-   *          when no samples have been collected, so it is safe to poll
-   *          while no stream is active.
+   * @details Requires @c api_scope_t::LOGS_GET (`logs:get`). Used by the
+   *          SolarFlare Web UI to break down capture, conversion, encode,
+   *          and send-path latency. Each metric is a min/max/avg/samples
+   *          object in milliseconds: `capture_ms`, `convert_ms`,
+   *          `encode_ms`, `network_total_ms`, `network_queue_dwell_ms`,
+   *          `network_fec_ms`, `network_send_ms`, `rtt_ms`. Also returns
+   *          `effective_settings` for the last encoder snapshot. Samples
+   *          clear when the last streaming session tears down; idle polls
+   *          with no samples return zeros.
    *
    * @api_examples{/api/stream/latency| GET| null}
    */
@@ -2199,6 +2201,12 @@ namespace confighttp {
 
   /**
    * @brief Cancel a pending when-idle SolarFlare update apply.
+   * @details Requires @c api_scope_t::CONFIG_SET (`config:set`) and CSRF
+   *          validation for browser clients. Accepted only while phase is
+   *          `ready` or `waiting_idle`. On success returns the updater
+   *          status JSON; otherwise HTTP 400 with an error string.
+   *          Clearing `waiting_idle` without a live wait worker restores
+   *          `ready` immediately.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
