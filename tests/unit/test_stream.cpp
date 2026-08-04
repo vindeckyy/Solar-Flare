@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <src/latency_stats.h>
 #include <src/stream.h>
 #include <string>
 #include <vector>
@@ -107,6 +108,54 @@ TEST(StreamAdaptiveStatsTests, RejectsMalformedOrImpossibleFrameFecStatus) {
     std::string_view {reinterpret_cast<const char *>(&status), sizeof(status)},
     10
   ));
+}
+
+class StreamFrameFecHandlerTests: public ::testing::Test {
+protected:
+  void SetUp() override {
+    sunshine::latency_stats().rtt_ms.reset();
+  }
+
+  void TearDown() override {
+    sunshine::latency_stats().rtt_ms.reset();
+  }
+};
+
+TEST_F(StreamFrameFecHandlerTests, MalformedStatusDoesNotCollectPeerRtt) {
+  EXPECT_FALSE(stream::detail::process_frame_fec_status("short", 23U));
+  EXPECT_EQ(sunshine::latency_stats().rtt_ms.snapshot().samples, 0U);
+}
+
+TEST_F(StreamFrameFecHandlerTests, ValidStatusCollectsPeerRtt) {
+  SS_FRAME_FEC_STATUS status {};
+  status.missingPacketsBeforeHighestReceived = util::endian::big<std::uint16_t>(5);
+  status.totalDataPackets = util::endian::big<std::uint16_t>(100);
+
+  const auto stats = stream::detail::process_frame_fec_status(
+    std::string_view {reinterpret_cast<const char *>(&status), sizeof(status)},
+    23U
+  );
+
+  ASSERT_TRUE(stats);
+  EXPECT_FLOAT_EQ(stats->first, 5.0f);
+  EXPECT_FLOAT_EQ(stats->second, 23.0f);
+  const auto rtt = sunshine::latency_stats().rtt_ms.snapshot();
+  EXPECT_EQ(rtt.samples, 1U);
+  EXPECT_DOUBLE_EQ(rtt.avg, 23.0);
+}
+
+TEST_F(StreamFrameFecHandlerTests, ValidStatusWithoutPeerUsesZeroRttWithoutCollectingSample) {
+  SS_FRAME_FEC_STATUS status {};
+  status.totalDataPackets = util::endian::big<std::uint16_t>(100);
+
+  const auto stats = stream::detail::process_frame_fec_status(
+    std::string_view {reinterpret_cast<const char *>(&status), sizeof(status)},
+    std::nullopt
+  );
+
+  ASSERT_TRUE(stats);
+  EXPECT_FLOAT_EQ(stats->second, 0.0f);
+  EXPECT_EQ(sunshine::latency_stats().rtt_ms.snapshot().samples, 0U);
 }
 
 TEST(StreamInvalidateRefFramesTests, ParsesValidFrameRange) {
