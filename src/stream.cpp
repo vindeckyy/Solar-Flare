@@ -2262,7 +2262,12 @@ namespace stream {
         return;
       }
 
-      sunshine::latency_stats().reset();
+      // Only the last live session may clear process-wide stats. Concurrent
+      // sessions would otherwise lose in-flight samples. join() clears again
+      // when running_sessions reaches 0 after workers drain.
+      if (running_sessions.load() == 1) {
+        sunshine::latency_stats().reset();
+      }
       session.shutdown_event->raise(true);
     }
 
@@ -2293,6 +2298,9 @@ namespace stream {
 
       // If this is the last session, invoke the platform callbacks
       if (--running_sessions == 0) {
+        // Workers have joined; drop any late samples collected after stop().
+        sunshine::latency_stats().reset();
+
         bool revert_display_config {config::video.dd.config_revert_on_disconnect};
         if (proc::proc.running()) {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1

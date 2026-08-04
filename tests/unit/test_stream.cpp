@@ -61,31 +61,46 @@ TEST(StreamAddressTests, IPv4AddressRejectsDifferentNetworkBytes) {
 }
 
 TEST(StreamSessionStopTests, SuccessfulRunningTransitionClearsLatencyBeforeShutdown) {
-  // session_t lives only in stream.cpp, so a live stop() call would need the
-  // full session plumbing. Assert the teardown order in source instead:
-  // win RUNNING->STOPPING, then clear latency samples, then raise shutdown.
+  // session_t lives only in stream.cpp, so a live stop()/join() call would need
+  // the full session plumbing. Assert the teardown contract in source instead:
+  // stop clears only for the last live session, then raise shutdown; join clears
+  // again after threads drain when running_sessions hits 0.
   const auto source = test_utils::read_repo_file("src/stream.cpp");
   ASSERT_FALSE(source.empty());
 
   const auto stop_start = source.find("void stop(session_t &session)");
-  const auto stop_end = source.find("void join(session_t &session)", stop_start);
+  const auto join_start = source.find("void join(session_t &session)", stop_start);
+  const auto start_fn = source.find("int start(session_t &session", join_start);
   ASSERT_NE(stop_start, std::string::npos);
-  ASSERT_NE(stop_end, std::string::npos);
+  ASSERT_NE(join_start, std::string::npos);
+  ASSERT_NE(start_fn, std::string::npos);
 
-  const auto stop_body = source.substr(stop_start, stop_end - stop_start);
+  const auto stop_body = source.substr(stop_start, join_start - stop_start);
+  const auto join_body = source.substr(join_start, start_fn - join_start);
+
   const auto transition = stop_body.find("compare_exchange_strong(expected, state_e::STOPPING)");
   const auto early_return = stop_body.find("if (already_stopping)");
-  const auto reset = stop_body.find("sunshine::latency_stats().reset()");
+  const auto last_session_guard = stop_body.find("if (running_sessions.load() == 1)");
+  const auto stop_reset = stop_body.find("sunshine::latency_stats().reset()");
   const auto shutdown = stop_body.find("session.shutdown_event->raise(true)");
 
   ASSERT_NE(transition, std::string::npos);
   ASSERT_NE(early_return, std::string::npos);
-  ASSERT_NE(reset, std::string::npos);
+  ASSERT_NE(last_session_guard, std::string::npos);
+  ASSERT_NE(stop_reset, std::string::npos);
   ASSERT_NE(shutdown, std::string::npos);
-  EXPECT_EQ(stop_body.find("sunshine::latency_stats().reset()", reset + 1), std::string::npos);
+  EXPECT_EQ(stop_body.find("sunshine::latency_stats().reset()", stop_reset + 1), std::string::npos);
   EXPECT_LT(transition, early_return);
-  EXPECT_LT(early_return, reset);
-  EXPECT_LT(reset, shutdown);
+  EXPECT_LT(early_return, last_session_guard);
+  EXPECT_LT(last_session_guard, stop_reset);
+  EXPECT_LT(stop_reset, shutdown);
+
+  const auto last_session_drain = join_body.find("if (--running_sessions == 0)");
+  const auto join_reset = join_body.find("sunshine::latency_stats().reset()");
+  ASSERT_NE(last_session_drain, std::string::npos);
+  ASSERT_NE(join_reset, std::string::npos);
+  EXPECT_EQ(join_body.find("sunshine::latency_stats().reset()", join_reset + 1), std::string::npos);
+  EXPECT_LT(last_session_drain, join_reset);
 }
 
 TEST(StreamPacingTests, BatchIsLimitedByRemainingIntervalAllowance) {
