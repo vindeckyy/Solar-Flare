@@ -308,7 +308,16 @@ namespace proc {
         else if (backend_str == "gamescope") g_headless_compositor->set_backend(platf::headless::backend_e::gamescope);
 
         std::string wrapped_cmd = g_headless_compositor->wrap_cmd(_app.cmd);
-        if (!g_headless_compositor->start(launch_session->width, launch_session->height, launch_session->fps, wrapped_cmd)) {
+
+        // Allow the user to override the virtual display resolution/refresh
+        // instead of following the client's requested mode. 0 keeps the
+        // client-requested value.
+        auto &hd = config::video.linux_display;
+        auto virtual_width = hd.headless_width > 0 ? hd.headless_width : launch_session->width;
+        auto virtual_height = hd.headless_height > 0 ? hd.headless_height : launch_session->height;
+        auto virtual_refresh = hd.headless_refresh > 0 ? hd.headless_refresh : launch_session->fps;
+
+        if (!g_headless_compositor->start(virtual_width, virtual_height, virtual_refresh, wrapped_cmd)) {
           BOOST_LOG(error) << "Headless compositor failed to start"sv;
           g_headless_compositor.reset();
           return -1;

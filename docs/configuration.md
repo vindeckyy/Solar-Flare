@@ -4364,6 +4364,142 @@ identical to a build without this configuration section. }
     </tr>
 </table>
 
+### headless_width
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Override the headless virtual display width in pixels. When 0, the
+            client-requested resolution is used. Applied to the headless
+            compositor (labwc / krfb / gamescope) and the xrandr VIRTUAL1
+            fallback output.
+            @note{Linux only. Requires [headless_mode](#headless_mode) or
+            [headless_virtual_display](#headless_virtual_display).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            headless_width = 3840
+            @endcode</td>
+    </tr>
+</table>
+
+### headless_height
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Override the headless virtual display height in pixels. When 0, the
+            client-requested resolution is used.
+            @note{Linux only. Requires [headless_mode](#headless_mode) or
+            [headless_virtual_display](#headless_virtual_display).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            headless_height = 2160
+            @endcode</td>
+    </tr>
+</table>
+
+### headless_refresh
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Override the headless virtual display refresh rate in Hz. When 0,
+            the client-requested framerate is used.
+            @note{Linux only. Requires [headless_mode](#headless_mode) or
+            [headless_virtual_display](#headless_virtual_display).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            headless_refresh = 120
+            @endcode</td>
+    </tr>
+</table>
+
+### idle_timeout_min
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Automatically stop a streaming session after this many minutes
+            without any client input (mouse, keyboard, gamepad). Frees the
+            capture/encode pipeline and lets other clients connect when a
+            client is left idle. 0 disables the watchdog. A grace period of
+            a few seconds is applied before the session is torn down.
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            idle_timeout_min = 15
+            @endcode</td>
+    </tr>
+</table>
+
+### webhook_secret
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            HMAC-SHA256 secret used to sign webhook payloads. When non-empty,
+            every stream start/stop webhook POST carries an
+            `X-Solarflare-Signature: sha256=<hex>` header computed over the
+            request body, so receivers can verify the payload really came
+            from this host.
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            (empty)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            webhook_secret = change-me
+            @endcode</td>
+    </tr>
+</table>
+
 ### skip_wayland_correlation
 
 <table>

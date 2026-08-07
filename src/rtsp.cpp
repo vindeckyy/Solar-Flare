@@ -1012,6 +1012,9 @@ namespace rtsp_stream {
 
     auto args = parsed_payload->attributes;
 
+    // Record the client device name for session history / webhooks.
+    session.client_name = std::string(parsed_payload->client);
+
     // Initialize any omitted parameters to defaults
     args.try_emplace("x-nv-video[0].encoderCscMode"sv, "0"sv);
     args.try_emplace("x-nv-vqos[0].bitStreamFormat"sv, "0"sv);

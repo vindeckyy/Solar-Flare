@@ -10,6 +10,7 @@
 #include <bitset>
 #include <list>
 #include <memory>
+#include <sstream>
 #include <thread>
 
 // lib includes
@@ -1307,7 +1308,22 @@ namespace video {
 #ifdef __linux__
       if (config::solarflare.headless_virtual_display) {
         BOOST_LOG(info) << "No displays found; attempting virtual display creation"sv;
-        (void) std::system("xrandr --output VIRTUAL1 --auto 2>/dev/null");
+        // Use the configured resolution/refresh when set; otherwise fall back
+        // to xrandr's --auto (any available mode).
+        auto &hd = config::video.linux_display;
+        if (hd.headless_width > 0 && hd.headless_height > 0) {
+          std::ostringstream cmd;
+          cmd << "xrandr --output VIRTUAL1 --mode "
+              << hd.headless_width << 'x' << hd.headless_height;
+          if (hd.headless_refresh > 0) {
+            cmd << " --rate " << hd.headless_refresh;
+          }
+          cmd << " 2>/dev/null";
+          (void) std::system(cmd.str().c_str());
+        }
+        else {
+          (void) std::system("xrandr --output VIRTUAL1 --auto 2>/dev/null");
+        }
         // If running under wlroots (Sway, Hyprland, etc.), suggest the
         // headless outputs env var that wlroots compositors support natively.
         auto *wayland_display = std::getenv("WAYLAND_DISPLAY");

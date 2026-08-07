@@ -52,6 +52,7 @@ namespace {
     bool headless_virtual_display;
     bool skip_wayland_correlation;
     std::string latency_mode;
+    int idle_timeout_min;
 
     SolarflareSnapshot() {
       busy_poll_us = config::solarflare.busy_poll_us;
@@ -64,6 +65,7 @@ namespace {
       headless_virtual_display = config::solarflare.headless_virtual_display;
       skip_wayland_correlation = config::solarflare.skip_wayland_correlation;
       latency_mode = config::solarflare.latency_mode;
+      idle_timeout_min = config::solarflare.idle_timeout_min;
     }
 
     void restore() {
@@ -77,6 +79,7 @@ namespace {
       config::solarflare.headless_virtual_display = headless_virtual_display;
       config::solarflare.skip_wayland_correlation = skip_wayland_correlation;
       config::solarflare.latency_mode = latency_mode;
+      config::solarflare.idle_timeout_min = idle_timeout_min;
     }
   };
 
@@ -111,6 +114,7 @@ namespace {
     EXPECT_FALSE(config::solarflare.headless_virtual_display);
     EXPECT_FALSE(config::solarflare.skip_wayland_correlation);
     EXPECT_EQ(config::solarflare.latency_mode, "safe");
+    EXPECT_EQ(config::solarflare.idle_timeout_min, 0);
   }
 
   // ---------------------------------------------------------------------
@@ -456,4 +460,30 @@ TEST_F(SolarflareConfigTest, ApplyOpusTuningRuntimeMapsAllEnumValues) {
   af.opus_vbr = 99;
   config::apply_opus_tuning_runtime(af);
   EXPECT_EQ(tuning.vbr, ::audio::opus_tuning_t::vbr_e::OFF);
+}
+
+// ---------------------------------------------------------------------
+// Linux headless virtual display tunables (video.linux_display)
+// ---------------------------------------------------------------------
+
+TEST(HeadlessDisplayConfigTest, DefaultsAreZeroMeaningFollowClient) {
+  // 0 = "use the client-requested resolution/framerate".
+  EXPECT_EQ(config::video.linux_display.headless_width, 0);
+  EXPECT_EQ(config::video.linux_display.headless_height, 0);
+  EXPECT_EQ(config::video.linux_display.headless_refresh, 0);
+}
+
+TEST(HeadlessDisplayConfigTest, TunablesRoundTripThroughAssignment) {
+  config::video.linux_display.headless_width = 3840;
+  config::video.linux_display.headless_height = 2160;
+  config::video.linux_display.headless_refresh = 120;
+
+  EXPECT_EQ(config::video.linux_display.headless_width, 3840);
+  EXPECT_EQ(config::video.linux_display.headless_height, 2160);
+  EXPECT_EQ(config::video.linux_display.headless_refresh, 120);
+
+  // Restore defaults so later tests see a clean struct.
+  config::video.linux_display.headless_width = 0;
+  config::video.linux_display.headless_height = 0;
+  config::video.linux_display.headless_refresh = 0;
 }

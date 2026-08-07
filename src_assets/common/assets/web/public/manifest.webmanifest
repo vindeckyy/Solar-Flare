@@ -1,0 +1,23 @@
+{
+  "name": "SolarFlare",
+  "short_name": "SolarFlare",
+  "description": "Self-hosted game stream host for Moonlight — manage apps, clients, and host settings.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "icons": [
+    {
+      "src": "images/sunshine.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "images/solarflare-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -25,6 +25,7 @@
 #include <Simple-Web-Server/server_http.hpp>
 
 // local includes
+#include "client_profiles.h"
 #include "config.h"
 #include "display_device.h"
 #include "file_handler.h"
@@ -997,6 +998,19 @@ namespace nvhttp {
 
     host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
     auto launch_session = make_launch_session(host_audio, args);
+
+    // Apply any per-client profile for this client before encoder probing /
+    // display configuration so bitrate/codec overrides take effect for this
+    // session. The profile stays applied until the session ends, at which
+    // point stream::session::join() calls client_profiles::reset().
+    sunshine::client_profiles::apply(launch_session->unique_id);
+    auto profile_guard = util::fail_guard([&]() {
+      // If we never get to a running session (launch rejected below), undo
+      // the profile immediately so it doesn't leak into the next client.
+      if (rtsp_stream::session_count() == 0) {
+        sunshine::client_profiles::reset();
+      }
+    });
 
     if (rtsp_stream::session_count() == 0) {
       // The display should be restored in case something fails as there are no other sessions.

@@ -215,6 +215,16 @@ namespace config {
       bool use_cage_compositor = false;  ///< Route games into labwc nested compositor
       bool prefer_gpu_native_capture = false;  ///< Prefer DMA-BUF even if windowed labwc needed
       std::string compositor_backend = "auto";  ///< Headless backend: "auto", "labwc", or "krfb"
+
+      /// Override the virtual display resolution used by the headless
+      /// compositor. 0 = follow the client's requested resolution.
+      int headless_width = 0;
+      /// Override the virtual display height. 0 = follow the client's
+      /// requested resolution.
+      int headless_height = 0;
+      /// Override the virtual display refresh rate (Hz). 0 = follow the
+      /// client's requested framerate.
+      int headless_refresh = 0;
     } linux_display;
   };
 
@@ -342,6 +352,22 @@ namespace config {
      * full power (e.g. only `config:get`).
      */
     std::vector<api_token_t> api_tokens;
+
+    /**
+     * @brief Webhook URLs notified on stream lifecycle events.
+     *
+     * Each entry is a `webhook_url_<n> = https://...` config key. SolarFlare
+     * POSTs a JSON payload on stream start/stop (see webhooks.cpp).
+     */
+    std::vector<std::string> webhook_urls;
+
+    /**
+     * @brief Optional HMAC-SHA256 secret for webhook payloads.
+     *
+     * When non-empty, every webhook POST carries an
+     * `X-Solarflare-Signature: sha256=<hex>` header computed over the body.
+     */
+    std::string webhook_secret;
   };
 
   struct input_t {
@@ -546,6 +572,12 @@ namespace config {
     /// Latency policy for media queues and quality/CPU tradeoffs. Accepted
     /// values are "safe" (default) and "aggressive".
     std::string latency_mode = "safe";
+
+    /// Idle session auto-stop timeout in minutes. 0 disables the watchdog.
+    /// When no client input arrives for this long, the session is notified
+    /// and stopped (after a short grace period) so idle streams don't hold
+    /// the capture/encode pipeline.
+    int idle_timeout_min = 0;
   };
 
   /// Backwards-compatible alias so the audio encode helper (declared below)

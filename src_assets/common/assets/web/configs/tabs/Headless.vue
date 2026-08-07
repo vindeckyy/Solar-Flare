@@ -32,6 +32,27 @@
         </select>
         <div class="form-text">{{ $t('config.compositor_backend_desc') }}</div>
       </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label for="headless_width" class="form-label">{{ $t('config.headless_width') }}</label>
+          <input id="headless_width" type="number" min="0" max="7680" class="form-control"
+                 v-model.number="config.headless_width">
+          <div class="form-text">{{ $t('config.headless_width_desc') }}</div>
+        </div>
+        <div class="col-md-4">
+          <label for="headless_height" class="form-label">{{ $t('config.headless_height') }}</label>
+          <input id="headless_height" type="number" min="0" max="4320" class="form-control"
+                 v-model.number="config.headless_height">
+          <div class="form-text">{{ $t('config.headless_height_desc') }}</div>
+        </div>
+        <div class="col-md-4">
+          <label for="headless_refresh" class="form-label">{{ $t('config.headless_refresh') }}</label>
+          <input id="headless_refresh" type="number" min="0" max="240" class="form-control"
+                 v-model.number="config.headless_refresh">
+          <div class="form-text">{{ $t('config.headless_refresh_desc') }}</div>
+        </div>
+      </div>
     </template>
   </div>
 </template>

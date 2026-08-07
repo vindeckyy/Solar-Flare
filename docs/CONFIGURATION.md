@@ -25,8 +25,14 @@ still supported.
 | `dscp_qos`            | bool   | true | -       | Tag ENet packets with DSCP CS3 so routers prioritize streaming over bulk traffic (Linux only). |
 | `gpu_governor`        | bool   | true | -       | Raise AMD DRM cards to `performance` for async capture; RAII restores `auto` on teardown (Linux only). |
 | `headless_virtual_display` | bool | false | -    | If no displays detected, try creating a virtual xrandr output (Linux only, opt-in). |
+| `headless_width`      | int | 0   | 0-7680  | Override the headless virtual display width in pixels. 0 follows the client's requested resolution. |
+| `headless_height`     | int | 0   | 0-4320  | Override the headless virtual display height in pixels. 0 follows the client's requested resolution. |
+| `headless_refresh`    | int | 0   | 0-240   | Override the headless virtual display refresh rate in Hz. 0 follows the client's requested framerate. |
+| `idle_timeout_min`    | int | 0   | 0-600   | Automatically stop a stream after this many minutes without client input. 0 disables the watchdog. |
 | `skip_wayland_correlation` | bool | false | -    | Skip Wayland monitor correlation during KMS display enumeration. Only needed if the compositor still fails to report output metadata; leaving it `false` preserves absolute mouse coordinates. |
 | `latency_mode`        | string | safe | safe/aggressive | Select bounded safe defaults or tighter latency-first media/scaling behavior. |
+| `webhook_secret`      | string | "" | -      | HMAC-SHA256 secret used to sign webhook payloads (`X-Solarflare-Signature` header). |
+| `webhook_url_<n>`     | string | "" | -      | A webhook URL notified on stream start/stop. Numbered keys, e.g. `webhook_url_0`. |
 
 Audio pre-processor and Opus encoder tunables are documented in the
 [Audio FX](#audio-fx-pre-encoder-processing) section below. All 24

@@ -29,6 +29,7 @@ extern "C" {
 }
 
 // local includes
+#include "client_profiles.h"
 #include "config.h"
 #include "display_device.h"
 #include "globals.h"
@@ -38,11 +39,13 @@ extern "C" {
 #include "network.h"
 #include "platform/common.h"
 #include "process.h"
+#include "session_history.h"
 #include "stream.h"
 #include "sync.h"
 #include "system_tray.h"
 #include "thread_safe.h"
 #include "utility.h"
+#include "webhooks.h"
 
 constexpr int IDX_START_A = 0;
 constexpr int IDX_START_B = 1;
@@ -599,6 +602,15 @@ namespace stream {
 
     std::uint32_t launch_session_id;
     std::string client_cert;
+    std::string client_name;  ///< Client device name (from the RTSP announce s= field).
+    std::string client_address;  ///< Client IP address (set by session::start).
+    std::string app_name;  ///< Launched application name (from proc_t).
+    std::chrono::system_clock::time_point t_start;  ///< Wall-clock session start time.
+
+    /// Steady-clock time of the most recent client input packet. Used by the
+    /// idle-session watchdog (see controlBroadcastThread). Starts at session
+    /// creation so a freshly-launched session is never immediately idle.
+    std::chrono::steady_clock::time_point last_input_time {std::chrono::steady_clock::now()};
 
     safe::mail_raw_t::event_t<bool> shutdown_event;
     safe::signal_t controlEnd;
@@ -1216,6 +1228,9 @@ namespace stream {
         std::copy(payload.end() - 16, payload.end(), std::begin(iv));
       }
 
+      // Refresh the idle-watchdog timestamp: the client is interacting.
+      session->last_input_time = std::chrono::steady_clock::now();
+
       input::passthrough(session->input, std::move(plaintext));
     });
 
@@ -1279,6 +1294,8 @@ namespace stream {
       // IDX_INPUT_DATA callback will attempt to decrypt unencrypted data, therefore we need pass it directly
       if (type == packetTypes[IDX_INPUT_DATA]) {
         plaintext.erase(std::begin(plaintext), std::begin(plaintext) + 4);
+        // Refresh the idle-watchdog timestamp: the client is interacting.
+        session->last_input_time = std::chrono::steady_clock::now();
         input::passthrough(session->input, std::move(plaintext));
       } else {
         server->call(type, session, next_payload, true);
@@ -1314,6 +1331,18 @@ namespace stream {
             auto address = session->control.peer ? platf::from_sockaddr((sockaddr *) &session->control.peer->address.address) : session->control.expected_peer_address;
             BOOST_LOG(info) << address << ": Ping Timeout"sv;
             session::stop(*session);
+          }
+
+          // Idle-session watchdog: if no client input arrives for
+          // idle_timeout_min, stop the session (with a short grace period so
+          // the client can react). 0 disables the watchdog entirely.
+          if (config::solarflare.idle_timeout_min > 0) {
+            auto idle_for = std::chrono::duration_cast<std::chrono::seconds>(now - session->last_input_time).count();
+            if (idle_for >= config::solarflare.idle_timeout_min * 60) {
+              auto address = session->control.peer ? platf::from_sockaddr((sockaddr *) &session->control.peer->address.address) : session->control.expected_peer_address;
+              BOOST_LOG(info) << address << ": Idle timeout ("sv << config::solarflare.idle_timeout_min << " min no input)"sv;
+              session::stop(*session);
+            }
           }
 
           if (session->state.load(std::memory_order_acquire) == session::state_e::STOPPING) {
@@ -2246,6 +2275,35 @@ namespace stream {
   namespace session {
     std::atomic_uint running_sessions;
 
+    /**
+     * @brief Build a session-history record from the live session state.
+     *
+     * @param session The session.
+     * @param now End time.
+     * @return The record, populated from the session config, client info and
+     *         the process-wide latency statistics.
+     */
+    static sunshine::session_history::record_t make_record(session_t &session, std::chrono::system_clock::time_point now) {
+      auto &stats = sunshine::latency_stats();
+      auto settings = stats.effective_settings();
+
+      sunshine::session_history::record_t rec;
+      rec.t_start = session.t_start;
+      rec.t_end = now;
+      rec.app_name = session.app_name;
+      rec.client_name = session.client_name;
+      rec.client_address = session.client_address;
+      rec.codec = settings.codec;
+      rec.width = session.config.monitor.width;
+      rec.height = session.config.monitor.height;
+      rec.fps = session.config.monitor.framerate;
+      rec.avg_bitrate_kbps = settings.bit_rate > 0 ? settings.bit_rate / 1000.0 : 0.0;
+      rec.avg_rtt_ms = stats.rtt_ms.snapshot().avg;
+      rec.avg_encode_ms = stats.encode_ms.snapshot().avg;
+      rec.dropped_frames = 0;  // Not tracked process-wide; reserved.
+      return rec;
+    }
+
     state_e state(session_t &session) {
       return session.state.load(std::memory_order_relaxed);
     }
@@ -2296,6 +2354,19 @@ namespace stream {
       BOOST_LOG(debug) << "Resetting Input..."sv;
       input::reset(session.input);
 
+      // Record the completed session (history + webhooks) before the
+      // process-wide latency samples are cleared below.
+      if (!session.app_name.empty()) {
+        auto now = std::chrono::system_clock::now();
+        auto rec = make_record(session, now);
+        sunshine::session_history::record(rec);
+        sunshine::webhooks::notify("stream.end", rec);
+      }
+
+      // Restore the global config that a per-client profile may have
+      // overridden at launch time (nvhttp::launch).
+      sunshine::client_profiles::reset();
+
       // If this is the last session, invoke the platform callbacks
       if (--running_sessions == 0) {
         // Workers have joined; drop any late samples collected after stop().
@@ -2331,6 +2402,7 @@ namespace stream {
 
       session.control.expected_peer_address = addr_string;
       BOOST_LOG(debug) << "Expecting incoming session connections from "sv << addr_string;
+      session.client_address = addr_string;
 
       // Insert this session into the session list
       {
@@ -2352,6 +2424,13 @@ namespace stream {
 
       session.state.store(state_e::RUNNING, std::memory_order_relaxed);
 
+      session.t_start = std::chrono::system_clock::now();
+      session.app_name = proc::proc.get_last_run_app_name();
+      if (!session.app_name.empty()) {
+        sunshine::session_history::record(make_record(session, session.t_start));
+        sunshine::webhooks::notify("stream.start", make_record(session, session.t_start));
+      }
+
       // If this is the first session, invoke the platform callbacks
       if (++running_sessions == 1) {
         platf::streaming_will_start();
@@ -2371,6 +2450,8 @@ namespace stream {
       session->shutdown_event = mail->event<bool>(mail::shutdown);
       session->launch_session_id = launch_session.id;
       session->client_cert = launch_session.client_cert;
+      session->client_name = launch_session.client_name;
+      session->client_address = launch_session.client_address;
 
       session->config = config;
 

@@ -8,6 +8,60 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 
 
+## 2026-08-07: SolarFlare v1.2 (work-in-progress)
+
+Feature release: host telemetry, per-client profiles, session history +
+webhooks, idle auto-stop, tunable headless display, and PWA install support.
+
+### Host telemetry (live resource charts)
+
+New `src/telemetry.*` ring-buffer store samples host CPU / memory / GPU
+utilisation once per second on Linux (`/proc/stat`, `/proc/meminfo`, AMD
+`gpu_busy_percent`) and exposes them via `GET /api/stream/telemetry`
+(`logs:get` scope). The Dashboard gained a **Host Telemetry** panel with
+lightweight SVG sparklines (no charting dependency). The resource monitor
+thread is a no-op on non-Linux platforms.
+
+### Per-client streaming profiles
+
+New `src/client_profiles.*` lets users set per-device overrides keyed by the
+Moonlight client name (`uniqueid`). Configured via flat
+`client_profile_<name>_<field>` keys in sunshine.conf:
+`client_profile_<name>_max_bitrate`, `_hevc_mode`, `_av1_mode`,
+`_latency_mode`. Profiles are applied at `/launch` before encoder probing and
+restored when the session ends, so a phone can stream at a lower bitrate
+while the global config stays untouched.
+
+### Session history + lifecycle webhooks
+
+New `src/session_history.*` appends one JSONL record per completed stream to
+`<appdata>/session_history.jsonl` (app, client, resolution, codec, average
+bitrate/RTT/encode time). Read via `GET /api/sessions` (filters: `app`,
+`client`, `limit`; `logs:get` scope). New `src/webhooks.*` POSTs a JSON
+payload to every `webhook_url_<n>` on stream start/stop, optionally signed
+with `webhook_secret` (HMAC-SHA256 `X-Solarflare-Signature` header).
+
+### Idle session auto-stop
+
+New `idle_timeout_min` config key (default 0 = disabled) stops a session
+after N minutes without client input, freeing the capture/encode pipeline.
+Tracks `last_input_time` on the control thread and logs a distinct
+"Idle timeout" reason. Hot-reloadable via the config watcher.
+
+### Tunable headless virtual display
+
+New `headless_width` / `headless_height` / `headless_refresh` config keys
+override the headless compositor (labwc / krfb / gamescope) and xrandr
+`VIRTUAL1` fallback resolution instead of always following the client's
+requested mode. 0 = follow the client. Exposed in the Headless config tab.
+
+### PWA install support
+
+Added `manifest.webmanifest` + a minimal service worker (cache-first for
+hashed assets, network-first for pages/API). The manifest is served at
+`/manifest.webmanifest` and linked from every page header, so the Web UI is
+installable as a standalone app.
+
 ## 2026-08-04: SolarFlare v1.1.0 (`v2026.804.1-solarflare`)
 
 Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.

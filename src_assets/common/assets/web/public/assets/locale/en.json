@@ -181,6 +181,12 @@
     "compositor_backend_labwc": "labwc (wlroots)",
     "compositor_backend_krfb": "krfb-virtualmonitor (KDE)",
     "compositor_backend_gamescope": "Gamescope (Steam Deck)",
+    "headless_width": "Virtual display width",
+    "headless_width_desc": "Override the headless virtual display width in pixels. 0 follows the client's requested resolution.",
+    "headless_height": "Virtual display height",
+    "headless_height_desc": "Override the headless virtual display height in pixels. 0 follows the client's requested resolution.",
+    "headless_refresh": "Virtual display refresh rate",
+    "headless_refresh_desc": "Override the headless virtual display refresh rate in Hz. 0 follows the client's requested framerate.",
     "controller": "Enable Gamepad Input",
     "controller_desc": "Allows guests to control the host system with a gamepad / controller",
     "credentials_file": "Credentials File",
@@ -551,11 +557,15 @@
     "adaptive_bitrate_min_desc": "Minimum bitrate floor in kbps for the SolarFlare adaptive bitrate controller. Range: 100-1000000. Default: 2000.",
     "adaptive_bitrate_max": "Adaptive Bitrate Maximum (SolarFlare)",
     "adaptive_bitrate_max_desc": "Maximum bitrate ceiling in kbps for the SolarFlare adaptive bitrate controller. Range: 100-1000000. Default: 100000.",
+    "idle_timeout_min": "Idle Session Timeout (SolarFlare)",
+    "idle_timeout_min_desc": "Automatically stop a stream after this many minutes without client input, freeing the capture/encode pipeline. 0 disables the watchdog. Range: 0-600. Default: 0.",
     "adaptive_bitrate": "Adaptive Bitrate (SolarFlare fork)",
     "trusted_subnet_auto_pairing": "Trusted Subnet Auto-Pairing",
     "trusted_subnet_auto_pairing_desc": "Auto-pair clients connecting from IP addresses within the configured trusted subnets, bypassing PIN authentication.",
     "trusted_subnets": "Trusted Subnets",
-    "trusted_subnets_desc": "Comma-separated CIDR ranges for auto-pairing (e.g. 10.0.0.0/8,192.168.1.0/24)."
+    "trusted_subnets_desc": "Comma-separated CIDR ranges for auto-pairing (e.g. 10.0.0.0/8,192.168.1.0/24).",
+    "webhook_secret": "Webhook Signing Secret (SolarFlare)",
+    "webhook_secret_desc": "HMAC-SHA256 secret used to sign stream start/stop webhook payloads. When set, each request carries an X-Solarflare-Signature header so receivers can verify the payload came from this host."
   },
   "index": {
     "description": "Sunshine is a self-hosted game stream host for Moonlight.",
@@ -619,7 +629,16 @@
     "stream_stats_vbv": "RC buffer (bits)",
     "stream_stats_bitrate": "Bitrate",
     "stream_stats_framerate": "Framerate",
-    "stream_stats_streaming": "Streaming"
+    "stream_stats_streaming": "Streaming",
+    "telemetry_title": "Host Telemetry",
+    "telemetry_desc": "Host CPU, memory and GPU utilisation sampled once per second for the last 10 minutes (Linux only).",
+    "telemetry_live": "Live",
+    "telemetry_unavailable": "No telemetry yet. Telemetry is only available on Linux hosts.",
+    "telemetry_cpu": "CPU",
+    "telemetry_gpu": "GPU",
+    "telemetry_ram": "Memory used",
+    "telemetry_avg": "Avg {value}",
+    "telemetry_peak": "Peak {value}"
   },
   "navbar": {
     "applications": "Applications",

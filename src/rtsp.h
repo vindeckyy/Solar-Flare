@@ -62,6 +62,8 @@ namespace rtsp_stream {
     std::string rtsp_url_scheme;
     uint32_t rtsp_iv_counter;
     std::string client_cert;
+    std::string client_name;  ///< Client device name from the RTSP announce s= field.
+    std::string client_address;  ///< Client IP address (populated at session start).
   };
 
   void launch_session_raise(std::shared_ptr<launch_session_t> launch_session);

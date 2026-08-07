@@ -121,11 +121,20 @@ const props = defineProps([
       </div>
     </div>
 
+    <!-- SolarFlare stream behavior -->
+    <hr class="my-4">
+    <div class="mb-3">
+      <label for="idle_timeout_min" class="form-label">{{ $t('config.idle_timeout_min') }}</label>
+      <input type="number" class="form-control" id="idle_timeout_min"
+             step="1" min="0" max="600"
+             v-model.number="config.idle_timeout_min" />
+      <div class="form-text">{{ $t('config.idle_timeout_min_desc') }}</div>
+    </div>
+
     <!-- SolarFlare Audio — pre-encoder effects + Opus tuning -->
     <hr class="my-4">
     <h4>{{ $t('config.sf_audio_section') }}</h4>
     <div class="form-text mb-3">{{ $t('config.sf_audio_section_desc') }}</div>
-
     <!-- Effect enable checkboxes -->
     <div class="mb-3">
       <Checkbox id="sf_audio_agc"

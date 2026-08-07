@@ -26,6 +26,7 @@
 #include "nvhttp.h"
 #include "process.h"
 #include "system_tray.h"
+#include "telemetry.h"
 #include "upnp.h"
 #include "video.h"
 
@@ -181,6 +182,10 @@ int main(int argc, char *argv[]) {
   // Start watching sunshine.conf for changes so users can tweak
   // SolarFlare tunables without restarting.
   config::start_config_watcher();
+
+  // Sample host CPU / RAM / GPU utilisation for the Web UI telemetry charts.
+  // Linux-only; a no-op elsewhere.
+  sunshine::telemetry::start_resource_monitor();
   BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VERSION << " commit: " << PROJECT_VERSION_COMMIT;
 
   // Log publisher metadata (also prints the SolarFlare fork banner when
@@ -207,6 +212,7 @@ int main(int argc, char *argv[]) {
       // below -- any early return after start_config_watcher() needs to
       // pair with a stop.
       config::stop_config_watcher();
+      sunshine::telemetry::stop_resource_monitor();
       return 7;
     }
 
@@ -215,6 +221,7 @@ int main(int argc, char *argv[]) {
     // watcher thread on those paths either.
     auto cmd_rc = fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
     config::stop_config_watcher();
+    sunshine::telemetry::stop_resource_monitor();
     return cmd_rc;
   }
 
@@ -448,6 +455,8 @@ int main(int argc, char *argv[]) {
   rtspThread.join();
 
   config::stop_config_watcher();
+
+  sunshine::telemetry::stop_resource_monitor();
 
   task_pool.stop();
   task_pool.join();

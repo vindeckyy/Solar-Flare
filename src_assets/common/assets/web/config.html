@@ -234,6 +234,9 @@
               "linux_use_cage_compositor": false,
               "linux_prefer_gpu_native_capture": false,
               "compositor_backend": "auto",
+              "headless_width": 0,
+              "headless_height": 0,
+              "headless_refresh": 0,
             },
           },
           {
@@ -283,6 +286,8 @@
               "adaptive_bitrate_enabled": false,
               "adaptive_bitrate_min": 2000,
               "adaptive_bitrate_max": 100000,
+              // SolarFlare stream behavior.
+              "idle_timeout_min": 0,
               // SolarFlare audio: pre-encoder effects + Opus tuning. All
               // default to upstream-compatible values, so a vanilla install
               // behaves identically to pre-SolarFlare Sunshine.
@@ -329,6 +334,7 @@
               "packetsize": 0,
               "trusted_subnet_auto_pairing": false,
               "trusted_subnets": "",
+              "webhook_secret": "",
             },
           },
           {

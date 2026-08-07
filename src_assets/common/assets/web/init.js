@@ -23,6 +23,15 @@ export function initApp(app, config) {
     // authentication pages receive the same theme as the main host console.
     loadAutoTheme()
 
+    // PWA: register the service worker (network-first for pages/API,
+    // cache-first for immutable build assets). Ignore failures — the UI
+    // works fine without it.
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').catch(() => {})
+        })
+    }
+
     //Wait for locale initialization, then render
     i18n().then(i18n => {
         app.use(i18n);

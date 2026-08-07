@@ -11,11 +11,13 @@
 // standard includes
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <mutex>
 #include <regex>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 
@@ -51,6 +53,8 @@
 #include "platform/common.h"
 #include "process.h"
 #include "rtsp.h"
+#include "session_history.h"
+#include "telemetry.h"
 #include "update.h"
 #include "utility.h"
 #include "uuid.h"
@@ -704,6 +708,22 @@ namespace confighttp {
     std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "image/png");
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  }
+
+  /**
+   * @brief Serve the PWA web app manifest.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
+  void getManifest(const resp_https_t &response, const req_https_t &request) {
+    print_req(request);
+
+    std::ifstream in(WEB_DIR "manifest.webmanifest");
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/manifest+json");
     headers.emplace("X-Frame-Options", "DENY");
     headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
     response->write(SimpleWeb::StatusCode::success_ok, in, headers);
@@ -1727,6 +1747,93 @@ namespace confighttp {
   }
 
   /**
+   * @brief Return host resource time-series telemetry. Read-only.
+   * @details Requires @c api_scope_t::LOGS_GET (`logs:get`). Used by the
+   *          SolarFlare Web UI to chart host CPU / memory / GPU utilisation
+   *          over the last 10 minutes. Each key maps to an array of samples
+   *          (oldest first); `host_cpu_pct` and `host_gpu_pct` are
+   *          percentages 0-100, `host_ram_used_mb` is MiB. The store is
+   *          Linux-only (the poll thread is a no-op elsewhere), so
+   *          non-Linux platforms return an object with only `window_s`.
+   *
+   * @api_examples{/api/stream/telemetry| GET| null}
+   */
+  void getTelemetry(const resp_https_t &response, const req_https_t &request) {
+    if (!require_scope(response, request, config::api_scope_t::LOGS_GET)) {
+      return;
+    }
+    print_req(request);
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    tree["telemetry"] = sunshine::telemetry::snapshot();
+    send_response(response, tree);
+  }
+
+  /**
+   * @brief Return recent streaming-session history. Read-only.
+   * @details Requires @c api_scope_t::LOGS_GET (`logs:get`). Reads
+   *          session_history.jsonl and returns the most recent sessions
+   *          (oldest first within the window), optionally filtered by
+   *          `app` / `client` query parameters, capped by `limit`.
+   *
+   * @api_examples{/api/sessions| GET| null}
+   */
+  void getSessions(const resp_https_t &response, const req_https_t &request) {
+    if (!require_scope(response, request, config::api_scope_t::LOGS_GET)) {
+      return;
+    }
+    print_req(request);
+
+    auto limit = 100uz;
+    std::string app_filter;
+    std::string client_filter;
+    auto query_params = request->parse_query_string();
+    if (auto it = query_params.find("limit"); it != query_params.end()) {
+      try {
+        limit = static_cast<std::size_t>(std::stoull(it->second));
+      } catch (...) {
+        limit = 100uz;
+      }
+    }
+    if (auto it = query_params.find("app"); it != query_params.end()) {
+      app_filter = it->second;
+    }
+    if (auto it = query_params.find("client"); it != query_params.end()) {
+      client_filter = it->second;
+    }
+
+    auto records = sunshine::session_history::recent(limit, app_filter, client_filter);
+
+    nlohmann::json arr = nlohmann::json::array();
+    for (const auto &rec : records) {
+      nlohmann::json item;
+      item["t_start"] = std::chrono::duration_cast<std::chrono::seconds>(rec.t_start.time_since_epoch()).count();
+      item["t_end"] = std::chrono::duration_cast<std::chrono::seconds>(rec.t_end.time_since_epoch()).count();
+      item["app_name"] = rec.app_name;
+      item["client_name"] = rec.client_name;
+      item["client_address"] = rec.client_address;
+      item["codec"] = rec.codec;
+      item["width"] = rec.width;
+      item["height"] = rec.height;
+      item["fps"] = rec.fps;
+      item["avg_bitrate_kbps"] = rec.avg_bitrate_kbps;
+      item["avg_rtt_ms"] = rec.avg_rtt_ms;
+      item["avg_encode_ms"] = rec.avg_encode_ms;
+      item["dropped_frames"] = rec.dropped_frames;
+      item["error"] = rec.error;
+      arr.push_back(std::move(item));
+    }
+
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = true;
+    tree["sessions"] = std::move(arr);
+    send_response(response, tree);
+  }
+
+  /**
    * @brief Return process-wide error counters grouped by category.
    * @details Used by the SolarFlare fork Web UI to surface a 'recent errors'
    *          widget. Read-only; the counters are updated by every SUN_ERR()
@@ -2628,6 +2735,8 @@ namespace confighttp {
     server.resource["^/api/stream/network-stats$"]["POST"] = postNetworkStats;
     server.resource["^/api/stream/bitrate$"]["GET"] = getBitrate;
     server.resource["^/api/stream/latency$"]["GET"] = getStreamLatency;
+    server.resource["^/api/stream/telemetry$"]["GET"] = getTelemetry;
+    server.resource["^/api/sessions$"]["GET"] = getSessions;
     server.resource["^/api/errors$"]["GET"] = getErrors;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/restart$"]["POST"] = restart;
@@ -2641,6 +2750,7 @@ namespace confighttp {
     // static/dynamic resources
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
+    server.resource["^/manifest.webmanifest$"]["GET"] = getManifest;
     server.resource["^/assets\\/.+$"]["GET"] = getAsset;
 
     server.config.reuse_address = true;

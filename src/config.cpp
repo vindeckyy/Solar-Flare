@@ -26,6 +26,7 @@
 
 // local includes
 #include "audio.h"
+#include "client_profiles.h"
 #include "config.h"
 #include "entry_handler.h"
 #include "file_handler.h"
@@ -611,7 +612,16 @@ namespace config {
     0,  // minimum_fps_target (0 = framerate)
     false,  // adaptive_bitrate_enabled
     2000,  // adaptive_bitrate_min
-    100000  // adaptive_bitrate_max
+    100000,  // adaptive_bitrate_max
+    {
+      false,  // headless_mode
+      false,  // use_cage_compositor
+      false,  // prefer_gpu_native_capture
+      "auto"s,  // compositor_backend
+      0,  // headless_width (0 = client resolution)
+      0,  // headless_height (0 = client resolution)
+      0,  // headless_refresh (0 = client framerate)
+    }  // linux_display
   };
 
   audio_t audio {
@@ -644,6 +654,9 @@ namespace config {
     {},  // external_ip
     {},  // trusted_subnets
     false,  // trusted_subnet_auto_pairing
+    {},  // api_tokens
+    {},  // webhook_urls
+    {},  // webhook_secret
   };
 
   input_t input {
@@ -704,6 +717,12 @@ namespace config {
     8,  // pipewire_latency_ms (PW_KEY_NODE_LATENCY hint)
     true,  // cpu_pinning        (SCHED_RR + physical-core affinity)
     solarflare_t::audio_fx_t {},  // audio_fx — all off / defaults
+    true,  // dscp_qos
+    true,  // gpu_governor
+    false,  // headless_virtual_display
+    false,  // skip_wayland_correlation
+    "safe"s,  // latency_mode
+    0,  // idle_timeout_min (0 = disabled)
   };
 
   bool endline(char ch) {
@@ -1406,6 +1425,9 @@ namespace config {
     bool_f(vars, "linux_use_cage_compositor", video.linux_display.use_cage_compositor);
     bool_f(vars, "linux_prefer_gpu_native_capture", video.linux_display.prefer_gpu_native_capture);
     string_restricted_f(vars, "compositor_backend", video.linux_display.compositor_backend, {"auto"sv, "labwc"sv, "krfb"sv, "gamescope"sv});
+    int_between_f(vars, "headless_width", video.linux_display.headless_width, {0, 7680});
+    int_between_f(vars, "headless_height", video.linux_display.headless_height, {0, 4320});
+    int_between_f(vars, "headless_refresh", video.linux_display.headless_refresh, {0, 240});
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
@@ -1502,6 +1524,23 @@ namespace config {
         BOOST_LOG(info) << "config: loaded " << nvhttp.api_tokens.size() << " api token(s)";
       }
     }
+
+    // Parse webhook URLs: `webhook_url_0 = https://...`, `webhook_url_1 = ...`
+    // etc. Collect in key order for a stable notification order.
+    nvhttp.webhook_urls.clear();
+    for (auto it = std::begin(vars); it != std::end(vars);) {
+      if (it->first.starts_with("webhook_url_")) {
+        nvhttp.webhook_urls.push_back(it->second);
+        it = vars.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    std::sort(std::begin(nvhttp.webhook_urls), std::end(nvhttp.webhook_urls));
+    if (!nvhttp.webhook_urls.empty()) {
+      BOOST_LOG(info) << "config: loaded " << nvhttp.webhook_urls.size() << " webhook URL(s)";
+    }
+    string_f(vars, "webhook_secret", nvhttp.webhook_secret);
 
     // Parse CSRF allowed origins - always include defaults, then append user-configured origins
     std::vector<std::string> user_csrf_origins;
@@ -1711,6 +1750,19 @@ namespace config {
 
       for (auto &[var, _] : vars) {
         std::cout << "Warning: Unrecognized configurable option ["sv << var << ']' << std::endl;
+      }
+    }
+
+    // Parse per-client streaming profiles from `client_profile_*` keys.
+    // These are consumed by nvhttp at launch time to override the global
+    // bitrate/codec config per client device. Erase the keys so they don't
+    // trip the unrecognized-option warning below.
+    sunshine::client_profiles::load_from_config(vars);
+    for (auto it = std::begin(vars); it != std::end(vars);) {
+      if (it->first.starts_with("client_profile_")) {
+        it = vars.erase(it);
+      } else {
+        ++it;
       }
     }
   }
@@ -1937,6 +1989,7 @@ namespace config {
     bool_f(vars, "headless_virtual_display", solarflare.headless_virtual_display);
     bool_f(vars, "skip_wayland_correlation", solarflare.skip_wayland_correlation);
     string_restricted_f(vars, "latency_mode", solarflare.latency_mode, {"safe", "aggressive"});
+    int_between_f(vars, "idle_timeout_min", solarflare.idle_timeout_min, {0, 600});
 
     // audio_fx sub-tunables.
     auto &af = solarflare.audio_fx;

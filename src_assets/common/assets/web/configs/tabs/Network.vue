@@ -194,6 +194,13 @@ const effectivePort = computed(() => +props.config?.port ?? defaultMoonlightPort
       <div class="form-text">{{ $t('config.trusted_subnets_desc') }}</div>
     </div>
 
+    <!-- Webhook signing secret -->
+    <div class="mb-3">
+      <label for="webhook_secret" class="form-label">{{ $t('config.webhook_secret') }}</label>
+      <input type="text" class="form-control" id="webhook_secret" v-model="config.webhook_secret" autocomplete="off" />
+      <div class="form-text">{{ $t('config.webhook_secret_desc') }}</div>
+    </div>
+
   </div>
 </template>
 
