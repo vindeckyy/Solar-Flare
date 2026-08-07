@@ -9,6 +9,7 @@
 
 // standard includes
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -20,6 +21,10 @@
 // local includes
 #include "crypto.h"
 #include "thread_safe.h"
+
+namespace rtsp_stream {
+  struct launch_session_t;
+}
 
 /**
  * @brief Contains all the functions and variables related to the nvhttp (GameStream) server.
@@ -265,6 +270,15 @@ namespace nvhttp {
      */
     using PinObserver = void (*)(const PinResponseSnapshot &);
     void set_pin_observer(PinObserver obs);
+
+    /**
+     * @brief Test-only: build a launch session from query-string arguments.
+     *
+     * @param host_audio Whether audio should play on the host.
+     * @param args Parsed query-string arguments.
+     * @return Populated launch session.
+     */
+    std::shared_ptr<rtsp_stream::launch_session_t> make_launch_session(bool host_audio, const SimpleWeb::CaseInsensitiveMultimap &args);
   }  // namespace test_access
 #endif  // SUNSHINE_TESTS
 }  // namespace nvhttp
