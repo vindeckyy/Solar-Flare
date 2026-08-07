@@ -8,9 +8,9 @@ Two version identifiers are retained intentionally. Examples below use the
 *next* release identifiers so the commands stay copy-paste templates:
 
 - The public release title uses chronological SemVer, such as
-  `SolarFlare v1.0.9`.
+  `SolarFlare v1.2.0`.
 - The compatibility build tag uses `v<YYYY>.<MDD>.<revision>-solarflare`, such
-  as `v2026.729.1-solarflare`. The executable reports this build version.
+  as `v2026.807.1-solarflare`. The executable reports this build version.
 
 The current published release is documented in the repository README.
 
@@ -34,13 +34,13 @@ version never carries a `-dirty` suffix.
 Preview the release transaction:
 
 ```bash
-./scripts/release.sh 2026.729.1 1.0.9 --dry-run
+./scripts/release.sh 2026.807.1 1.2.0 --dry-run
 ```
 
 Create the synchronized version commit and compatibility tag without pushing:
 
 ```bash
-./scripts/release.sh 2026.729.1 1.0.9 --no-push
+./scripts/release.sh 2026.807.1 1.2.0 --no-push
 ```
 
 The script updates `CMakeLists.txt`, `pyproject.toml`, `uv.lock`, the README
@@ -84,20 +84,20 @@ Push the release commit and compatibility tag only after local verification:
 
 ```bash
 git push origin master
-git push origin v2026.729.1-solarflare
+git push origin v2026.807.1-solarflare
 ```
 
 Create the GitHub release manually and upload the three verified local files:
 
 ```bash
-gh release create v2026.729.1-solarflare \
+gh release create v2026.807.1-solarflare \
   sunshine-x86_64 \
   solarflare-linux-x86_64.tar.gz \
   SHA256SUMS \
   --repo vindeckyy/Solar-Flare \
   --verify-tag \
   --latest \
-  --title 'SolarFlare v1.0.9' \
+  --title 'SolarFlare v1.2.0' \
   --notes-file release-notes.md
 ```
 

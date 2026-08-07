@@ -110,6 +110,29 @@ snapshot (`codec`, `hwdevice`, `vendor`, `va_entrypoint`, `rc_mode`,
 `bit_rate`, `framerate`). Accumulators reset when the last streaming
 session tears down; idle polls return zeros when no samples remain.
 
+## GET /api/stream/telemetry
+@copydoc confighttp::getTelemetry()
+
+Requires authentication. API tokens need the `logs:get` scope.
+
+Returns host resource time series sampled once per second for the last
+10 minutes: `host_cpu_pct` (0-100), `host_ram_used_mb`, `host_gpu_pct`
+(0-100, AMD sysfs). Each key maps to an array of samples, oldest first.
+Linux-only; other platforms return an object with only `window_s`.
+
+## GET /api/sessions
+@copydoc confighttp::getSessions()
+
+Requires authentication. API tokens need the `logs:get` scope.
+
+Returns recent streaming-session history read from
+`<appdata>/session_history.jsonl` (oldest first within the window).
+Query parameters: `limit` (default 100), `app` (substring filter),
+`client` (substring filter). Each record contains `t_start`, `t_end`,
+`app_name`, `client_name`, `client_address`, `codec`, `width`, `height`,
+`fps`, `avg_bitrate_kbps`, `avg_rtt_ms`, `avg_encode_ms`, `dropped_frames`,
+and `error` (end reason, empty for a clean stop).
+
 ## POST /api/update/cancel
 @copydoc confighttp::cancelUpdate()
 

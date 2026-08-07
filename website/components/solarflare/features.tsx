@@ -11,7 +11,7 @@ const FEATURES = [
   {
     icon: MonitorPlay,
     title: 'Host control',
-    body: 'A responsive Web UI with command search, host status, and troubleshooting tools.',
+    body: 'A responsive Web UI with command search, host status, troubleshooting tools, live host-resource telemetry charts, and PWA install support.',
   },
   {
     icon: Network,
@@ -26,7 +26,7 @@ const FEATURES = [
   {
     icon: Gauge,
     title: 'Video',
-    body: 'NVENC tuning profiles, per-application encoder overrides, headless display paths, and hardware-aware capture selection.',
+    body: 'NVENC tuning profiles, per-application encoder overrides, tunable headless display paths, and hardware-aware capture selection.',
   },
   {
     icon: AudioLines,
@@ -36,7 +36,7 @@ const FEATURES = [
   {
     icon: ShieldCheck,
     title: 'Operations',
-    body: 'Scoped API tokens, trusted-subnet pairing, a local Moonlight client catalog, and structured tagged logs.',
+    body: 'Scoped API tokens, trusted-subnet pairing, per-client streaming profiles, stream lifecycle webhooks, session history, idle auto-stop, and structured tagged logs.',
   },
 ]
 

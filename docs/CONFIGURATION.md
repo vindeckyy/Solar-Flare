@@ -186,16 +186,31 @@ creating a virtual display via `xrandr --setprovideroutputsource` and
 
 Designed for headless servers (no monitor plugged in) that still want to
 stream a desktop. The virtual output is the `VIRTUAL1` provider driven by
-`xrandr --auto`, which reports a 1920x1080@60 mode; resolution is not
-currently user-tunable from the SolarFlare config (see the upstream
-[configuration.md](configuration.md) for the `output` resolution knobs
-that `xrandr` honours).
+`xrandr`. Use [`headless_width`](#headless_width) /
+[`headless_height`](#headless_height) / [`headless_refresh`](#headless_refresh)
+to set an explicit mode; without them `xrandr --auto` reports a
+1920x1080@60 mode.
 
 - **true**: create virtual display if no physical outputs are found.
 - **false** (default): no virtual display; the capture backend will report
   "no display" and Sunshine will refuse to start a stream.
 
 Linux-only, requires an X11 display server running (Xorg or XWayland).
+
+### `headless_width` / `headless_height` / `headless_refresh`
+
+Override the resolution and refresh rate of the headless virtual display
+instead of always following the client's requested mode. Applied both to the
+headless compositor (labwc / krfb / gamescope) and to the `xrandr --output
+VIRTUAL1` fallback path.
+
+- `headless_width`: virtual display width in pixels. 0 = follow the client.
+- `headless_height`: virtual display height in pixels. 0 = follow the client.
+- `headless_refresh`: virtual display refresh rate in Hz. 0 = follow the
+  client's requested framerate.
+
+These are read at launch, so edits to `sunshine.conf` take effect on the next
+streamed session.
 
 ### `skip_wayland_correlation`
 
@@ -332,10 +347,81 @@ that, so a vanilla install is unchanged.
 | `dscp_qos`           | `src/network.cpp` |
 | `gpu_governor`       | `src/gpu_governor.cpp`, `src/video.cpp` |
 | `headless_virtual_display` | `src/video.cpp` |
+| `headless_width` / `headless_height` / `headless_refresh` | `src/process.cpp`, `src/video.cpp` |
+| `idle_timeout_min` | `src/stream.cpp` |
 | `skip_wayland_correlation` | `src/platform/linux/kmsgrab.cpp`, `src/platform/linux/misc.cpp` |
 | `latency_mode`       | `src/stream.cpp`, `src/video.cpp`, `src/audio.cpp` |
+| `webhook_secret` / `webhook_url_<n>` | `src/webhooks.cpp`, `src/stream.cpp` |
+| `client_profile_<name>_*` | `src/client_profiles.cpp`, `src/nvhttp.cpp` |
 | `sf_audio_*`         | `src/audio.cpp`, `src/config.cpp` |
 | `sf_opus_*`          | `src/audio.cpp`, `src/config.cpp` |
+
+## Webhooks
+
+SolarFlare can notify external services when a streaming session starts or
+ends. Each webhook URL is a numbered key:
+
+```bash
+webhook_url_0 = https://example.com/hooks/solarflare
+webhook_url_1 = https://discord.com/api/webhooks/...
+webhook_secret = change-me
+```
+
+On `stream.start` / `stream.end`, SolarFlare POSTs a JSON payload to every
+configured URL (fire-and-forget, 5 s timeout):
+
+```json
+{
+  "event": "stream.start",
+  "app_name": "Cyberpunk 2077",
+  "client_name": "Moonlight-PC",
+  "client_address": "192.168.1.10",
+  "codec": "hevc_vaapi",
+  "width": 1920,
+  "height": 1080,
+  "fps": 60,
+  "avg_bitrate_kbps": 20000.0,
+  "avg_rtt_ms": 2.5,
+  "avg_encode_ms": 1.2,
+  "dropped_frames": 0,
+  "error": ""
+}
+```
+
+When `webhook_secret` is set, each request carries an
+`X-Solarflare-Signature: sha256=<hex>` header (HMAC-SHA256 over the body) so
+receivers can verify the payload came from this host. Session history is
+also written to `<appdata>/session_history.jsonl` and exposed through
+`GET /api/sessions`.
+
+## Per-client streaming profiles
+
+Clients on different devices often want different streaming settings. Set a
+profile per client device name (the `uniqueid` Moonlight sends on launch):
+
+```bash
+client_profile_Phone_max_bitrate = 15000
+client_profile_Phone_hevc_mode = 2
+client_profile_Phone_av1_mode = 0
+client_profile_Phone_latency_mode = aggressive
+
+client_profile_PC_max_bitrate = 60000
+client_profile_PC_hevc_mode = 5
+```
+
+Supported fields: `max_bitrate` (kbps), `hevc_mode`, `av1_mode`,
+`latency_mode` (`safe` / `aggressive`). A value of `0` (or empty) means
+"use the global config". Profiles are applied at `/launch` before encoder
+probing and restored when the session ends, so a phone session can use
+lower bitrate while the global config stays untouched.
+
+## Idle session auto-stop
+
+`idle_timeout_min` (default `0` = disabled) stops a streaming session after
+the given number of minutes without any client input (mouse, keyboard,
+gamepad), freeing the capture/encode pipeline and letting other clients
+connect. The watchdog checks every few seconds and logs a distinct
+"Idle timeout" reason. The key is hot-reloadable via the config watcher.
 
 ## A quick A/B test
 

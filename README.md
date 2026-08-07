@@ -52,12 +52,12 @@ devices, managing applications, changing host settings, and checking logs.
 
 | System | SolarFlare approach |
 |---|---|
-| **Host control** | A responsive Web UI with command search, host status, and troubleshooting tools |
+| **Host control** | A responsive Web UI with command search, host status, troubleshooting tools, live host-resource telemetry charts, and PWA install support |
 | **Network path** | Link-aware pacing, optional busy polling, expanded ENet buffers, DSCP tagging, and adaptive bitrate controls |
 | **Scheduling** | Capture-thread affinity, controlled real-time scheduling, native CPU tuning, and optional boot-time performance services |
 | **Video** | NVENC tuning profiles, per-application encoder overrides, headless display paths, and hardware-aware capture selection |
 | **Audio** | Low-latency PipeWire hints plus optional AGC, voice activity detection, ducking, noise gating, and Opus controls |
-| **Operations** | Scoped API tokens, trusted-subnet pairing, a local client catalog, and structured logs |
+| **Operations** | Scoped API tokens, trusted-subnet pairing, per-client streaming profiles, stream lifecycle webhooks, session history, idle auto-stop, and structured logs |
 
 SolarFlare exposes these as individual controls. Defaults stay compatible with
 upstream, and each tuning path can be disabled when comparing hosts.
@@ -207,8 +207,9 @@ definitions in `~/.config/sunshine/apps.json`.
 |---|---|---|
 | Network | `busy_poll_us`, `rate_cap_pct`, `enet_4mib_buffer`, `dscp_qos` | [Fork controls](docs/CONFIGURATION.md#the-tunables-at-a-glance) |
 | Scheduling | `cpu_pinning`, `gpu_governor` | [Scheduling behavior](docs/CONFIGURATION.md#cpu_pinning) |
-| Capture | `headless_virtual_display`, `skip_wayland_correlation` | [Capture controls](docs/CONFIGURATION.md#headless_virtual_display) |
+| Capture | `headless_virtual_display`, `headless_width`, `headless_height`, `headless_refresh` | [Capture controls](docs/CONFIGURATION.md#headless_virtual_display) |
 | Latency | `latency_mode` (`safe` / `aggressive`) | [Latency mode](docs/CONFIGURATION.md#latency_mode) |
+| Session | `idle_timeout_min`, per-client profiles (`client_profile_*`), webhooks (`webhook_url_*`, `webhook_secret`) | [Webhooks](docs/CONFIGURATION.md#webhooks) / [Profiles](docs/CONFIGURATION.md#per-client-streaming-profiles) |
 | Video | `nvenc_tuning_preset`, adaptive bitrate, codec and quality controls | [Complete reference](docs/configuration.md) |
 | Audio | `pipewire_latency_ms`, `sf_audio_*`, `sf_opus_*` | [Audio FX](docs/CONFIGURATION.md#audio-fx-pre-encoder-processing) |
 | Access | Scoped API tokens, trusted subnets, pairing, origin policy | [API](docs/api.md) / [Security](SECURITY.md) |
