@@ -6,9 +6,7 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
-
-
-## 2026-08-07: SolarFlare v1.2.0 (work-in-progress)
+## SolarFlare v1.2.0 feature summary
 
 Feature release: host telemetry, per-client profiles, session history +
 webhooks, idle auto-stop, tunable headless display, and PWA install support.
