@@ -6,6 +6,11 @@ Curated sections below group commits by feature and date, oldest commit first wi
 
 ---
 
+
+## 2026-08-07: SolarFlare v1.2.0 (`v2026.807.1-solarflare`)
+
+Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.
+
 ## SolarFlare v1.2.0 feature summary
 
 Feature release: host telemetry, per-client profiles, session history +
