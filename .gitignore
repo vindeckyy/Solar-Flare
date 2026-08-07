@@ -81,6 +81,9 @@ write_file_test_*.txt
 third-party-check
 *.deb
 sunshine-x86_64
+solarflare-linux-x86_64.tar.gz
+SHA256SUMS
+release-artifacts/
 
 # Local tooling scratch files
 crush.db
