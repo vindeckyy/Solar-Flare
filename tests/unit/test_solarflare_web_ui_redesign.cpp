@@ -6,9 +6,9 @@
  *
  * These source-level guards protect the shared navigation rail, dashboard
  * command deck, inward-opening utility menus, non-looping motion policy,
- * responsive breakpoint, and global theme initialization. They intentionally
- * test stable design contracts
- * rather than generated Vite asset names.
+ * responsive breakpoint, global theme initialization, and host build
+ * integration. They intentionally test stable design contracts rather than
+ * generated Vite asset names.
  */
 
 #include "../tests_common.h"
@@ -129,3 +129,16 @@ TEST(SolarflareWebUIRedesign, ServiceWorkerUsesNetworkFirstForMutableAssets) {
   EXPECT_TRUE(contains_marker(init, "navigator.serviceWorker.register('./sw.js')"));
 }
 
+TEST(SolarflareWebUIRedesign, HostBuildRefreshesServedWebAssets) {
+  const auto targets = test_utils::read_repo_file("cmake/targets/common.cmake");
+  const auto linux_build = test_utils::read_repo_file("scripts/linux_build.sh");
+
+  ASSERT_FALSE(targets.empty());
+  ASSERT_FALSE(linux_build.empty());
+  EXPECT_TRUE(contains_marker(targets, "file(GLOB_RECURSE WEB_UI_SOURCES"));
+  EXPECT_TRUE(contains_marker(targets, "CONFIGURE_DEPENDS"));
+  EXPECT_TRUE(contains_marker(targets, "add_custom_target(web-ui ALL DEPENDS"));
+  EXPECT_TRUE(contains_marker(targets, "run build-clean"));
+  EXPECT_TRUE(contains_marker(targets, "add_dependencies(sunshine web-ui)"));
+  EXPECT_TRUE(contains_marker(linux_build, "ninja -C \"build\" -j\"${num_processors}\" sunshine web-ui"));
+}

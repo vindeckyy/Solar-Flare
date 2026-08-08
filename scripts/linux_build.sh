@@ -795,7 +795,7 @@ function run_step_build() {
   setup_nvm_environment
 
   # Build the project
-  ninja -C "build"
+  ninja -C "build" -j"${num_processors}" sunshine web-ui
   return 0
 }
 

@@ -64,7 +64,7 @@ else()
     set(NPM_BUILD_HOMEBREW "")
 endif()
 
-#WebUI build
+# Web UI build
 find_program(NPM npm REQUIRED)
 
 set(NPM_INSTALL_FLAGS "--ignore-scripts")
@@ -72,13 +72,30 @@ if (NPM_OFFLINE)
     set(NPM_INSTALL_FLAGS "${NPM_INSTALL_FLAGS} --offline")
 endif()
 
-add_custom_target(web-ui ALL
+file(GLOB_RECURSE WEB_UI_SOURCES
+        CONFIGURE_DEPENDS
+        LIST_DIRECTORIES false
+        "${CMAKE_SOURCE_DIR}/src_assets/common/assets/web/*")
+list(APPEND WEB_UI_SOURCES
+        "${CMAKE_SOURCE_DIR}/package.json"
+        "${CMAKE_SOURCE_DIR}/package-lock.json"
+        "${CMAKE_SOURCE_DIR}/vite.config.js")
+
+set(WEB_UI_STAMP "${CMAKE_BINARY_DIR}/web-ui.stamp")
+add_custom_command(
+        OUTPUT "${WEB_UI_STAMP}"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Installing NPM Dependencies and Building the Web UI"
         COMMAND "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" ci ${NPM_INSTALL_FLAGS}
-        COMMAND "${CMAKE_COMMAND}" -E env "SUNSHINE_BUILD_HOMEBREW=${NPM_BUILD_HOMEBREW}" "SUNSHINE_SOURCE_ASSETS_DIR=${NPM_SOURCE_ASSETS_DIR}" "SUNSHINE_ASSETS_DIR=${NPM_ASSETS_DIR}" "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" run build  # cmake-lint: disable=C0301
+        COMMAND "${CMAKE_COMMAND}" -E env "SUNSHINE_BUILD_HOMEBREW=${NPM_BUILD_HOMEBREW}" "SUNSHINE_SOURCE_ASSETS_DIR=${NPM_SOURCE_ASSETS_DIR}" "SUNSHINE_ASSETS_DIR=${NPM_ASSETS_DIR}" "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" run build-clean  # cmake-lint: disable=C0301
+        COMMAND "${CMAKE_COMMAND}" -E touch "${WEB_UI_STAMP}"
+        DEPENDS ${WEB_UI_SOURCES}
         COMMAND_EXPAND_LISTS
         VERBATIM)
+add_custom_target(web-ui ALL DEPENDS "${WEB_UI_STAMP}")
+
+# Building the host must refresh the assets it serves.
+add_dependencies(sunshine web-ui)
 
 # docs
 if(BUILD_DOCS)
