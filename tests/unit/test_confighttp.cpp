@@ -110,6 +110,10 @@ protected:
   std::filesystem::path key_file;
   std::filesystem::path web_dir_test_file;
   std::filesystem::path web_asset_test_file;
+  std::filesystem::path web_hashed_asset_test_file;
+  std::filesystem::path web_sw_test_file;
+  std::filesystem::path web_image_test_file;
+  std::filesystem::path web_manifest_test_file;
   // Members used by the save-config tests. The route handler redirects
   // confighttp::saveConfig's read/write target through config_file so we can
   // assert on the on-disk file without disturbing the user's real config.
@@ -193,6 +197,27 @@ protected:
     std::ofstream test_asset(web_asset_test_file);
     test_asset << "Test asset content";
     test_asset.close();
+
+    web_hashed_asset_test_file = web_dir_path / "assets" / "index-AbCdEfGh.js";
+    std::ofstream hashed_asset(web_hashed_asset_test_file);
+    hashed_asset << "hashed-bundle";
+    hashed_asset.close();
+
+    web_sw_test_file = web_dir_path / "sw.js";
+    std::ofstream sw_file(web_sw_test_file);
+    sw_file << "/* test service worker */";
+    sw_file.close();
+
+    web_image_test_file = web_dir_path / "images" / "solarflare-mark.svg";
+    std::filesystem::create_directories(web_image_test_file.parent_path());
+    std::ofstream image_file(web_image_test_file);
+    image_file << "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>";
+    image_file.close();
+
+    web_manifest_test_file = web_dir_path / "manifest.webmanifest";
+    std::ofstream manifest_file(web_manifest_test_file);
+    manifest_file << "{\"name\":\"SolarFlare\"}";
+    manifest_file.close();
 
     // Write certificates to temp files (Simple-Web-Server expects file paths)
     cert_file = test_web_dir / "test_cert.pem";
@@ -350,6 +375,26 @@ protected:
       confighttp::getAsset(response, request);
     };
 
+    // Root-level Vite public/ files (service worker + images).
+    server->resource["^/sw\\.js$"]["GET"] = [](
+                                               const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                               const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                             ) {
+      confighttp::getWebStatic(response, request);
+    };
+    server->resource["^/images/.+$"]["GET"] = [](
+                                                const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                              ) {
+      confighttp::getWebStatic(response, request);
+    };
+    server->resource["^/manifest.webmanifest$"]["GET"] = [](
+                                                             const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                             const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                           ) {
+      confighttp::getManifest(response, request);
+    };
+
     // Add a route to test getLocale
     server->resource["^/locale-test$"]["GET"] = [](
                                                   const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
@@ -433,6 +478,18 @@ protected:
     }
     if (std::filesystem::exists(web_asset_test_file)) {
       std::filesystem::remove(web_asset_test_file);
+    }
+    if (std::filesystem::exists(web_hashed_asset_test_file)) {
+      std::filesystem::remove(web_hashed_asset_test_file);
+    }
+    if (std::filesystem::exists(web_sw_test_file)) {
+      std::filesystem::remove(web_sw_test_file);
+    }
+    if (std::filesystem::exists(web_image_test_file)) {
+      std::filesystem::remove(web_image_test_file);
+    }
+    if (std::filesystem::exists(web_manifest_test_file)) {
+      std::filesystem::remove(web_manifest_test_file);
     }
 
     if (std::filesystem::exists(test_web_dir)) {
@@ -881,6 +938,76 @@ TEST_F(ConfigHttpTest, GetAssetServesAssetWithinAssetsDirectory) {
   const auto response = client->request("GET", "/assets/test_asset.txt");
   ASSERT_EQ(response->status_code, "200 OK");
   ASSERT_EQ(response->content.string(), "Test asset content");
+
+  const auto cache = response->header.find("Cache-Control");
+  ASSERT_NE(cache, response->header.end());
+  ASSERT_EQ(cache->second, "no-cache");
+}
+
+// Test: HTML pages ask browsers to revalidate so updates are visible
+TEST_F(ConfigHttpTest, GetPageSendsNoCacheHeader) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/page-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+  const auto cache = response->header.find("Cache-Control");
+  ASSERT_NE(cache, response->header.end());
+  ASSERT_EQ(cache->second, "no-cache");
+}
+
+// Test: content-hashed Vite assets may be cached immutably
+TEST_F(ConfigHttpTest, GetAssetSendsImmutableCacheForHashedBundle) {
+  const auto response = client->request("GET", "/assets/index-AbCdEfGh.js");
+  ASSERT_EQ(response->status_code, "200 OK");
+  ASSERT_EQ(response->content.string(), "hashed-bundle");
+  const auto cache = response->header.find("Cache-Control");
+  ASSERT_NE(cache, response->header.end());
+  ASSERT_EQ(cache->second, "public, max-age=31536000, immutable");
+}
+
+// Test: PWA service worker is reachable at /sw.js
+TEST_F(ConfigHttpTest, GetWebStaticServesServiceWorker) {
+  const auto response = client->request("GET", "/sw.js");
+  ASSERT_EQ(response->status_code, "200 OK");
+  ASSERT_EQ(response->content.string(), "/* test service worker */");
+  const auto content_type = response->header.find("Content-Type");
+  ASSERT_NE(content_type, response->header.end());
+  ASSERT_EQ(content_type->second, "application/javascript");
+  const auto cache = response->header.find("Cache-Control");
+  ASSERT_NE(cache, response->header.end());
+  ASSERT_EQ(cache->second, "no-cache");
+}
+
+// Test: brand/mark images under /images are served
+TEST_F(ConfigHttpTest, GetWebStaticServesImages) {
+  const auto response = client->request("GET", "/images/solarflare-mark.svg");
+  ASSERT_EQ(response->status_code, "200 OK");
+  ASSERT_TRUE(response->content.string().find("<svg") != std::string::npos);
+  const auto content_type = response->header.find("Content-Type");
+  ASSERT_NE(content_type, response->header.end());
+  ASSERT_EQ(content_type->second, "image/svg+xml");
+}
+
+// Test: manifest is served with revalidation headers
+TEST_F(ConfigHttpTest, GetManifestServesManifestJson) {
+  const auto response = client->request("GET", "/manifest.webmanifest");
+  ASSERT_EQ(response->status_code, "200 OK");
+  ASSERT_TRUE(response->content.string().find("SolarFlare") != std::string::npos);
+  const auto content_type = response->header.find("Content-Type");
+  ASSERT_NE(content_type, response->header.end());
+  ASSERT_EQ(content_type->second, "application/manifest+json");
+  const auto cache = response->header.find("Cache-Control");
+  ASSERT_NE(cache, response->header.end());
+  ASSERT_EQ(cache->second, "no-cache");
+}
+
+// Test: cache_control_for_web_path classifies hashed vs mutable assets
+TEST(ConfigHttpCacheControl, ClassifiesHashedAndMutablePaths) {
+  EXPECT_EQ(confighttp::cache_control_for_web_path("assets/index-AbCdEfGh.js"), "public, max-age=31536000, immutable");
+  EXPECT_EQ(confighttp::cache_control_for_web_path("assets/locale/en.json"), "no-cache");
+  EXPECT_EQ(confighttp::cache_control_for_web_path("sw.js"), "no-cache");
+  EXPECT_EQ(confighttp::cache_control_for_web_path("images/solarflare-mark.svg"), "no-cache");
 }
 
 // Test: confighttp::getLocale() returns locale JSON

@@ -646,6 +646,89 @@ namespace confighttp {
   }
 
   /**
+   * @brief Check if a path is a child of another path.
+   * @param base The candidate child path.
+   * @param query The allowed parent path.
+   * @return True if @p base is @p query or a descendant of @p query.
+   */
+  bool isChildPath(fs::path const &base, fs::path const &query) {
+    auto relPath = fs::relative(base, query);
+    return *(relPath.begin()) != fs::path("..");
+  }
+
+  /**
+   * @brief Build security and cache headers for a static Web UI response.
+   * @param content_type MIME type for the Content-Type header.
+   * @param cache_control Cache-Control header value.
+   * @return Header map with Content-Type, Cache-Control, and clickjacking guards.
+   */
+  SimpleWeb::CaseInsensitiveMultimap static_response_headers(const std::string &content_type, const std::string &cache_control) {
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", content_type);
+    headers.emplace("Cache-Control", cache_control);
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    return headers;
+  }
+
+  /**
+   * @brief Choose a Cache-Control value for a Web UI file path.
+   * @param relative_path Path relative to @c WEB_DIR (no leading slash).
+   * @return Cache-Control header value.
+   *
+   * HTML, the service worker, the manifest, locales, and images must revalidate
+   * so host updates are visible without a hard refresh. Vite content-hashed
+   * JS/CSS under @c assets/ are immutable and may be cached long-term.
+   */
+  std::string cache_control_for_web_path(const std::string &relative_path) {
+    static const std::regex hashed_asset {
+      R"(^assets/(?!locale/).+-[A-Za-z0-9_-]{8,}\.(js|css)$)"
+    };
+    if (std::regex_match(relative_path, hashed_asset)) {
+      return "public, max-age=31536000, immutable";
+    }
+    return "no-cache";
+  }
+
+  /**
+   * @brief Serve a file from WEB_DIR after MIME lookup and path checks.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param allowed_root Directory or exact file under WEB_DIR that may be served.
+   */
+  void serve_web_file(const resp_https_t &response, const req_https_t &request, const fs::path &allowed_root) {
+    fs::path webDirPath(WEB_DIR);
+    // .relative_path sheds any leading slash that might exist in the request path
+    auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
+
+    if (!isChildPath(filePath, allowed_root)) {
+      BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the allowed web folder";
+      bad_request(response, request);
+      return;
+    }
+    if (!fs::exists(filePath) || !fs::is_regular_file(filePath)) {
+      not_found(response, request);
+      return;
+    }
+
+    auto relPath = fs::relative(filePath, webDirPath).generic_string();
+    const auto extension = fs::path(relPath).extension().string();
+    if (extension.size() < 2) {
+      bad_request(response, request);
+      return;
+    }
+
+    auto mimeType = mime_types.find(extension.substr(1));
+    if (mimeType == mime_types.end()) {
+      bad_request(response, request);
+      return;
+    }
+
+    std::ifstream in(filePath.string(), std::ios::binary);
+    response->write(SimpleWeb::StatusCode::success_ok, in, static_response_headers(mimeType->second, cache_control_for_web_path(relPath)));
+  }
+
+  /**
    * @brief Get an HTML page.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -667,50 +750,9 @@ namespace confighttp {
     print_req(request);
 
     const std::string content = file_handler::read_file((std::string(WEB_DIR) + html_file).c_str());
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-
-    // prevent click jacking
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the favicon image.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   * @todo combine function with getSunshineLogoImage and possibly getNodeModules
-   * @todo use mime_types map
-   */
-  void getFaviconImage(const resp_https_t &response, const req_https_t &request) {
-    print_req(request);
-
-    std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "image/x-icon");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-  }
-
-  /**
-   * @brief Get the Sunshine logo image.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   * @todo combine function with getFaviconImage and possibly getNodeModules
-   * @todo use mime_types map
-   */
-  void getSunshineLogoImage(const resp_https_t &response, const req_https_t &request) {
-    print_req(request);
-
-    std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "image/png");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    // no-cache forces revalidation so host package updates replace the shell HTML
+    // (and therefore the content-hashed JS/CSS references) without a hard refresh.
+    response->write(content, static_response_headers("text/html; charset=utf-8", "no-cache"));
   }
 
   /**
@@ -722,22 +764,7 @@ namespace confighttp {
     print_req(request);
 
     std::ifstream in(WEB_DIR "manifest.webmanifest");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "application/manifest+json");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-  }
-
-  /**
-   * @brief Check if a path is a child of another path.
-   * @param base The base path.
-   * @param query The path to check.
-   * @return True if the path is a child of the base path, false otherwise.
-   */
-  bool isChildPath(fs::path const &base, fs::path const &query) {
-    auto relPath = fs::relative(base, query);
-    return *(relPath.begin()) != fs::path("..");
+    response->write(SimpleWeb::StatusCode::success_ok, in, static_response_headers("application/manifest+json", "no-cache"));
   }
 
   /**
@@ -747,40 +774,30 @@ namespace confighttp {
    */
   void getAsset(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
+    serve_web_file(response, request, fs::path(WEB_DIR) / "assets");
+  }
+
+  /**
+   * @brief Serve root-level Web UI static files (@c sw.js, @c images/*).
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
+  void getWebStatic(const resp_https_t &response, const req_https_t &request) {
+    print_req(request);
     fs::path webDirPath(WEB_DIR);
-    fs::path nodeModulesPath(webDirPath / "assets");
+    const fs::path reqPath = fs::path(request->path).relative_path();
 
-    // .relative_path is needed to shed any leading slash that might exist in the request path
-    auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
-
-    // Don't do anything if the file does not exist or is outside the assets directory
-    if (!isChildPath(filePath, nodeModulesPath)) {
-      BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the assets folder";
-      bad_request(response, request);
-      return;
-    }
-    if (!fs::exists(filePath)) {
-      not_found(response, request);
+    if (reqPath == fs::path("sw.js")) {
+      serve_web_file(response, request, webDirPath / "sw.js");
       return;
     }
 
-    auto relPath = fs::relative(filePath, webDirPath);
-    // get the mime type from the file extension mime_types map
-    // remove the leading period from the extension
-    auto mimeType = mime_types.find(relPath.extension().string().substr(1));
-    // check if the extension is in the map at the x position
-    if (mimeType == mime_types.end()) {
-      bad_request(response, request);
+    if (!reqPath.empty() && *reqPath.begin() == "images") {
+      serve_web_file(response, request, webDirPath / "images");
       return;
     }
 
-    // if it is, set the content type to the mime type
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", mimeType->second);
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    std::ifstream in(filePath.string(), std::ios::binary);
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    bad_request(response, request);
   }
 
   /**
@@ -2747,9 +2764,10 @@ namespace confighttp {
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
     server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
 
-    // static/dynamic resources
-    server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
-    server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
+    // static/dynamic resources — serve Vite public/ outputs (assets/, images/, sw.js)
+    // with Cache-Control so HTML/unhashed files revalidate after host updates.
+    server.resource["^/images/.+$"]["GET"] = getWebStatic;
+    server.resource["^/sw\\.js$"]["GET"] = getWebStatic;
     server.resource["^/manifest.webmanifest$"]["GET"] = getManifest;
     server.resource["^/assets\\/.+$"]["GET"] = getAsset;
 
