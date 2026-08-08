@@ -154,6 +154,28 @@ namespace confighttp {
    * @param request The HTTPS request object.
    */
   void getAsset(const resp_https_t &response, const req_https_t &request);
+
+  /**
+   * @brief Serve a root-level Web UI static file such as @c sw.js or @c images/*.
+   * @param response The HTTPS response object.
+   * @param request The HTTP request object.
+   */
+  void getWebStatic(const resp_https_t &response, const req_https_t &request);
+
+  /**
+   * @brief Serve the PWA web app manifest.
+   * @param response The HTTPS response object.
+   * @param request The HTTP request object.
+   */
+  void getManifest(const resp_https_t &response, const req_https_t &request);
+
+  /**
+   * @brief Choose a Cache-Control value for a Web UI file path.
+   * @param relative_path Path relative to @c WEB_DIR (no leading slash).
+   * @return Cache-Control header value.
+   */
+  std::string cache_control_for_web_path(const std::string &relative_path);
+
   /**
    * @brief Serve the directory-browsing JSON endpoint.
    * @param response The HTTPS response object.

@@ -117,3 +117,15 @@ TEST(SolarflareWebUIRedesign, FeaturedCatalogIsLocalAndDoesNotFetchThirdPartyDat
   EXPECT_FALSE(contains_marker(featured, "fetch(indexUrl)"));
   EXPECT_FALSE(contains_marker(featured, "app.lizardbyte.dev"));
 }
+
+TEST(SolarflareWebUIRedesign, ServiceWorkerUsesNetworkFirstForMutableAssets) {
+  const auto sw = test_utils::read_repo_file("src_assets/common/assets/web/public/sw.js");
+  const auto init = test_utils::read_repo_file("src_assets/common/assets/web/init.js");
+
+  ASSERT_FALSE(sw.empty());
+  EXPECT_TRUE(contains_marker(sw, "solarflare-static-v2"));
+  EXPECT_TRUE(contains_marker(sw, "function isHashedAsset(pathname)"));
+  EXPECT_TRUE(contains_marker(sw, "url.pathname.endsWith('/sw.js')"));
+  EXPECT_TRUE(contains_marker(init, "navigator.serviceWorker.register('./sw.js')"));
+}
+
