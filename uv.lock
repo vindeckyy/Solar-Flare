@@ -574,7 +574,7 @@ wheels = [
 
 [[package]]
 name = "solarflare"
-version = "2026.807.1"
+version = "2026.809.1"
 source = { editable = "." }
 dependencies = [
     { name = "lizardbyte-common", extra = ["c"] },

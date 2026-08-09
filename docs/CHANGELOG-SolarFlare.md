@@ -7,6 +7,11 @@ Curated sections below group commits by feature and date, oldest commit first wi
 ---
 
 
+
+## 2026-08-09: SolarFlare v1.2.1 (`v2026.809.1-solarflare`)
+
+Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.
+
 ## 2026-08-07: SolarFlare v1.2.0 (`v2026.807.1-solarflare`)
 
 Release notes are published with the corresponding GitHub release. Compare this tag with the previous SolarFlare release for the complete change set.

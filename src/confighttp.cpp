@@ -778,7 +778,7 @@ namespace confighttp {
   }
 
   /**
-   * @brief Serve root-level Web UI static files (@c sw.js, @c images/*).
+   * @brief Serve root-level Web UI static files (@c sw.js, files under @c images/).
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    */

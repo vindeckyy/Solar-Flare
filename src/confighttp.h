@@ -156,7 +156,7 @@ namespace confighttp {
   void getAsset(const resp_https_t &response, const req_https_t &request);
 
   /**
-   * @brief Serve a root-level Web UI static file such as @c sw.js or @c images/*.
+   * @brief Serve a root-level Web UI static file such as @c sw.js or files under @c images/.
    * @param response The HTTPS response object.
    * @param request The HTTP request object.
    */
