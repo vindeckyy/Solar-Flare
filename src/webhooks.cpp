@@ -10,6 +10,7 @@
 #include <chrono>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 // third-party includes
@@ -49,8 +50,17 @@ namespace sunshine::webhooks {
     return !config::nvhttp.webhook_urls.empty();
   }
 
+  /**
+   * @brief Notify all configured webhook URLs of a session lifecycle event.
+   * @param event Event name (e.g. "stream.start", "stream.end").
+   * @param record Session record describing the event.
+   */
   void notify(const std::string &event, const session_history::record_t &record) {
     if (!enabled()) {
+      return;
+    }
+    if (event.empty()) {
+      BOOST_LOG(warning) << "webhooks: empty event, skipping notify"sv;
       return;
     }
 
@@ -85,11 +95,22 @@ namespace sunshine::webhooks {
     struct curl_slist *headers = nullptr;
     headers = curl_slist_append(headers, "Content-Type: application/json");
     if (!config::nvhttp.webhook_secret.empty()) {
-      headers = curl_slist_append(headers,
-        ("X-Solarflare-Signature: sha256=" + hmac_sha256_hex(config::nvhttp.webhook_secret, body_str)).c_str());
+      auto sig = "X-Solarflare-Signature: sha256=" + hmac_sha256_hex(config::nvhttp.webhook_secret, body_str);
+      headers = curl_slist_append(headers, sig.c_str());
     }
 
+    constexpr int MAX_RETRIES = 2;
     for (const auto &url : config::nvhttp.webhook_urls) {
+      if (url.empty()) {
+        BOOST_LOG(warning) << "webhooks: skipping empty URL"sv;
+        continue;
+      }
+      if (url.rfind("http://", 0) == 0 || url.rfind("https://", 0) == 0) {
+        // ok
+      } else {
+        BOOST_LOG(warning) << "webhooks: skipping non-http(s) URL: "sv << url;
+        continue;
+      }
       curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
       curl_easy_setopt(curl, CURLOPT_POST, 1L);
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body_copy.c_str());
@@ -100,13 +121,33 @@ namespace sunshine::webhooks {
       curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L);
       curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
-      auto rc = curl_easy_perform(curl);
+      CURLcode rc = CURLE_OK;
+      long http_code = 0;
+      for (int attempt = 0; attempt <= MAX_RETRIES; ++attempt) {
+        rc = curl_easy_perform(curl);
+        if (rc == CURLE_OK) {
+          curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+          if (http_code >= 200 && http_code < 300) {
+            break;
+          }
+          if (http_code >= 400 && http_code < 500) {
+            // Client error: retry won't help.
+            break;
+          }
+          // 5xx: retry with backoff.
+          rc = CURLE_HTTP_RETURNED_ERROR;
+        }
+        if (attempt < MAX_RETRIES) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(200 * (1 << attempt)));
+        }
+      }
       if (rc != CURLE_OK) {
         BOOST_LOG(warning) << "webhooks: POST to "sv << url << " failed: "sv << curl_easy_strerror(rc);
       } else {
-        long http_code = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         BOOST_LOG(info) << "webhooks: POST to "sv << url << " -> HTTP "sv << http_code;
+        if (http_code < 200 || http_code >= 300) {
+          BOOST_LOG(warning) << "webhooks: non-2xx from "sv << url << ": "sv << http_code;
+        }
       }
     }
 

@@ -5,6 +5,7 @@
  * @brief Implementation of game scanners for Steam, Lutris, and Heroic.
  */
 // standard includes
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
@@ -289,27 +290,50 @@ namespace game_scanner {
     return games;
   }
 
+  /**
+   * @brief Scan all supported launchers and deduplicate by name.
+   * @return Merged vector of discovered games from all launchers.
+   */
   std::vector<GameEntry> scan_all() {
     std::vector<GameEntry> games;
 
-    {
+    try {
       auto steam = scan_steam();
       games.insert(games.end(),
                    std::make_move_iterator(steam.begin()),
                    std::make_move_iterator(steam.end()));
+    } catch (const std::exception &e) {
+      BOOST_LOG(warning) << "game_scanner: scan_steam failed: "sv << e.what();
     }
-    {
+    try {
       auto lutris = scan_lutris();
       games.insert(games.end(),
                    std::make_move_iterator(lutris.begin()),
                    std::make_move_iterator(lutris.end()));
+    } catch (const std::exception &e) {
+      BOOST_LOG(warning) << "game_scanner: scan_lutris failed: "sv << e.what();
     }
-    {
+    try {
       auto heroic = scan_heroic();
       games.insert(games.end(),
                    std::make_move_iterator(heroic.begin()),
                    std::make_move_iterator(heroic.end()));
+    } catch (const std::exception &e) {
+      BOOST_LOG(warning) << "game_scanner: scan_heroic failed: "sv << e.what();
     }
+
+    if (games.empty()) {
+      BOOST_LOG(debug) << "game_scanner: no games found"sv;
+    }
+
+    // Deduplicate by case-insensitive name, keeping first occurrence.
+    std::sort(games.begin(), games.end(), [](const GameEntry &a, const GameEntry &b) {
+      return a.name < b.name;
+    });
+    games.erase(std::unique(games.begin(), games.end(), [](const GameEntry &a, const GameEntry &b) {
+                  return a.name == b.name && a.launcher == b.launcher;
+                }),
+                games.end());
 
     return games;
   }

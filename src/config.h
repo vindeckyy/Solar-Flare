@@ -19,11 +19,31 @@
 #include "nvenc/nvenc_config.h"
 
 namespace config {
-  // Valid range for the packetsize limit
-  constexpr int PACKETSIZE_MIN = 200;
-  constexpr int PACKETSIZE_MAX = 65535;
-  constexpr int PACKETSIZE_SMALL = 500;
-  constexpr int PACKETSIZE_LARGE = 1456;
+  /**
+   * @brief Valid range for the RTP packet size limit.
+   *
+   * Values outside this range are rejected during config parsing.
+   * 0 is treated as "auto" (use the pipeline default) and is handled
+   * separately from the clamped range. SMALL/LARGE are the two presets
+   * used by legacy clients when they omit the field.
+   */
+  constexpr int PACKETSIZE_MIN = 200;  ///< Minimum non-zero packetsize in bytes.
+  constexpr int PACKETSIZE_MAX = 65535;  ///< Maximum packetsize (uint16_t ceiling).
+  constexpr int PACKETSIZE_SMALL = 500;  ///< Preset for low-MTU links.
+  constexpr int PACKETSIZE_LARGE = 1456;  ///< Preset near Ethernet MTU (1500 - headers).
+
+  /**
+   * @brief Valid ranges for bitrate tunables (kbps).
+   *
+   * max_bitrate 0 means "no ceiling, use client request". Adaptive min/max
+   * are clamped to avoid degenerate 0 or overflow when the EWMA controller
+   * converts to bps.
+   */
+  constexpr int BITRATE_MIN_KBPS = 100;  ///< Minimum sane bitrate floor.
+  constexpr int BITRATE_MAX_KBPS = 1000000;  ///< Maximum bitrate ceiling (1 Gbps).
+  constexpr int MAX_BITRATE_MIN_KBPS = 500;  ///< Minimum for global max_bitrate when set.
+  constexpr int FEC_PERCENTAGE_MIN = 1;  ///< Minimum FEC percentage.
+  constexpr int FEC_PERCENTAGE_MAX = 255;  ///< Maximum FEC percentage (uint8_t).
 
   // track modified config options
   inline std::unordered_map<std::string, std::string> modified_config_settings;
@@ -198,12 +218,17 @@ namespace config {
       workarounds_t wa;
     } dd;
 
-    int max_bitrate;  // Maximum bitrate, sets ceiling in kbps for bitrate requested from client
+    /**
+     * @brief Maximum bitrate ceiling in kbps for client-requested bitrate.
+     * @details 0 means no ceiling (client request passthrough). When non-zero,
+     *          validated to [MAX_BITRATE_MIN_KBPS, BITRATE_MAX_KBPS] at parse time.
+     */
+    int max_bitrate;
     double minimum_fps_target;  ///< Lowest framerate that will be used when streaming. Range 0-1000, 0 = half of client's requested framerate.
 
     bool adaptive_bitrate_enabled;  ///< Enable EWMA-based adaptive bitrate control.
-    int adaptive_bitrate_min;  ///< Minimum bitrate floor in kbps.
-    int adaptive_bitrate_max;  ///< Maximum bitrate ceiling in kbps.
+    int adaptive_bitrate_min;  ///< Minimum bitrate floor in kbps [BITRATE_MIN_KBPS, BITRATE_MAX_KBPS].
+    int adaptive_bitrate_max;  ///< Maximum bitrate ceiling in kbps [BITRATE_MIN_KBPS, BITRATE_MAX_KBPS].
 
     /**
      * @brief Linux headless compositor configuration.
@@ -240,17 +265,21 @@ namespace config {
   constexpr int ENCRYPTION_MODE_MANDATORY = 2;  // Always use video encryption and refuse clients that can't encrypt
 
   struct stream_t {
-    std::chrono::milliseconds ping_timeout;
+    std::chrono::milliseconds ping_timeout;  ///< RTSP ping timeout.
 
-    std::string file_apps;
+    std::string file_apps;  ///< Path to apps.json.
 
-    int fec_percentage;
+    int fec_percentage;  ///< Forward error correction percentage [1, 255].
 
-    // Video encryption settings for LAN and WAN streams
-    int lan_encryption_mode;
-    int wan_encryption_mode;
+    int lan_encryption_mode;  ///< Encryption mode for LAN (0=never,1=opportunistic,2=mandatory).
+    int wan_encryption_mode;  ///< Encryption mode for WAN (0=never,1=opportunistic,2=mandatory).
 
-    // Limit the packetsize to avoid fragmentation on a low MTU link
+    /**
+     * @brief RTP packetsize limit in bytes.
+     * @details 0 means "use pipeline default" (auto). When non-zero, must be
+     *          within [PACKETSIZE_MIN, PACKETSIZE_MAX]; values outside are
+     *          clamped with a warning at parse time.
+     */
     int packetsize;
   };
 
@@ -454,39 +483,53 @@ namespace config {
     std::vector<std::string> csrf_allowed_origins;
   };
 
-  // ----------------------------------------------------------------------
-  // SolarFlare fork tunables (Linux local-LAN fast path).
-  //
-  // These are the knobs the README promises exist. Every default here
-  // matches the previous hardcoded value, so a vanilla install behaves
-  // identically to the pre-config-fork build. Set any value to its
-  // "fall back to upstream" choice to disable the SolarFlare tuning
-  // for that subsystem without rebuilding.
-  // ----------------------------------------------------------------------
+  /**
+   * @brief SolarFlare fork tunables (Linux local-LAN fast path).
+   *
+   * @details Every default here matches the previously-hardcoded value so a
+   *          vanilla install behaves identically to the pre-config-fork build.
+   *          Set any value to its "fall back to upstream" choice to disable
+   *          the SolarFlare tuning for that subsystem without rebuilding.
+   *          All tunables are validated at parse time; out-of-range values
+   *          are rejected with a warning and the previous value is kept.
+   * @note Keys are documented in docs/CONFIGURATION.md and in
+   *       apply_solarflare_keys() in config.cpp where ranges are enforced.
+   */
   struct solarflare_t {
-    // SO_BUSY_POLL on the ENet socket, in microseconds. 0 disables
-    // busy polling entirely. 50 is a good middle ground for 1-2.5 GbE;
-    // 0-200 is the practical range (kernel cap is 10000 = 10 ms).
+    /**
+     * @brief SO_BUSY_POLL on the ENet socket, in microseconds.
+     * @details 0 disables busy polling entirely. 50 is a good middle ground
+     *          for 1-2.5 GbE; 0-200 is the practical range (kernel cap 10000).
+     */
     int busy_poll_us = 50;
 
-    // Percent of the negotiated link speed used as the rate-control
-    // pacer in src/stream.cpp. Valid range 50-95. The previous
-    // hardcoded value was 80.
+    /**
+     * @brief Percent of negotiated link speed used as the rate-control pacer.
+     * @details Valid range 50-95. The previous hardcoded value was 80.
+     *          See src/stream.cpp pacer.
+     */
     int rate_cap_pct = 80;
 
-    // Grow ENet send/recv buffers to 4 MiB on Linux so a 4K60 stream
-    // never blocks on sendmsg(). Set false to use the kernel default.
+    /**
+     * @brief Grow ENet send/recv buffers to 4 MiB on Linux.
+     * @details When true, a 4K60 stream never blocks on sendmsg(). False
+     *          uses the kernel default.
+     */
     bool enet_4mib_buffer = true;
 
-    // PW_KEY_NODE_LATENCY hint (ms) passed to the compositor. Mutter
-    // and most other compositors honour the hint, cutting 1-2 frames
-    // of pre-encoder buffering. Range 1-40; values below 4 may cause
-    // pipewire to drop frames under load.
+    /**
+     * @brief PW_KEY_NODE_LATENCY hint (ms) passed to the compositor.
+     * @details Mutter and most compositors honour the hint, cutting 1-2
+     *          frames of pre-encoder buffering. Range 1-40; values below 4
+     *          may cause pipewire to drop frames under load.
+     */
     int pipewire_latency_ms = 8;
 
-    // On Linux, when adjust_thread_priority(critical) is called we also
-    // push onto SCHED_RR prio 10 and pin to a non-IRQ, non-SMT core.
-    // Set false to fall back to upstream's nice-only behaviour.
+    /**
+     * @brief On Linux, push onto SCHED_RR prio 10 and pin to a non-IRQ core.
+     * @details When adjust_thread_priority(critical) is called we also
+     *          apply real-time scheduling. False falls back to nice-only.
+     */
     bool cpu_pinning = true;
 
     /**

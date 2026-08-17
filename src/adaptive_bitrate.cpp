@@ -18,6 +18,15 @@ namespace video {
   }
 
   void AdaptiveBitrate::update_network_stats(float packet_loss_pct, float rtt_ms) {
+    if (!_cfg.enabled) {
+      return;
+    }
+
+    // Clamp inputs to sane ranges, the client can report garbage on flaky links
+    // and we must not let a single corrupt report collapse the bitrate.
+    packet_loss_pct = std::clamp(packet_loss_pct, 0.0f, 100.0f);
+    rtt_ms = std::max(rtt_ms, 0.0f);
+
     // Prime the EWMA on the first sample. Without this, the rtt_spike check
     // below would compare the first rtt_ms against 2x(0.3 * rtt_ms) = 0.6x the
     // first sample, falsely flagging every fresh session as congested on its
@@ -63,6 +72,16 @@ namespace video {
   }
 
   void AdaptiveBitrate::update_stream_health(float fps_ratio, float encode_time_ms, float dropped_frame_ratio) {
+    if (!_cfg.enabled) {
+      return;
+    }
+
+    // Clamp inputs, encode_time_ms can spike negative on clock skew and fps_ratio
+    // can momentarily exceed 2.0 during mode switches, clamp to keep scaling stable.
+    fps_ratio = std::clamp(fps_ratio, 0.0f, 4.0f);
+    encode_time_ms = std::max(encode_time_ms, 0.0f);
+    dropped_frame_ratio = std::clamp(dropped_frame_ratio, 0.0f, 1.0f);
+
     bool unhealthy = false;
 
     if (encode_time_ms > 11.0f) {
@@ -103,6 +122,13 @@ namespace video {
   }
 
   int AdaptiveBitrate::get_target_bitrate(int base_bitrate) {
+    // Handle disabled or invalid inputs gracefully, return clamped base.
+    if (!_cfg.enabled) {
+      return std::clamp(base_bitrate, _cfg.min_bitrate, _cfg.max_bitrate);
+    }
+    if (base_bitrate <= 0) {
+      return _cfg.min_bitrate;
+    }
     int result = static_cast<int>(base_bitrate * _current_scale);
     // Clamp order matters: honour the client-requested ceiling and the
     // configured ceiling first, then ensure we never drop below the
@@ -112,6 +138,10 @@ namespace video {
     result = std::min(result, base_bitrate);
     result = std::min(result, _cfg.max_bitrate);
     result = std::max(result, _cfg.min_bitrate);
+    // Ensure scale never drives us to zero when base is valid.
+    if (result <= 0) {
+      result = _cfg.min_bitrate;
+    }
     return result;
   }
 

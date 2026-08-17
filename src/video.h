@@ -24,37 +24,102 @@ struct AVPacket;
 
 namespace video {
 
-  /* Encoding configuration requested by remote client */
+  /**
+   * @brief Encoding configuration requested by a remote client.
+   *
+   * All fields originate from the Moonlight RTSP setup exchange and are
+   * validated/clamped before the encoder is opened. Invalid values are
+   * replaced with safe defaults and logged at warning level so the stream
+   * never fails due to out-of-range client parameters.
+   */
   struct config_t {
-    int width;  // Video width in pixels
-    int height;  // Video height in pixels
-    int framerate;  // Requested framerate, used in individual frame bitrate budget calculation
-    int framerateX100;  // Optional field for streaming at NTSC or similar rates e.g. 59.94 = 5994
-    int bitrate;  // Video bitrate in kilobits (1000 bits) for requested framerate
-    int slicesPerFrame;  // Number of slices per frame
-    int numRefFrames;  // Max number of reference frames
+    int width;  ///< Video width in pixels (clamped to [64, 7680]).
+    int height;  ///< Video height in pixels (clamped to [64, 4320]).
+    int framerate;  ///< Requested framerate in fps, used for bitrate budget (clamped to [10, 240]).
+    int framerateX100;  ///< Optional NTSC-style framerate*100 (e.g. 5994 for 59.94 fps). 0 means use framerate.
+    int bitrate;  ///< Video bitrate in kilobits (1000 bits) per second (clamped to [500, 100000]).
+    int slicesPerFrame;  ///< Number of slices per frame (clamped to [1, 16]).
+    int numRefFrames;  ///< Maximum number of reference frames (clamped to [0, 4]).
 
-    /* Requested color range and SDR encoding colorspace, HDR encoding colorspace is always BT.2020+ST2084
-       Color range (encoderCscMode & 0x1) : 0 - limited, 1 - full
-       SDR encoding colorspace (encoderCscMode >> 1) : 0 - BT.601, 1 - BT.709, 2 - BT.2020 */
+    /**
+     * @brief Requested color range and SDR colorspace.
+     *
+     * Bit 0 (encoderCscMode & 0x1): color range, 0 = limited, 1 = full.
+     * Bits 1+ (encoderCscMode >> 1): SDR colorspace, 0 = BT.601, 1 = BT.709, 2 = BT.2020.
+     * HDR encoding colorspace is always BT.2020 + ST2084 when dynamicRange is 10-bit.
+     */
     int encoderCscMode;
 
-    int videoFormat;  // 0 - H.264, 1 - HEVC, 2 - AV1
+    int videoFormat;  ///< Requested codec: 0 = H.264, 1 = HEVC, 2 = AV1 (out-of-range falls back to H.264).
 
-    /* Encoding color depth (bit depth): 0 - 8-bit, 1 - 10-bit
-       HDR encoding activates when color depth is higher than 8-bit and the display which is being captured is operating in HDR mode */
+    /**
+     * @brief Encoding color depth (bit depth).
+     *
+     * 0 = 8-bit, 1 = 10-bit. HDR activates only when this is 1 and the
+     * captured display is in HDR mode.
+     */
     int dynamicRange;
 
-    int chromaSamplingType;  // 0 - 4:2:0, 1 - 4:4:4
+    int chromaSamplingType;  ///< Chroma sampling: 0 = 4:2:0, 1 = 4:4:4 (requires encoder caps).
 
-    int enableIntraRefresh;  // 0 - disabled, 1 - enabled
+    int enableIntraRefresh;  ///< Intra-refresh: 0 = disabled, 1 = enabled (currently informational).
   };
 
+  /**
+   * @brief Clamp a requested bitrate to the safe operating range.
+   * @param bitrate_kbps Bitrate in kilobits per second from the client.
+   * @return Sanitized bitrate in [500, 100000] kbps.
+   */
+  int clamp_bitrate(int bitrate_kbps);
+
+  /**
+   * @brief Clamp a requested framerate to the safe operating range.
+   * @param framerate Requested frames per second.
+   * @return Sanitized framerate in [10, 240] fps.
+   */
+  int clamp_framerate(int framerate);
+
+  /**
+   * @brief Sanitize a client-supplied video config in place.
+   *
+   * Clamps numeric fields to safe ranges, normalizes codec selectors, and
+   * logs at warning level when a correction is applied. The function is
+   * idempotent and safe to call multiple times for the same config.
+   *
+   * @param config Config to validate and sanitize.
+   */
+  void sanitize_config(config_t &config);
+
+  /**
+   * @brief Map an FFmpeg HW device type to the platform memory type.
+   * @param type FFmpeg HW device type.
+   * @return Platform memory type, or mem_type_e::unknown when unsupported.
+   */
   platf::mem_type_e map_base_dev_type(AVHWDeviceType type);
+
+  /**
+   * @brief Map an FFmpeg pixel format to the platform pixel format.
+   * @param fmt FFmpeg pixel format.
+   * @return Platform pixel format, or pix_fmt_e::unknown when unsupported.
+   */
   platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt);
 
+  /**
+   * @brief Free an AVCodecContext allocated by avcodec_alloc_context3().
+   * @param ctx Context to free, may be nullptr.
+   */
   void free_ctx(AVCodecContext *ctx);
+
+  /**
+   * @brief Free an AVFrame allocated by av_frame_alloc().
+   * @param frame Frame to free, may be nullptr.
+   */
   void free_frame(AVFrame *frame);
+
+  /**
+   * @brief Unreference an AVBufferRef.
+   * @param ref Buffer reference to unreference, may be nullptr.
+   */
   void free_buffer(AVBufferRef *ref);
 
   using avcodec_ctx_t = util::safe_ptr<AVCodecContext, free_ctx>;
@@ -410,12 +475,24 @@ namespace video {
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
   extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
 
+  /**
+   * @brief Start the video capture and encoding pipeline.
+   * @param mail Mailbox used for shutdown, IDR, and packet queues.
+   * @param config Client-requested encoding parameters (sanitized internally).
+   * @param channel_data Opaque per-stream context forwarded to emitted packets.
+   */
   void capture(
     safe::mail_t mail,
     config_t config,
     void *channel_data
   );
 
+  /**
+   * @brief Validate that an encoder can open with the current configuration.
+   * @param encoder Encoder descriptor to probe.
+   * @param expect_failure Hint that the encoder is expected to fail (changes probe order).
+   * @return True when the encoder and required codec profiles are usable.
+   */
   bool validate_encoder(encoder_t &encoder, bool expect_failure);
 
   /**
@@ -428,11 +505,16 @@ namespace video {
    */
   int probe_encoders();
 
-  // Several NTSC standard refresh rates are hardcoded here, because their
-  // true rate requires a denominator of 1001. ffmpeg's av_d2q() would assume it could
-  // reduce 29.97 to 2997/100 but this would be slightly wrong. We also include
-  // support for 23.976 film in case someone wants to stream a film at the perfect
-  // framerate.
+  /**
+   * @brief Convert a client framerateX100 value to an FFmpeg rational.
+   *
+   * Several NTSC rates require a denominator of 1001. FFmpeg's av_d2q() would
+   * otherwise reduce 29.97 to 2997/100, which is slightly wrong. NTSC film
+   * (2397/2398 -> 24000/1001) is also handled explicitly.
+   *
+   * @param framerateX100 Framerate multiplied by 100 (e.g. 5994 for 59.94 fps).
+   * @return Exact FFmpeg time-base rational for the requested rate.
+   */
   inline AVRational framerateX100_to_rational(const int framerateX100) {
     if (framerateX100 % 2997 == 0) {
       // Multiples of NTSC 29.97 e.g. 59.94, 119.88

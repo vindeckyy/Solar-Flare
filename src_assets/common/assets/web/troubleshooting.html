@@ -7,10 +7,11 @@
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
-  <div id="content" class="container">
-    <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
-    <!-- ViGEmBus Installation -->
-    <div class="card my-4" v-if="platform === 'windows' && controllerEnabled">
+  <main id="content" class="container">
+    <header class="my-4">
+      <h1>{{ $t('troubleshooting.troubleshooting') }}</h1>
+    </header>
+    <section class="card my-4" v-if="platform === 'windows' && controllerEnabled" aria-labelledby="vigembus">
       <div class="card-body">
         <h2 id="vigembus">{{ $t('troubleshooting.vigembus_install') }}</h2>
         <p style="white-space: pre-line">{{ $t('troubleshooting.vigembus_desc') }}</p>
@@ -49,8 +50,7 @@
         </div>
       </div>
     </div>
-    <!-- Force Close App -->
-    <div class="card my-4">
+    <section class="card my-4" aria-labelledby="close_apps">
       <div class="card-body">
         <h2 id="close_apps">{{ $t('troubleshooting.force_close') }}</h2>
         <p>{{ $t('troubleshooting.force_close_desc') }}</p>
@@ -70,8 +70,7 @@
         </div>
       </div>
     </div>
-    <!-- Restart Sunshine (binary name; the project is SolarFlare) -->
-    <div class="card my-4">
+    <section class="card my-4" aria-labelledby="restart">
       <div class="card-body">
         <h2 id="restart">{{ $t('troubleshooting.restart_sunshine') }}</h2>
         <p>{{ $t('troubleshooting.restart_sunshine_desc') }}</p>
@@ -87,8 +86,7 @@
         </div>
       </div>
     </div>
-    <!-- Reset persistent display device settings -->
-    <div class="card my-4" v-if="platform === 'windows'">
+    <section class="card my-4" v-if="platform === 'windows'" aria-labelledby="dd_reset">
       <div class="card-body">
         <h2 id="dd_reset">{{ $t('troubleshooting.dd_reset') }}</h2>
         <p style="white-space: pre-line">{{ $t('troubleshooting.dd_reset_desc') }}</p>
@@ -108,8 +106,7 @@
         </div>
       </div>
     </div>
-    <!-- Unpair Clients -->
-    <div class="card my-4">
+    <section class="card my-4" aria-labelledby="unpair">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h2 id="unpair" class="mb-0">{{ $t('troubleshooting.unpair_title') }}</h2>
@@ -156,8 +153,7 @@
         </li>
       </ul>
     </div>
-    <!-- Logs -->
-    <div class="card my-4">
+    <section class="card my-4" aria-labelledby="logs">
       <div class="card-body">
         <h2 id="logs">{{ $t('troubleshooting.logs') }}</h2>
         <div class="d-flex justify-content-between align-items-baseline py-2">
@@ -171,23 +167,23 @@
         </div>
         <div>
           <div class="troubleshooting-logs" ref="logsContainer">
-            <div class="log-nav-overlay">
+            <div class="log-nav-overlay" aria-hidden="true">
               <div class="log-nav-controls">
-                <button class="log-nav-btn" @click="scrollLogsTo('top')" title="Jump to Top">
-                  <chevrons-up :size="18" class="icon"></chevrons-up>
+                <button class="log-nav-btn" @click="scrollLogsTo('top')" title="Jump to Top" aria-label="Jump to top">
+                  <chevrons-up :size="18" class="icon" aria-hidden="true"></chevrons-up>
                 </button>
-                <button class="log-nav-btn" @click="navigateToLog('prev')" :disabled="!hasPrevLog" title="Previous Warning/Error">
-                  <chevron-up :size="18" class="icon"></chevron-up>
+                <button class="log-nav-btn" @click="navigateToLog('prev')" :disabled="!hasPrevLog" title="Previous Warning/Error" aria-label="Previous warning or error">
+                  <chevron-up :size="18" class="icon" aria-hidden="true"></chevron-up>
                 </button>
-                <button class="log-nav-btn" @click="navigateToLog('next')" :disabled="!hasNextLog" title="Next Warning/Error">
-                  <chevron-down :size="18" class="icon"></chevron-down>
+                <button class="log-nav-btn" @click="navigateToLog('next')" :disabled="!hasNextLog" title="Next Warning/Error" aria-label="Next warning or error">
+                  <chevron-down :size="18" class="icon" aria-hidden="true"></chevron-down>
                 </button>
-                <button class="log-nav-btn" @click="scrollLogsTo('bottom')" title="Jump to Bottom">
-                  <chevrons-down :size="18" class="icon"></chevrons-down>
+                <button class="log-nav-btn" @click="scrollLogsTo('bottom')" title="Jump to Bottom" aria-label="Jump to bottom">
+                  <chevrons-down :size="18" class="icon" aria-hidden="true"></chevrons-down>
                 </button>
-                <button class="log-nav-btn" @click="copyLogs" title="Copy Logs">
-                  <check :size="18" class="icon text-success" v-if="logsCopied"></check>
-                  <copy :size="18" class="icon" v-else></copy>
+                <button class="log-nav-btn" @click="copyLogs" title="Copy Logs" aria-label="Copy logs">
+                  <check :size="18" class="icon text-success" v-if="logsCopied" aria-hidden="true"></check>
+                  <copy :size="18" class="icon" v-else aria-hidden="true"></copy>
                 </button>
               </div>
             </div>
@@ -196,7 +192,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </main>
 
   <script type="module">
     import { createApp } from 'vue'

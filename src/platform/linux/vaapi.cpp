@@ -61,12 +61,53 @@ namespace va {
   constexpr auto EXPORT_SURFACE_WRITE_ONLY = 0x0002;
   constexpr auto EXPORT_SURFACE_SEPARATE_LAYERS = 0x0004;
 
+  /**
+   * @brief Decide whether a single-frame VBV window should be used.
+   * @param strict_rc_buffer True when the user forced strict RC buffering.
+   * @param is_intel True when the VA vendor is Intel.
+   * @param is_av1 True for AV1 codecs (which benefit from single-frame VBV).
+   * @return True when a single-frame VBV should be applied.
+   */
   bool want_single_frame_vbv(bool strict_rc_buffer, bool is_intel, bool is_av1) {
     return strict_rc_buffer || is_intel || is_av1;
   }
 
+  /**
+   * @brief Compute an RC buffer size in bits for a given frame window.
+   *
+   * Validates inputs to avoid division-by-zero or overflow. When the
+   * framerate numerator is invalid (<=0), the function returns the full
+   * bitrate as a safe fallback so the encoder still receives a legal value.
+   *
+   * @param bit_rate Bitrate in bits per second.
+   * @param framerate_num Frame rate numerator.
+   * @param framerate_den Frame rate denominator.
+   * @param frames Number of frames the buffer should cover.
+   * @return Buffer size in bits, clamped to [0, INT_MAX].
+   */
   std::int64_t rc_buffer_size_bits(std::int64_t bit_rate, int framerate_num, int framerate_den, int frames) {
-    return bit_rate * static_cast<std::int64_t>(framerate_den) * frames / framerate_num;
+    if (bit_rate <= 0) {
+      BOOST_LOG(warning) << "rc_buffer_size_bits: invalid bit_rate " << bit_rate << ", returning 0";
+      return 0;
+    }
+    if (framerate_num <= 0 || framerate_den <= 0) {
+      BOOST_LOG(warning) << "rc_buffer_size_bits: invalid framerate " << framerate_num << "/" << framerate_den
+                         << ", using bit_rate as buffer size";
+      return bit_rate;
+    }
+    if (frames <= 0) {
+      frames = 1;
+    }
+    // Use 64-bit intermediate to avoid 32-bit overflow on high bitrates.
+    const std::int64_t result = bit_rate * static_cast<std::int64_t>(framerate_den) * frames / framerate_num;
+    if (result > std::numeric_limits<int>::max()) {
+      BOOST_LOG(warning) << "rc_buffer_size_bits: computed size " << result << " exceeds INT_MAX, clamping";
+      return std::numeric_limits<int>::max();
+    }
+    if (result < 0) {
+      return 0;
+    }
+    return result;
   }
 
   using VADisplay = void *;
@@ -369,12 +410,18 @@ namespace va {
       );
 
       if (single_frame_vbv) {
-        ctx->rc_buffer_size = rc_buffer_size_bits(
+        const int64_t vbv_size = rc_buffer_size_bits(
           ctx->bit_rate,
           ctx->framerate.num,
           ctx->framerate.den,
           1
         );
+        if (vbv_size > 0 && vbv_size <= std::numeric_limits<int>::max()) {
+          ctx->rc_buffer_size = static_cast<int>(vbv_size);
+          BOOST_LOG(info) << "VAAPI RC buffer set to single-frame VBV size " << ctx->rc_buffer_size << " bits";
+        } else if (vbv_size == 0) {
+          BOOST_LOG(warning) << "VAAPI single-frame VBV size is 0; leaving driver default buffer size";
+        }
       }
 
       if (config::video.vaapi.rc_mode == 0) {
@@ -401,15 +448,35 @@ namespace va {
 
       // An explicit buffer size in frames overrides the single-frame VBV
       // set above. Units match the existing code: bits for N frames.
-      if (config::video.vaapi.rc_buffer_frames > 0 && ctx->bit_rate > 0 && ctx->framerate.num > 0) {
-        ctx->rc_buffer_size = rc_buffer_size_bits(
-          ctx->bit_rate,
-          ctx->framerate.num,
-          ctx->framerate.den,
-          config::video.vaapi.rc_buffer_frames
-        );
-        BOOST_LOG(info) << "Setting rate-control buffer size to " << config::video.vaapi.rc_buffer_frames
-                        << " frame(s)"sv;
+      // Honoring the buffer check: clamp rc_buffer_frames to [1, 60] so an
+      // unreasonable config value cannot generate a multi-second RC window
+      // or integer overflow, and validate the bitrate/framerate before
+      // assigning the context field.
+      if (config::video.vaapi.rc_buffer_frames > 0) {
+        if (ctx->bit_rate <= 0 || ctx->framerate.num <= 0 || ctx->framerate.den <= 0) {
+          BOOST_LOG(warning) << "VAAPI rc_buffer_frames requested (" << config::video.vaapi.rc_buffer_frames
+                             << ") but bitrate/framerate is invalid; ignoring buffer size override";
+        } else {
+          const int clamped_frames = std::clamp(config::video.vaapi.rc_buffer_frames, 1, 60);
+          if (clamped_frames != config::video.vaapi.rc_buffer_frames) {
+            BOOST_LOG(warning) << "Clamping VAAPI rc_buffer_frames " << config::video.vaapi.rc_buffer_frames
+                               << " to " << clamped_frames;
+          }
+          const int64_t explicit_size = rc_buffer_size_bits(
+            ctx->bit_rate,
+            ctx->framerate.num,
+            ctx->framerate.den,
+            clamped_frames
+          );
+          if (explicit_size > 0 && explicit_size <= std::numeric_limits<int>::max()) {
+            ctx->rc_buffer_size = static_cast<int>(explicit_size);
+            BOOST_LOG(info) << "Setting rate-control buffer size to " << clamped_frames
+                            << " frame(s) (" << ctx->rc_buffer_size << " bits)"sv;
+          } else {
+            BOOST_LOG(warning) << "VAAPI explicit RC buffer size " << explicit_size
+                               << " out of range; keeping previous value " << ctx->rc_buffer_size;
+          }
+        }
       }
 
       // Record the effective settings for the /api/stream/latency endpoint.
@@ -439,7 +506,22 @@ namespace va {
       });
     }
 
+    /**
+     * @brief Prepare VAAPI frame for encoding, exporting the surface as DMA-BUF.
+     *
+     * Validates buffer handles, honoring the hw_frames_ctx size and prime
+     * object/layer counts so malformed driver responses do not trigger
+     * out-of-bounds access or descriptor leaks.
+     *
+     * @param frame Frame to prepare (takes ownership).
+     * @param hw_frames_ctx_buf Hardware frames context.
+     * @return 0 on success, -1 on failure.
+     */
     int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
+      if (!frame || !hw_frames_ctx_buf || !hw_frames_ctx_buf->data) {
+        BOOST_LOG(error) << "VAAPI set_frame: null frame or hw_frames_ctx"sv;
+        return -1;
+      }
       this->hwframe.reset(frame);
       this->frame = frame;
 
@@ -449,8 +531,12 @@ namespace va {
           return -1;
         }
       }
+      if (!frame->data[3]) {
+        BOOST_LOG(error) << "VAAPI set_frame: frame has no VA surface handle"sv;
+        return -1;
+      }
 
-      va::DRMPRIMESurfaceDescriptor prime;
+      va::DRMPRIMESurfaceDescriptor prime {};
       va::VASurfaceID surface = (std::uintptr_t) frame->data[3];
       auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
 
@@ -466,16 +552,32 @@ namespace va {
 
         return -1;
       }
+      // Ensure descriptor counts are within bounds before accessing arrays.
+      if (prime.num_objects == 0 || prime.num_objects > 4) {
+        BOOST_LOG(error) << "Invalid num_objects " << prime.num_objects << " for VA surface " << (int) surface;
+        for (uint32_t i = 0; i < prime.num_objects && i < 4; ++i) {
+          if (prime.objects[i].fd >= 0) {
+            close(prime.objects[i].fd);
+          }
+        }
+        return -1;
+      }
+      if (prime.num_layers != 2) {
+        BOOST_LOG(error) << "Invalid layer count for VA surface: expected 2, got "sv << prime.num_layers;
+        for (uint32_t i = 0; i < prime.num_objects && i < 4; ++i) {
+          if (prime.objects[i].fd >= 0) {
+            close(prime.objects[i].fd);
+          }
+        }
+        return -1;
+      }
 
       // Keep track of file descriptors
       std::array<file_t, egl::nv12_img_t::num_fds> fds;
-      for (int x = 0; x < prime.num_objects; ++x) {
+      for (uint32_t x = 0; x < prime.num_objects && x < fds.size(); ++x) {
         fds[x] = prime.objects[x].fd;
-      }
-
-      if (prime.num_layers != 2) {
-        BOOST_LOG(error) << "Invalid layer count for VA surface: expected 2, got "sv << prime.num_layers;
-        return -1;
+        // Detach ownership from prime so close on error does not double-close.
+        prime.objects[x].fd = -1;
       }
 
       egl::surface_descriptor_t sds[2] = {};

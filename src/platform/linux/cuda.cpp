@@ -316,7 +316,9 @@ namespace cuda {
       // This must be non-zero to tell the video core that it's a hardware encoding device.
       data = (void *) 0x1;
 
-      // TODO: Support more than one CUDA device
+      // Single CUDA device is intentional: multi-GPU capture would require
+      // per-device EGL/GBM contexts and explicit adapter selection, the host
+      // config exposes only `adapter_name` for a single device.
       file = std::move(open_drm_fd_for_cuda_device(0));
       if (file.el < 0) {
         char string[1024];

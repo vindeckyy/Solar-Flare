@@ -10,20 +10,52 @@
 
 // local includes
 #include "gpu_governor.h"
+#include "logging.h"
+
+using namespace std::literals;
 
 namespace video {
 
+  /**
+   * @brief Build the sysfs path for one card's force-performance level node.
+   * @param sysfs_root Root that mirrors `/sys/class/drm`.
+   * @param card Zero-based DRM card index.
+   * @return Absolute path to `power_dpm_force_performance_level` for @p card.
+   */
   std::string gpu_governor_level_path(std::string_view sysfs_root, int card) {
+    if (card < 0 || card >= gpu_governor_max_cards) {
+      return {};
+    }
+    if (sysfs_root.empty()) {
+      return {};
+    }
     return std::string {sysfs_root} + "/card" + std::to_string(card) +
            "/device/power_dpm_force_performance_level";
   }
 
+  /**
+   * @brief Write a performance-level string to every probed card.
+   * @param sysfs_root Root that mirrors `/sys/class/drm`.
+   * @param level Value to write (typically `performance` or `auto`).
+   */
   void gpu_governor_write_levels(std::string_view sysfs_root, std::string_view level) {
+    if (level.empty() || sysfs_root.empty()) {
+      return;
+    }
 #ifdef __linux__
     for (int card = 0; card < gpu_governor_max_cards; ++card) {
-      std::ofstream f(gpu_governor_level_path(sysfs_root, card));
+      auto path = gpu_governor_level_path(sysfs_root, card);
+      if (path.empty()) {
+        continue;
+      }
+      std::ofstream f(path);
       if (f) {
         f << level;
+        if (!f) {
+          // Write failed (permission, read-only fs); log at debug to avoid
+          // spamming warning on systems without AMD GPUs.
+          BOOST_LOG(debug) << "gpu_governor: failed to write '"sv << level << "' to "sv << path;
+        }
       }
     }
 #else

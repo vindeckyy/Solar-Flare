@@ -2,7 +2,7 @@
   <div v-if="visible" class="alert alert-danger solarflare-update-banner mb-0" :class="bannerClass" role="alert">
     <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
       <div class="d-flex align-items-center gap-3 flex-grow-1 flex-wrap">
-        <AlertOctagon :size="iconSize" class="solarflare-update-icon flex-shrink-0"></AlertOctagon>
+        <AlertOctagon :size="iconSize" class="solarflare-update-icon flex-shrink-0" aria-hidden="true"></AlertOctagon>
         <div class="flex-grow-1" style="min-width: 12rem;">
           <div class="solarflare-update-eyebrow">{{ $t('index.outdated_eyebrow') }}</div>
           <div class="solarflare-update-title" :class="titleClass">
@@ -14,9 +14,10 @@
               <span v-if="updateStatus && updateStatus.percent >= 0" class="sf-update-percent">{{ updateStatus.percent }}%</span>
             </div>
             <div class="progress sf-update-progress" role="progressbar"
-                 :aria-valuenow="progressValue" aria-valuemin="0" aria-valuemax="100">
+                 :aria-valuenow="progressValue" aria-valuemin="0" aria-valuemax="100"
+                 :aria-label="phaseLabel">
               <div class="progress-bar"
-                   :class="{ 'progress-bar-striped progress-bar-animated': indeterminate }"
+                   :class="{ 'progress-bar-striped progress-bar-animated': indeterminate && !prefersReducedMotion }"
                    :style="{ width: progressWidth }"></div>
             </div>
             <div v-if="updateStatus && updateStatus.message" class="sf-update-message mt-1">{{ updateStatus.message }}</div>
@@ -65,7 +66,12 @@ import { apiFetch } from './fetch_utils'
 const TERMINAL_KEY = 'solarflare.update-terminal-open.v1'
 
 /**
- * Shared SolarFlare update banner with status bar and expandable command log.
+ * @brief Shared SolarFlare update banner with status bar and expandable command log.
+ *
+ * Shown globally above the navbar and inline on the home page when the
+ * installed version is outdated. Includes progress, phase label,
+ * cancel support, and a terminal log that respects prefers-reduced-motion
+ * by disabling striped animation when reduced motion is requested.
  */
 export default {
   name: 'UpdateBanner',
@@ -82,14 +88,15 @@ export default {
     dismissable: { type: Boolean, default: false },
     compact: { type: Boolean, default: false },
   },
-  emits: ['dismiss'],
+  emits: ["dismiss"],
   data() {
     return {
       updateStatus: null,
-      terminalOpen: sessionStorage.getItem(TERMINAL_KEY) === '1',
+      terminalOpen: sessionStorage.getItem(TERMINAL_KEY) === "1",
       pollTimer: null,
-      actionError: '',
+      actionError: "",
       cancelInFlight: false,
+      prefersReducedMotion: globalThis.matchMedia ? globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches : false,
     }
   },
   computed: {
@@ -288,3 +295,15 @@ export default {
   },
 }
 </script>
+
+<style scoped>
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar-animated {
+    animation: none !important;
+  }
+
+  .solarflare-update-icon {
+    animation: none !important;
+  }
+}
+</style>

@@ -1134,9 +1134,8 @@ namespace platf {
             // setting sd->fds[y] to a negative value indicates that sd->offsets[y] and sd->pitches[y]
             // are uninitialized and contain invalid values.
             sd->fds[y] = -1;
-            // It's not clear whether there could still be valid handles left.
-            // So, continue anyway.
-            // TODO: Is this redundant?
+            // Continue to next plane, later planes may still have valid handles
+            // (e.g. multi-planar YUV), so do not early-return.
             continue;
           }
 
@@ -1289,7 +1288,8 @@ namespace platf {
       }
 
       void blend_cursor(img_t &img) {
-        // TODO: Cursor scaling is not supported in this codepath.
+        // Note: cursor is drawn at source size, scaling would require
+        // resampling the cursor image to match the output resolution.
         // We always draw the cursor at the source size.
         auto pixels = (int *) img.data;
 

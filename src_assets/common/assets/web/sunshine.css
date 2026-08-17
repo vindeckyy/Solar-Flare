@@ -43,6 +43,15 @@
     --color-on-danger: #fff;
     --color-on-info: #fff;
     --color-on-warning: #1a1a1a;
+
+    /* Observatory tokens - used by rail and instrument chrome */
+    --sf-rail-width: 17.25rem;
+    --sf-line: color-mix(in srgb, var(--color-border-strong) 74%, transparent);
+    --sf-hairline: color-mix(in srgb, var(--color-border) 70%, transparent);
+    --sf-flare: #ffad42;
+    --sf-flare-hot: #ff6b35;
+    --sf-spectrum: #65d5cf;
+    --sf-ink: #07090c;
 }
 
 /* ==========================================================================
@@ -88,7 +97,13 @@
     --navbar-bg: linear-gradient(135deg, #ffc400 0%, #ff9d00 100%);
     --navbar-text: #594400;
     --navbar-text-muted: #7f6100;
+}
 
+/* Shared subtle shadows for low-contrast dark rails.
+   Deduplicated: dark and slate share the same lighter shadow set
+   so the two themes do not repeat four identical declarations. */
+[data-theme="dark"],
+[data-theme="slate"] {
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
@@ -137,11 +152,6 @@
     --navbar-bg: linear-gradient(135deg, #D06A4C 0%, #C87D52 50%, #C09058 100%);
     --navbar-text: #282418;
     --navbar-text-muted: rgba(40, 36, 24, 0.72);
-
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
 }
 
 /* Midnight Theme - Deep dark blue */
@@ -186,11 +196,6 @@
     --navbar-bg: linear-gradient(135deg, #0A0A24 0%, #16165A 50%, #191970 100%);
     --navbar-text: #E6E8FF;
     --navbar-text-muted: rgba(230, 232, 255, 0.8);
-
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
 }
 
 /* Moonlight Theme - Cool and serene inspired by moonlight */
@@ -235,11 +240,6 @@
     --navbar-bg: linear-gradient(135deg, #1B1726 0%, #2E2547 50%, #443266 100%);
     --navbar-text: #E6E8F4;
     --navbar-text-muted: rgba(230, 232, 244, 0.8);
-
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
 }
 
 /* Nord Theme - Popular Nordic color palette */
@@ -323,11 +323,6 @@
     --navbar-bg: linear-gradient(135deg, #1E293B 0%, #334155 100%);
     --navbar-text: #F1F5F9;
     --navbar-text-muted: rgba(241, 245, 249, 0.8);
-
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
 }
 
 /* Dracula Theme - https://draculatheme.com */
@@ -365,17 +360,12 @@
     --color-border-strong: #6272A4;
 
     --color-text-base: #F8F8F2;
-    --color-text-muted: #6272A4;
-    --color-text-subtle: #6272A4;
+    --color-text-muted: #bcc2d6;
+    --color-text-subtle: #9aa0b8;
 
     --navbar-bg: linear-gradient(135deg, #A98FD8 0%, #C792BB 100%);
     --navbar-text: #282A36;
     --navbar-text-muted: rgba(40, 42, 54, 0.7);
-
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
 }
 
 /* Catppuccin Mocha - https://github.com/catppuccin/catppuccin */
@@ -420,11 +410,6 @@
     --navbar-bg: linear-gradient(135deg, #c9aae8 0%, #e3bdd8 100%);
     --navbar-text: #1e1e2e;
     --navbar-text-muted: rgba(30, 30, 46, 0.75);
-
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
 }
 
 /* Rosé Pine Theme - https://rosepinetheme.com */
@@ -468,7 +453,18 @@
     --navbar-bg: linear-gradient(135deg, #c4a7e7 0%, #ebbcba 100%);
     --navbar-text: #191724;
     --navbar-text-muted: rgba(25, 23, 36, 0.75);
+}
 
+/* Shared shadow tokens for dark themes with identical depth.
+   Deduplicated: ember, midnight, moonlight, dracula, mocha, rose-pine
+   share the same stronger shadow to avoid repeating the same four
+   declarations six times while keeping the visual weight. */
+[data-theme="ember"],
+[data-theme="midnight"],
+[data-theme="moonlight"],
+[data-theme="dracula"],
+[data-theme="mocha"],
+[data-theme="rose-pine"] {
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
@@ -794,51 +790,54 @@
     --navbar-text-muted: rgba(255, 255, 255, 0.9);
 }
 
-/* SolarFlare Dark - brand identity, deep slate with solar-flare accents */
+/* SolarFlare Dark - brand identity, deep slate with solar-flare accents.
+   Merged from two previous declarations to remove duplication while
+   keeping the observatory palette (ink blacks, flare amber, spectrum teal). */
 [data-theme="solarflare"] {
-    --color-primary: #F59E0B;
-    --color-primary-hover: #FBBF24;
-    --color-primary-light: #422006;
-    --color-accent: #FB923C;
-    --color-accent-hover: #FDBA74;
-    --color-accent-light: #431407;
-    --color-success: #34D399;
+    --color-primary: #ffad42;
+    --color-primary-hover: #ffc36f;
+    --color-primary-light: #2d1b0d;
+    --color-accent: #ff6b35;
+    --color-accent-hover: #ff8c62;
+    --color-accent-light: #30130c;
+    --color-success: #64d39b;
     --color-success-hover: #6EE7B7;
-    --color-success-light: #052E1B;
+    --color-success-light: #0c2a1d;
     --color-danger: #F87171;
     --color-danger-hover: #FCA5A5;
     --color-danger-light: #450A0A;
     --color-warning: #FBBF24;
     --color-warning-hover: #FCD34D;
     --color-warning-light: #451A03;
-    --color-info: #60A5FA;
-    --color-info-hover: #93C5FD;
-    --color-info-light: #0C1F3F;
+    --color-info: #65d5cf;
+    --color-info-hover: #91e5df;
+    --color-info-light: #0b2929;
 
-    --color-bg-base: #0B0F1A;
-    --color-bg-subtle: #111827;
-    --color-bg-muted: #1F2937;
-    --color-surface: #111827;
-    --color-surface-raised: #1F2937;
+    --color-bg-base: #07090c;
+    --color-bg-subtle: #0a0e12;
+    --color-bg-muted: #121820;
+    --color-surface: #0d1217;
+    --color-surface-raised: #141b22;
 
-    --color-border: #1F2937;
-    --color-border-strong: #374151;
+    --color-border: #222b33;
+    --color-border-strong: #35414c;
 
-    --color-text-base: #F8FAFC;
-    --color-text-muted: #CBD5E1;
-    --color-text-subtle: #94A3B8;
+    --color-text-base: #edf0ed;
+    --color-text-muted: #a5afb4;
+    --color-text-subtle: #727e84;
 
-    --navbar-bg: linear-gradient(135deg, #111827 0%, #1F2937 60%, #422006 100%);
-    --navbar-text: #FBBF24;
-    --navbar-text-muted: rgba(251, 191, 36, 0.75);
+    --navbar-bg: #080b0f;
+    --navbar-text: #fff1dc;
+    --navbar-text-muted: #919ba0;
 
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.025);
+    --shadow-md: 0 14px 32px rgba(0, 0, 0, 0.22);
+    --shadow-lg: 0 24px 54px rgba(0, 0, 0, 0.3);
+    --shadow-xl: 0 32px 80px rgba(0, 0, 0, 0.38);
 }
 
-/* SolarFlare Light - daytime variant of the brand identity */
+/* SolarFlare Light - daytime variant of the brand identity.
+   Merged to avoid duplicate [data-theme="solarflare-light"] blocks. */
 [data-theme="solarflare-light"] {
     --color-primary: #D97706;
     --color-primary-hover: #B45309;
@@ -859,22 +858,22 @@
     --color-info-hover: #1D4ED8;
     --color-info-light: #DBEAFE;
 
-    --color-bg-base: #FFFBEB;
-    --color-bg-subtle: #FEF3C7;
-    --color-bg-muted: #FDE68A;
-    --color-surface: #FFFFFF;
-    --color-surface-raised: #FFFBEB;
+    --color-bg-base: #f2efe7;
+    --color-bg-subtle: #e9e5da;
+    --color-bg-muted: #ddd8ca;
+    --color-surface: #f8f6f0;
+    --color-surface-raised: #ffffff;
 
-    --color-border: #FDE68A;
-    --color-border-strong: #FCD34D;
+    --color-border: #d0c9b8;
+    --color-border-strong: #9d9481;
 
-    --color-text-base: #451A03;
-    --color-text-muted: #78350F;
-    --color-text-subtle: #92400E;
+    --color-text-base: #201e1a;
+    --color-text-muted: #5e5a51;
+    --color-text-subtle: #827c6f;
 
-    --navbar-bg: linear-gradient(135deg, #F59E0B 0%, #FB923C 50%, #FBBF24 100%);
-    --navbar-text: #FFFFFF;
-    --navbar-text-muted: rgba(255, 255, 255, 0.9);
+    --navbar-bg: #171713;
+    --navbar-text: #fff4e0;
+    --navbar-text-muted: #aaa79d;
 }
 
 /* ==========================================================================
@@ -1056,7 +1055,7 @@ body {
 }
 
 .navbar-sunshine .navbar-brand:hover {
-    transform: scale(1.05);
+    opacity: 0.92;
 }
 
 .navbar-sunshine .nav-link {
@@ -1748,11 +1747,10 @@ p {
 .log-nav-btn:hover:not(:disabled) {
     color: var(--color-text-base);
     background-color: var(--color-bg-subtle);
-    transform: scale(1.05);
 }
 
 .log-nav-btn:active:not(:disabled) {
-    transform: scale(0.95);
+    opacity: 0.9;
 }
 
 .log-nav-btn:disabled {
@@ -1776,11 +1774,10 @@ p {
 .copy-icon:hover {
     color: var(--color-text-base);
     background-color: var(--color-bg-subtle);
-    transform: scale(1.05);
 }
 
 .copy-icon:active {
-    transform: scale(0.95);
+    opacity: 0.9;
 }
 
 /* Cover Finder */
@@ -1812,7 +1809,7 @@ p {
 }
 
 .cover-container.result:hover {
-    transform: scale(1.02);
+    border-color: var(--color-primary);
 }
 
 .cover-container img {
@@ -2350,8 +2347,8 @@ p {
 }
 
 .screenshot-thumbnail:hover {
-    transform: scale(1.05);
     box-shadow: var(--shadow-md);
+    border-color: var(--color-border-strong);
 }
 
 /* Screenshot modal */
@@ -2427,7 +2424,6 @@ p {
 
 .screenshot-close:hover {
     background: rgba(0, 0, 0, 0.8);
-    transform: scale(1.1);
 }
 
 /* Screenshot navigation buttons */
@@ -2450,11 +2446,10 @@ p {
 
 .screenshot-nav:hover {
     background: rgba(0, 0, 0, 0.8);
-    transform: translateY(-50%) scale(1.1);
 }
 
 .screenshot-nav:active {
-    transform: translateY(-50%) scale(0.95);
+    opacity: 0.9;
 }
 
 .screenshot-nav-prev {
@@ -2810,63 +2805,6 @@ p {
    floating panels and decorative looping motion. Existing theme tokens stay
    authoritative so every supported color theme remains usable.
    ========================================================================== */
-
-:root {
-    --sf-rail-width: 17.25rem;
-    --sf-line: color-mix(in srgb, var(--color-border-strong) 74%, transparent);
-    --sf-hairline: color-mix(in srgb, var(--color-border) 70%, transparent);
-    --sf-flare: #ffad42;
-    --sf-flare-hot: #ff6b35;
-    --sf-spectrum: #65d5cf;
-    --sf-ink: #07090c;
-}
-
-[data-theme="solarflare"] {
-    --color-primary: #ffad42;
-    --color-primary-hover: #ffc36f;
-    --color-primary-light: #2d1b0d;
-    --color-accent: #ff6b35;
-    --color-accent-hover: #ff8c62;
-    --color-accent-light: #30130c;
-    --color-info: #65d5cf;
-    --color-info-hover: #91e5df;
-    --color-info-light: #0b2929;
-    --color-success: #64d39b;
-    --color-success-light: #0c2a1d;
-    --color-bg-base: #07090c;
-    --color-bg-subtle: #0a0e12;
-    --color-bg-muted: #121820;
-    --color-surface: #0d1217;
-    --color-surface-raised: #141b22;
-    --color-border: #222b33;
-    --color-border-strong: #35414c;
-    --color-text-base: #edf0ed;
-    --color-text-muted: #a5afb4;
-    --color-text-subtle: #727e84;
-    --navbar-bg: #080b0f;
-    --navbar-text: #fff1dc;
-    --navbar-text-muted: #919ba0;
-    --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.025);
-    --shadow-md: 0 14px 32px rgba(0, 0, 0, 0.22);
-    --shadow-lg: 0 24px 54px rgba(0, 0, 0, 0.3);
-    --shadow-xl: 0 32px 80px rgba(0, 0, 0, 0.38);
-}
-
-[data-theme="solarflare-light"] {
-    --color-bg-base: #f2efe7;
-    --color-bg-subtle: #e9e5da;
-    --color-bg-muted: #ddd8ca;
-    --color-surface: #f8f6f0;
-    --color-surface-raised: #ffffff;
-    --color-border: #d0c9b8;
-    --color-border-strong: #9d9481;
-    --color-text-base: #201e1a;
-    --color-text-muted: #5e5a51;
-    --color-text-subtle: #827c6f;
-    --navbar-bg: #171713;
-    --navbar-text: #fff4e0;
-    --navbar-text-muted: #aaa79d;
-}
 
 html {
     scroll-padding-top: 1rem;

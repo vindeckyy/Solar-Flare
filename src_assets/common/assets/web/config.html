@@ -7,16 +7,15 @@
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
-  <div id="content" class="container">
-    <div class="my-4">
+  <main id="content" class="container">
+    <header class="my-4">
       <h1>{{ $t('config.configuration') }}</h1>
       <p>{{ $t('config.configuration_desc') }}</p>
-    </div>
+    </header>
 
-    <!-- Search Bar with Autocomplete -->
-    <div class="toolbar mb-3 d-flex flex-wrap align-items-center gap-3">
+    <div class="toolbar mb-3 d-flex flex-wrap align-items-center gap-3" role="search" aria-label="Configuration search">
       <div class="input-group config-search">
-        <span class="input-group-text">
+        <span class="input-group-text" aria-hidden="true">
           <search :size="18" class="icon"></search>
         </span>
         <input
@@ -24,6 +23,7 @@
           class="form-control"
           v-model="searchQuery"
           :placeholder="$t('config.search_options')"
+          aria-label="Search configuration options"
           @input="handleSearch"
           list="config-options"
         />
@@ -43,24 +43,25 @@
 
     <div class="form" v-if="config">
       <div class="config-layout">
-        <!-- Sidebar navigation -->
-        <nav class="config-nav">
-          <ul class="nav config-nav-list">
+        <nav class="config-nav" aria-label="Configuration sections">
+          <ul class="nav config-nav-list" role="list">
             <li class="nav-item" v-for="tab in generalTabs" :key="tab.id">
               <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
-                @click="currentTab = tab.id">
-                <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
+                :aria-current="tab.id === currentTab ? 'page' : undefined"
+                @click.prevent="currentTab = tab.id">
+                <component :is="getTabIcon(tab.id)" :size="18" class="icon" aria-hidden="true"></component>
                 {{tab.name}}
               </a>
             </li>
           </ul>
           <template v-if="encoderTabs.length">
-            <div class="config-nav-heading">{{ $t('config.encoders') }}</div>
-            <ul class="nav config-nav-list">
+            <div class="config-nav-heading" id="encoders-heading">{{ $t('config.encoders') }}</div>
+            <ul class="nav config-nav-list" aria-labelledby="encoders-heading" role="list">
               <li class="nav-item" v-for="tab in encoderTabs" :key="tab.id">
                 <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
-                  @click="currentTab = tab.id">
-                  <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
+                  :aria-current="tab.id === currentTab ? 'page' : undefined"
+                  @click.prevent="currentTab = tab.id">
+                  <component :is="getTabIcon(tab.id)" :size="18" class="icon" aria-hidden="true"></component>
                   {{tab.name}}
                 </a>
               </li>
@@ -68,41 +69,37 @@
           </template>
 
           <div class="config-actions">
-            <button class="btn btn-primary" @click="save">
-              <save :size="18" class="icon"></save>
+            <button class="btn btn-primary" @click="save" type="button">
+              <save :size="18" class="icon" aria-hidden="true"></save>
               {{ $t('_common.save') }}
             </button>
-            <button class="btn btn-success" @click="apply" v-if="saved && !restarted">
-              <check :size="18" class="icon"></check>
+            <button class="btn btn-success" @click="apply" v-if="saved && !restarted" type="button">
+              <check :size="18" class="icon" aria-hidden="true"></check>
               {{ $t('_common.apply') }}
             </button>
           </div>
         </nav>
 
-        <!-- Tab content -->
         <div class="config-content">
-          <div class="alert alert-success mb-4" v-if="saved && !restarted">
+          <div class="alert alert-success mb-4" v-if="saved && !restarted" role="status">
             <b>{{ $t('_common.success') }}</b> {{ $t('config.apply_note') }}
           </div>
-          <div class="alert alert-success mb-4" v-if="restarted">
+          <div class="alert alert-success mb-4" v-if="restarted" role="status">
             <b>{{ $t('_common.success') }}</b> {{ $t('config.restart_note') }}
           </div>
 
-      <!-- General Tab -->
       <general
         v-if="currentTab === 'general'"
         :config="config"
         :platform="platform">
       </general>
 
-      <!-- Input Tab -->
       <inputs
         v-if="currentTab === 'input'"
         :config="config"
         :platform="platform">
       </inputs>
 
-      <!-- Audio/Video Tab -->
       <audio-video
         v-if="currentTab === 'av'"
         :config="config"
@@ -110,21 +107,18 @@
       >
       </audio-video>
 
-      <!-- Network Tab -->
       <network
         v-if="currentTab === 'network'"
         :config="config"
         :platform="platform">
       </network>
 
-      <!-- Files Tab -->
       <files
         v-if="currentTab === 'files'"
         :config="config"
         :platform="platform">
       </files>
 
-      <!-- Advanced Tab -->
       <advanced
         v-if="currentTab === 'advanced'"
         :config="config"
@@ -146,7 +140,7 @@
       </div>
     </div>
 
-  </div>
+  </main>
 </body>
 
 
@@ -213,7 +207,7 @@
         config: null,
         currentTab: "general",
         searchQuery: "",
-        tabs: [ // TODO: Move the options to each Component instead, encapsulate.
+        tabs: [
           {
             id: "general",
             name: "General",
@@ -521,8 +515,6 @@
           delete this.config.status;
           delete this.config.version;
 
-          // TODO: let each tab's Component handle it's own data instead of doing it here
-
           // Parse the special options before population if available
           const specialOptions = ["dd_mode_remapping", "global_prep_cmd"]
           for (const optionKey of specialOptions) {
@@ -580,7 +572,6 @@
           Object.keys(tab.options).forEach(optionKey => {
             let delete_value = false
 
-            // todo: add proper type checking
             if (JSON.stringify(config[optionKey]) === JSON.stringify(tab.options[optionKey])) {
               delete_value = true
             }

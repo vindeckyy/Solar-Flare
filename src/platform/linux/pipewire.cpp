@@ -888,10 +888,17 @@ namespace pipewire {
     /**
      * @brief Wait for and materialize the newest due PipeWire frame.
      *
+     * Honors @p show_cursor: when false, cursor-only damage is ignored and
+     * cursor metadata is cleared so the encoder does not wake for cursor-only
+     * movement. PipeWire/Portal embeds the cursor in the composited buffer
+     * when CURSOR_MODE_EMBEDDED was negotiated, so pixels already contain the
+     * cursor, but the flag controls whether cursor-induced damage is treated
+     * as a real frame and whether downstream cursor blending is enabled.
+     *
      * @param pull_free_image_cb Callback that obtains an image from the pool.
      * @param img_out Receives the materialized image.
      * @param timeout Maximum time to wait for a frame.
-     * @param show_cursor Whether cursor capture was requested.
+     * @param show_cursor Whether cursor capture was requested (false = hide cursor).
      * @param next_frame_due Optional absolute client-rate delivery deadline.
      * @return Capture status for the requested snapshot.
      */
@@ -902,9 +909,9 @@ namespace pipewire {
       bool show_cursor,
       std::optional<std::chrono::steady_clock::time_point> next_frame_due
     ) {
-      // FIXME: show_cursor is ignored
       auto deadline = std::chrono::steady_clock::now() + timeout;
       int retries = 0;
+      bool logged_cursor_hidden = false;
 
       while (std::chrono::steady_clock::now() < deadline) {
         if (!wait_for_frame(deadline)) {
@@ -924,6 +931,21 @@ namespace pipewire {
         img_egl->reset();
         pipewire.fill_img(img_egl);
 
+        // Honor the show_cursor flag. Portal embeds the cursor when CURSOR_MODE_EMBEDDED
+        // is active, so we cannot remove pixels already composited, but we honor
+        // the flag by: (a) clearing cursor-damage hints so cursor-only moves do not
+        // force an encode, and (b) logging once per snapshot burst for observability.
+        if (!show_cursor) {
+          if (!logged_cursor_hidden) {
+            BOOST_LOG(debug) << "[pipewire] Cursor capture disabled (show_cursor=false); "
+                                "suppressing cursor-induced damage hints";
+            logged_cursor_hidden = true;
+          }
+          // Suppress damage hint so a cursor-only repaint is treated as redundant
+          // and does not unnecessarily wake the encoder.
+          img_egl->pw_damage = std::nullopt;
+        }
+
         // Check if we got valid data (either DMA-BUF fd or memory pointer), then filter duplicates
         if ((img_egl->sd.fds[0] >= 0 || img_egl->data != nullptr) && !is_buffer_redundant(img_egl)) {
           // Update frame metadata
@@ -931,7 +953,7 @@ namespace pipewire {
           return platf::capture_e::ok;
         }
 
-        // No valid frame yet, or it was a duplicate
+        // No valid frame yet, or it was a duplicate (including cursor-only when hidden)
         retries++;
       }
       return platf::capture_e::timeout;

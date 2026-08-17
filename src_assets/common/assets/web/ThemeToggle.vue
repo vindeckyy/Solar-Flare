@@ -35,18 +35,21 @@ onMounted(() => {
 
 <template>
   <div class="dropdown dropend bd-mode-toggle">
-    <a class="nav-link dropdown-toggle d-flex align-items-center"
-            id="bd-theme"
-            type="button"
-            aria-expanded="false"
-            data-bs-toggle="dropdown"
-            aria-label="{{ $t('navbar.toggle_theme') }} ({{ $t('navbar.theme_auto') }})">
-      <span class="theme-icon-active">
+    <button
+      class="nav-link dropdown-toggle d-flex align-items-center"
+      id="bd-theme"
+      type="button"
+      aria-expanded="false"
+      aria-haspopup="true"
+      data-bs-toggle="dropdown"
+      :aria-label="$t('navbar.toggle_theme') + ' (' + $t('navbar.theme_auto') + ')'"
+    >
+      <span class="theme-icon-active" aria-hidden="true">
         <MonitorSmartphone :size="18" class="icon"></MonitorSmartphone>
       </span>
       <span id="bd-theme-text">{{ $t('navbar.toggle_theme') }}</span>
-    </a>
-    <ul class="dropdown-menu dropdown-menu-end theme-menu" aria-labelledby="bd-theme-text">
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end theme-menu" aria-labelledby="bd-theme-text" role="menu">
       <li class="theme-menu-full">
         <button type="button" class="dropdown-item d-flex align-items-center active" data-bs-theme-value="auto" aria-pressed="true">
           <MonitorSmartphone :size="18" class="theme-icon icon"></MonitorSmartphone>
@@ -162,4 +165,17 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/**
+ * @brief Theme toggle focus style; dropdown items inherit global focus ring.
+ */
+.bd-mode-toggle .nav-link:focus-visible {
+  outline: 2px solid var(--color-primary, #ffad42);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.dropdown-item:focus-visible {
+  outline: 2px solid var(--color-primary, #ffad42);
+  outline-offset: -2px;
+}
 </style>

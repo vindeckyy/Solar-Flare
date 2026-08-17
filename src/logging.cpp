@@ -149,10 +149,19 @@ namespace logging {
   };
 #endif
 
+  /**
+   * @brief Initialize the logging system.
+   * @param min_log_level Minimum severity to emit.
+   * @param log_file Path to the log file.
+   * @return RAII guard that deinitializes logging on destruction.
+   */
   [[nodiscard]] std::unique_ptr<deinit_t> init(int min_log_level, const std::string &log_file) {
     if (sink) {
       // Deinitialize the logging system before reinitializing it. This can probably only ever be hit in tests.
       deinit();
+    }
+    if (log_file.empty()) {
+      BOOST_LOG(warning) << "logging::init: empty log_file, using stdout only"sv;
     }
 
 #ifndef __ANDROID__
@@ -249,12 +258,25 @@ namespace logging {
   }
 #endif
 
+  /**
+   * @brief Flush the logging sink.
+   */
   void log_flush() {
     if (sink) {
-      sink->flush();
+      try {
+        sink->flush();
+      } catch (const std::exception &e) {
+        // Sink flush can throw if the underlying stream is closed; swallow
+        // to avoid crashing shutdown paths that call deinit().
+        BOOST_LOG(warning) << "log_flush failed: "sv << e.what();
+      }
     }
   }
 
+  /**
+   * @brief Print help to stdout.
+   * @param name Program name (argv[0]).
+   */
   void print_help(const char *name) {
     std::cout
       << "Usage: "sv << name << " [options] [/path/to/configuration_file] [--cmd]"sv << std::endl
@@ -275,10 +297,20 @@ namespace logging {
       << std::endl;
   }
 
+  /**
+   * @brief Wrap a string in brackets for log decoration.
+   * @param input String to wrap.
+   * @return Bracketed string.
+   */
   std::string bracket(const std::string &input) {
     return "["s + input + "]"s;
   }
 
+  /**
+   * @brief Wrap a wstring in brackets for log decoration.
+   * @param input Wstring to wrap.
+   * @return Bracketed wstring.
+   */
   std::wstring bracket(const std::wstring &input) {
     return L"["s + input + L"]"s;
   }

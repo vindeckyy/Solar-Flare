@@ -7,33 +7,36 @@
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
-  <div id="content" class="container">
-    <h1 class="my-4 text-center">{{ $t('pin.pin_pairing') }}</h1>
-    <form class="form d-flex flex-column align-items-center" id="form" @submit.prevent="registerDevice">
-      <div class="card flex-column d-flex p-4 mb-4">
+  <main id="content" class="container">
+    <header class="my-4 text-center">
+      <h1>{{ $t('pin.pin_pairing') }}</h1>
+    </header>
+    <form class="form d-flex flex-column align-items-center" id="form" @submit.prevent="registerDevice" aria-label="Pair device">
+      <div class="card flex-column d-flex p-4 mb-4" role="group" aria-labelledby="pin-heading">
+        <h2 id="pin-heading" class="visually-hidden">{{ $t('pin.pin_pairing') }}</h2>
         <div class="input-group mt-2">
-          <span class="input-group-text">
-            <hash :size="18" class="icon"></hash>
-          </span>
-          <input type="text" pattern="\d*" :placeholder="`${$t('navbar.pin')}`" autofocus id="pin-input" class="form-control" required />
+          <label class="input-group-text" for="pin-input" aria-hidden="true">
+            <hash :size="18" class="icon" aria-hidden="true"></hash>
+          </label>
+          <input type="text" pattern="\d*" inputmode="numeric" :placeholder="`${$t('navbar.pin')}`" :aria-label="$t('navbar.pin')" autofocus id="pin-input" class="form-control" required autocomplete="one-time-code" />
         </div>
         <div class="input-group my-4">
-          <span class="input-group-text">
-            <monitor :size="18" class="icon"></monitor>
-          </span>
-          <input type="text" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control" required />
+          <label class="input-group-text" for="name-input" aria-hidden="true">
+            <monitor :size="18" class="icon" aria-hidden="true"></monitor>
+          </label>
+          <input type="text" :placeholder="`${$t('pin.device_name')}`" :aria-label="$t('pin.device_name')" id="name-input" class="form-control" required autocomplete="nickname" />
         </div>
-        <button class="btn btn-primary">
-          <forward :size="18" class="icon"></forward>
+        <button class="btn btn-primary" type="submit">
+          <forward :size="18" class="icon" aria-hidden="true"></forward>
           {{ $t('pin.send') }}
         </button>
       </div>
-      <div class="alert alert-warning">
+      <div class="alert alert-warning" role="alert">
         <b>{{ $t('_common.warning') }}</b> {{ $t('pin.warning_msg') }}
       </div>
-      <div id="status"></div>
+      <div id="status" role="status" aria-live="polite"></div>
     </form>
-  </div>
+  </main>
 </body>
 
 <script type="module">

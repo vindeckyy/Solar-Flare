@@ -98,14 +98,124 @@ namespace video {
     }
   }  // namespace
 
+  /**
+   * @brief Clamp bitrate to the safe operating range.
+   * @param bitrate_kbps Bitrate in kbps from the client.
+   * @return Clamped bitrate in [500, 100000] kbps.
+   */
+  int clamp_bitrate(int bitrate_kbps) {
+    constexpr int kMin = 500;
+    constexpr int kMax = 100000;
+    if (bitrate_kbps < kMin) {
+      BOOST_LOG(warning) << "Clamping bitrate " << bitrate_kbps << " kbps up to minimum " << kMin << " kbps";
+      return kMin;
+    }
+    if (bitrate_kbps > kMax) {
+      BOOST_LOG(warning) << "Clamping bitrate " << bitrate_kbps << " kbps down to maximum " << kMax << " kbps";
+      return kMax;
+    }
+    return bitrate_kbps;
+  }
+
+  /**
+   * @brief Clamp framerate to the safe operating range.
+   * @param framerate Frames per second from the client.
+   * @return Clamped framerate in [10, 240] fps.
+   */
+  int clamp_framerate(int framerate) {
+    constexpr int kMin = 10;
+    constexpr int kMax = 240;
+    if (framerate < kMin) {
+      BOOST_LOG(warning) << "Clamping framerate " << framerate << " fps up to minimum " << kMin << " fps";
+      return kMin;
+    }
+    if (framerate > kMax) {
+      BOOST_LOG(warning) << "Clamping framerate " << framerate << " fps down to maximum " << kMax << " fps";
+      return kMax;
+    }
+    return framerate;
+  }
+
+  /**
+   * @brief Sanitize a client config in place with clamping and safe defaults.
+   * @param config Config to validate.
+   */
+  void sanitize_config(config_t &config) {
+    const int orig_bitrate = config.bitrate;
+    const int orig_framerate = config.framerate;
+    const int orig_width = config.width;
+    const int orig_height = config.height;
+    const int orig_slices = config.slicesPerFrame;
+    const int orig_refs = config.numRefFrames;
+
+    config.bitrate = clamp_bitrate(config.bitrate);
+    if (config::video.max_bitrate > 0) {
+      config.bitrate = std::min(config.bitrate, config::video.max_bitrate);
+    }
+    config.framerate = clamp_framerate(config.framerate);
+    config.width = std::clamp(config.width, 64, 7680);
+    config.height = std::clamp(config.height, 64, 4320);
+    config.slicesPerFrame = std::clamp(config.slicesPerFrame, 1, 16);
+    config.numRefFrames = std::clamp(config.numRefFrames, 0, 4);
+
+    if (config.videoFormat < 0 || config.videoFormat > 2) {
+      BOOST_LOG(warning) << "Unknown videoFormat " << config.videoFormat << ", clamping to H.264 (0)";
+      config.videoFormat = 0;
+    }
+    if (config.chromaSamplingType < 0 || config.chromaSamplingType > 1) {
+      BOOST_LOG(warning) << "Unknown chromaSamplingType " << config.chromaSamplingType << ", clamping to 4:2:0 (0)";
+      config.chromaSamplingType = 0;
+    }
+    if (config.dynamicRange < 0 || config.dynamicRange > 1) {
+      BOOST_LOG(warning) << "Unknown dynamicRange " << config.dynamicRange << ", clamping to 8-bit (0)";
+      config.dynamicRange = 0;
+    }
+
+    if (orig_bitrate != config.bitrate) {
+      BOOST_LOG(info) << "Sanitized bitrate: " << orig_bitrate << " -> " << config.bitrate << " kbps";
+    }
+    if (orig_framerate != config.framerate) {
+      BOOST_LOG(info) << "Sanitized framerate: " << orig_framerate << " -> " << config.framerate << " fps";
+    }
+    if (orig_width != config.width || orig_height != config.height) {
+      BOOST_LOG(info) << "Sanitized resolution: " << orig_width << "x" << orig_height
+                      << " -> " << config.width << "x" << config.height;
+    }
+    if (orig_slices != config.slicesPerFrame) {
+      BOOST_LOG(info) << "Sanitized slicesPerFrame: " << orig_slices << " -> " << config.slicesPerFrame;
+    }
+    if (orig_refs != config.numRefFrames) {
+      BOOST_LOG(info) << "Sanitized numRefFrames: " << orig_refs << " -> " << config.numRefFrames;
+    }
+
+    if (config.framerateX100 > 0) {
+      const int fps100 = config.framerateX100;
+      if (fps100 < 1000 || fps100 > 24000) {
+        BOOST_LOG(warning) << "Unusual framerateX100 " << fps100 << ", keeping value but treating as hint only";
+      }
+    }
+  }
+
+  /**
+   * @brief Free an AVCodecContext.
+   * @param ctx Context to free, may be nullptr.
+   */
   void free_ctx(AVCodecContext *ctx) {
     avcodec_free_context(&ctx);
   }
 
+  /**
+   * @brief Free an AVFrame.
+   * @param frame Frame to free, may be nullptr.
+   */
   void free_frame(AVFrame *frame) {
     av_frame_free(&frame);
   }
 
+  /**
+   * @brief Unreference an AVBufferRef.
+   * @param ref Buffer reference to unreference, may be nullptr.
+   */
   void free_buffer(AVBufferRef *ref) {
     av_buffer_unref(&ref);
   }
@@ -2012,8 +2122,15 @@ namespace video {
         }
       }
 
-      auto bitrate = ((config::video.max_bitrate > 0) ? std::min(config.bitrate, config::video.max_bitrate) : config.bitrate) * 1000;
-      BOOST_LOG(info) << "Streaming bitrate is " << bitrate;
+      // Clamp bitrate/framerate defensively even if caller forgot sanitize_config().
+      const int sanitized_bitrate_kbps = clamp_bitrate(config.bitrate);
+      const int effective_bitrate_kbps = (config::video.max_bitrate > 0) ?
+                                           std::min(sanitized_bitrate_kbps, config::video.max_bitrate) :
+                                           sanitized_bitrate_kbps;
+      const int sanitized_framerate = clamp_framerate(config.framerate);
+      auto bitrate = effective_bitrate_kbps * 1000;
+      BOOST_LOG(info) << "Streaming bitrate is " << bitrate << " bps (" << effective_bitrate_kbps
+                      << " kbps requested, " << sanitized_framerate << " fps)";
       ctx->rc_max_rate = bitrate;
       ctx->bit_rate = bitrate;
 
@@ -2029,14 +2146,15 @@ namespace video {
       }
 
       if (!(encoder.flags & NO_RC_BUF_LIMIT)) {
+        const int safe_framerate = sanitized_framerate > 0 ? sanitized_framerate : 30;
         if (!hardware && (ctx->slices > 1 || config.videoFormat == 1)) {
           // Use a larger rc_buffer_size for software encoding when slices are enabled,
           // because libx264 can severely degrade quality if the buffer is too small.
           // libx265 encounters this issue more frequently, so always scale the
           // buffer by 1.5x for software HEVC encoding.
-          ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
+          ctx->rc_buffer_size = bitrate / ((safe_framerate * 10) / 15);
         } else {
-          ctx->rc_buffer_size = bitrate / config.framerate;
+          ctx->rc_buffer_size = bitrate / safe_framerate;
 
 #ifndef __APPLE__
           if (encoder.name == "nvenc" && config::video.nv_legacy.vbv_percentage_increase > 0) {
@@ -2792,11 +2910,27 @@ namespace video {
     }
   }
 
+  /**
+   * @brief Start capture for the current stream.
+   *
+   * Sanitizes the client config (clamping bitrate, framerate, and geometry
+   * inputs) before dispatching to the async or sync capture path. All
+   * corrections are logged at info/warning level so operator can diagnose
+   * misbehaving clients.
+   *
+   * @param mail Mailbox for shutdown and packet routing.
+   * @param config Client CRTP/RTSP negotiation config (sanitized in place).
+   * @param channel_data Opaque per-stream context forwarded to encoded packets.
+   */
   void capture(
     safe::mail_t mail,
     config_t config,
     void *channel_data
   ) {
+    sanitize_config(config);
+    BOOST_LOG(info) << "Starting capture: " << config.width << "x" << config.height
+                    << " @" << config.framerate << " fps, " << config.bitrate << " kbps"
+                    << " codec=" << config.videoFormat;
     auto idr_events = mail->event<bool>(mail::idr);
 
     idr_events->raise(true);

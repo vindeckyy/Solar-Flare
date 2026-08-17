@@ -827,6 +827,11 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
+   * @details Reads apps.json, migrates legacy string booleans/ints, and
+   *          returns the JSON. Empty or missing file returns an empty apps
+   *          array rather than a 400 so the Web UI can render the blank
+   *          state. Malformed JSON still returns 400 with the parse error.
+   *
    * @api_examples{/api/apps| GET| null}
    */
   void getApps(const resp_https_t &response, const req_https_t &request) {
@@ -838,7 +843,20 @@ namespace confighttp {
 
     try {
       std::string content = file_handler::read_file(config::stream.file_apps.c_str());
+      if (content.empty()) {
+        nlohmann::json empty;
+        empty["apps"] = nlohmann::json::array();
+        send_response(response, empty);
+        return;
+      }
       nlohmann::json file_tree = nlohmann::json::parse(content);
+      if (!file_tree.contains("apps") || !file_tree["apps"].is_array()) {
+        BOOST_LOG(warning) << "GetApps: missing or invalid 'apps' array"sv;
+        nlohmann::json empty;
+        empty["apps"] = nlohmann::json::array();
+        send_response(response, empty);
+        return;
+      }
 
       // Legacy versions of Sunshine used strings for boolean and integers, let's convert them
       // List of keys to convert to boolean

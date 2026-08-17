@@ -258,19 +258,49 @@ namespace audio {
     }
   }
 
+  /**
+   * @brief Validate and clamp an audio config to safe ranges.
+   * @param config Config to sanitize in place; logs when a correction is applied.
+   */
+  static void sanitize_audio_config(config_t &config) {
+    const int orig_channels = config.channels;
+    const int orig_duration = config.packetDuration;
+    // Clamp channels to supported set (2,6,8). Unknown values fall back to stereo.
+    if (config.channels != 2 && config.channels != 6 && config.channels != 8) {
+      BOOST_LOG(warning) << "Clamping audio channels " << config.channels << " to stereo (2)";
+      config.channels = 2;
+    }
+    // Clamp packet duration to sensible Opus window (5 or 10 ms supported; tolerate 20).
+    if (config.packetDuration <= 0 || config.packetDuration > 20) {
+      BOOST_LOG(warning) << "Clamping audio packetDuration " << config.packetDuration << " to 5 ms";
+      config.packetDuration = 5;
+    }
+    if (orig_channels != config.channels) {
+      BOOST_LOG(info) << "Sanitized audio channels: " << orig_channels << " -> " << config.channels;
+    }
+    if (orig_duration != config.packetDuration) {
+      BOOST_LOG(info) << "Sanitized audio packetDuration: " << orig_duration << " -> " << config.packetDuration;
+    }
+  }
+
   void capture(safe::mail_t mail, config_t config, void *channel_data) {
     auto shutdown_event = mail->event<bool>(mail::shutdown);
     if (!config::audio.stream) {
+      BOOST_LOG(info) << "Audio streaming disabled by config; capture will wait for shutdown";
       shutdown_event->view();
       return;
     }
+    sanitize_audio_config(config);
     auto stream = stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
     if (config.flags[config_t::CUSTOM_SURROUND_PARAMS]) {
       apply_surround_params(stream, config.customStreamParams);
+      BOOST_LOG(info) << "Using custom surround params: channels=" << stream.channelCount
+                      << " streams=" << stream.streams;
     }
 
     auto ref = get_audio_ctx_ref();
     if (!ref) {
+      BOOST_LOG(error) << "Failed to acquire audio context; streaming without audio";
       return;
     }
 
@@ -284,42 +314,73 @@ namespace audio {
 
     auto &control = ref->control;
     if (!control) {
+      BOOST_LOG(warning) << "Audio control unavailable; streaming without audio";
       return;
     }
 
+    // Resolve the effective sink with explicit empty-device handling.
+    // An empty config::audio.sink means "use host default" rather than an error.
     // Order of priority:
-    // 1. Virtual sink
-    // 2. Audio sink
-    // 3. Host
+    // 1. Explicit config sink when non-empty
+    // 2. Host sink when non-empty or HOST_AUDIO is enabled
+    // 3. Virtual null sink when HOST_AUDIO is disabled or host is empty
     std::string *sink = &ref->sink.host;
     if (!config::audio.sink.empty()) {
       sink = &config::audio.sink;
+      BOOST_LOG(info) << "Using configured audio sink: [" << *sink << "]";
+    } else if (ref->sink.host.empty()) {
+      BOOST_LOG(warning) << "Host audio sink is empty and no explicit sink configured; will try virtual sink";
     }
 
     // Prefer the virtual sink if host playback is disabled or there's no other sink
     if (ref->sink.null && (!config.flags[config_t::HOST_AUDIO] || sink->empty())) {
       auto &null = *ref->sink.null;
+      const std::string *virtual_sink = nullptr;
       switch (stream.channelCount) {
         case 2:
-          sink = &null.stereo;
+          virtual_sink = &null.stereo;
           break;
         case 6:
-          sink = &null.surround51;
+          virtual_sink = &null.surround51;
           break;
         case 8:
-          sink = &null.surround71;
+          virtual_sink = &null.surround71;
           break;
+        default:
+          virtual_sink = &null.stereo;
+          break;
+      }
+      if (virtual_sink && !virtual_sink->empty()) {
+        BOOST_LOG(info) << "Selected virtual sink for " << stream.channelCount << " channels: [" << *virtual_sink << "]";
+        sink = const_cast<std::string *>(virtual_sink);
+      } else {
+        BOOST_LOG(warning) << "Virtual sink is empty for " << stream.channelCount << " channels; falling back to host sink";
       }
     }
 
-    // Only the first to start a session may change the default sink
+    if (sink->empty()) {
+      BOOST_LOG(warning) << "Effective audio sink is empty; attempting to capture from host default";
+      // Fall back to host non-empty if available, otherwise allow platform layer to decide
+      if (!ref->sink.host.empty()) {
+        sink = &ref->sink.host;
+        BOOST_LOG(info) << "Falling back to host sink: [" << *sink << "]";
+      }
+    }
+
+    // Only the first to start a session may change the default sink (idempotent guard)
     if (!ref->sink_flag->exchange(true, std::memory_order_acquire)) {
       // If the selected sink is different than the current one, change sinks.
-      ref->restore_sink = ref->sink.host != *sink;
+      const bool need_switch = !sink->empty() && ref->sink.host != *sink;
+      ref->restore_sink = need_switch;
       if (ref->restore_sink) {
+        BOOST_LOG(info) << "Switching default sink from [" << ref->sink.host << "] to [" << *sink << "]";
         if (control->set_sink(*sink)) {
-          return;
+          BOOST_LOG(warning) << "Failed to switch sink to [" << *sink << "]; continuing with current sink";
+          ref->restore_sink = false;
+          // Do not abort the stream; audio can still be captured from the current sink
         }
+      } else {
+        BOOST_LOG(debug) << "No sink switch needed; already on [" << ref->sink.host << "]";
       }
     }
 
@@ -412,25 +473,61 @@ namespace audio {
     return STEREO;
   }
 
+  /**
+   * @brief Initialize the platform audio control and snapshot sink state.
+   *
+   * Idempotent: if called when ctx.control is already initialized, the call
+   * is a no-op (the existing control is reused). An empty or failing sink_info
+   * is treated as "no audio available" rather than an error that aborts startup.
+   *
+   * @param ctx Context to initialize.
+   * @return 0 on success (audio may still be unavailable but the context is valid).
+   */
   int start_audio_control(audio_ctx_t &ctx) {
     auto fg = util::fail_guard([]() {
       BOOST_LOG(warning) << "There will be no audio"sv;
     });
 
-    ctx.sink_flag = std::make_unique<std::atomic_bool>(false);
+    // Idempotent guard: if already initialized, do nothing.
+    if (ctx.control && ctx.sink_flag) {
+      BOOST_LOG(debug) << "Audio control already initialized; reusing existing context";
+      fg.disable();
+      return 0;
+    }
+
+    if (!ctx.sink_flag) {
+      ctx.sink_flag = std::make_unique<std::atomic_bool>(false);
+    } else {
+      ctx.sink_flag->store(false, std::memory_order_release);
+    }
 
     // The default sink has not been replaced yet.
     ctx.restore_sink = false;
 
-    if (!(ctx.control = platf::audio_control())) {
+    auto control = platf::audio_control();
+    if (!control) {
+      BOOST_LOG(warning) << "platf::audio_control() returned null; audio will be unavailable";
+      // Leave ctx.control null but still consider init successful; streaming continues without audio
+      ctx.sink = platf::sink_t {};
+      fg.disable();
       return 0;
     }
+    ctx.control = std::move(control);
 
     auto sink = ctx.control->sink_info();
     if (!sink) {
-      // Let the calling code know it failed
-      ctx.control.reset();
+      BOOST_LOG(warning) << "Audio sink_info unavailable; virtual sinks may not be created";
+      // Keep control but mark sink as empty so callers can detect unavailability
+      ctx.sink = platf::sink_t {};
+      fg.disable();
       return 0;
+    }
+
+    if (sink->host.empty()) {
+      BOOST_LOG(warning) << "Host sink name is empty; will rely on virtual sink or Pulse default";
+    }
+    if (!sink->null) {
+      BOOST_LOG(info) << "No virtual sink available; host audio will be captured directly when possible";
     }
 
     ctx.sink = std::move(*sink);
@@ -439,18 +536,43 @@ namespace audio {
     return 0;
   }
 
+  /**
+   * @brief Restore the original default sink if it was switched.
+   *
+   * Idempotent: multiple calls are safe (subsequent calls become no-ops).
+   * Handles the case where the sink string is empty by logging and returning
+   * without error.
+   *
+   * @param ctx Context to teardown.
+   */
   void stop_audio_control(audio_ctx_t &ctx) {
-    // restore audio-sink if applicable
+    // Idempotent guard: if already restored or no switch happened, do nothing.
     if (!ctx.restore_sink) {
+      BOOST_LOG(debug) << "Audio sink restore not needed (already restored or no switch)";
+      return;
+    }
+
+    // Check control validity before trying to restore.
+    if (!ctx.control) {
+      BOOST_LOG(debug) << "Audio control already released; skipping sink restore";
+      ctx.restore_sink = false;
       return;
     }
 
     // Change back to the host sink, unless there was none
     const std::string &sink = ctx.sink.host.empty() ? config::audio.sink : ctx.sink.host;
-    if (!sink.empty()) {
-      // Best effort, it's allowed to fail
-      ctx.control->set_sink(sink);
+    if (sink.empty()) {
+      BOOST_LOG(info) << "No host sink to restore (empty); leaving current default sink as-is";
+      ctx.restore_sink = false;
+      return;
     }
+
+    BOOST_LOG(info) << "Restoring default sink to [" << sink << "]";
+    // Best effort, it's allowed to fail
+    if (ctx.control->set_sink(sink)) {
+      BOOST_LOG(warning) << "Failed to restore default sink to [" << sink << "]";
+    }
+    ctx.restore_sink = false;
   }
 
   void apply_surround_params(opus_stream_config_t &stream, const stream_params_t &params) {

@@ -1,3 +1,11 @@
+/**
+ * @brief Reusable checkbox that maps various backend string/number encodings to a boolean model.
+ *
+ * The host config stores booleans as "enabled"/"disabled", 1/0, "true"/"false", etc.
+ * This component normalises those to a single checkbox via true-value/false-value
+ * so callers always bind with v-model to the raw config key.
+ */
+
 <script setup>
 const model = defineModel({ required: true });
 const slots = defineSlots();
@@ -106,21 +114,32 @@ const defValue = parsedDefaultPropValue ? "_common.enabled_def_cbox" : "_common.
 
 <template>
   <div :class="extendedClassStr">
+    <input
+      type="checkbox"
+      class="form-check-input"
+      :id="props.id"
+      v-model="model"
+      :true-value="checkboxValues.truthy"
+      :false-value="checkboxValues.falsy"
+      :aria-describedby="showDesc ? props.id + '-desc' : undefined"
+      :aria-label="props.label ? $t(labelField) : undefined"
+    />
     <label :for="props.id" :class="`form-check-label${showDesc ? ' mb-2' : ''}`">
       {{ $t(labelField) }}
-      <div class="mt-0 form-text" v-if="showDefValue">
+      <span class="mt-0 form-text" v-if="showDefValue">
         {{ $t(defValue) }}
-      </div>
+      </span>
     </label>
-    <input type="checkbox"
-           class="form-check-input"
-           :id="props.id"
-           v-model="model"
-           :true-value="checkboxValues.truthy"
-           :false-value="checkboxValues.falsy" />
-    <div class="form-text" v-if="showDesc">
+    <div :id="props.id + '-desc'" class="form-text" v-if="showDesc">
       {{ $t(descField) }}
       <slot></slot>
     </div>
   </div>
 </template>
+
+<style scoped>
+.form-check-input:focus-visible {
+  outline: 2px solid var(--color-primary, #ffad42);
+  outline-offset: 2px;
+}
+</style>

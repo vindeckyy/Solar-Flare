@@ -205,11 +205,19 @@ namespace util {
     return FailGuard<T> {std::forward<T>(f)};
   }
 
+  /**
+   * @brief Append a trivially copyable struct to a byte buffer.
+   *
+   * @tparam T Trivially copyable type to append.
+   * @param buf Destination buffer, grown as needed.
+   * @param _struct Source struct whose bytes are appended.
+   */
   template<class T>
   void append_struct(std::vector<uint8_t> &buf, const T &_struct) {
+    static_assert(std::is_trivially_copyable_v<T>, "append_struct requires trivially copyable type");
     constexpr size_t data_len = sizeof(_struct);
 
-    buf.reserve(data_len);
+    buf.reserve(buf.size() + data_len);
 
     auto *data = (uint8_t *) &_struct;
 

@@ -59,7 +59,19 @@ namespace crypto {
 
   std::string_view signature(const x509_t &x);
 
+  /**
+   * @brief Generate cryptographically secure random bytes.
+   * @param bytes Number of bytes to generate.
+   * @return Random byte string of length @p bytes.
+   */
   std::string rand(std::size_t bytes);
+
+  /**
+   * @brief Generate a random string from an alphabet for salts/tokens.
+   * @param bytes Length of the output string.
+   * @param alphabet Character set to draw from.
+   * @return Random string; empty if @p alphabet is empty or @p bytes is 0.
+   */
   std::string rand_alphabet(std::size_t bytes, const std::string_view &alphabet = std::string_view {"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!%&()=-"});
 
   class cert_chain_t {

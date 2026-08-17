@@ -8,13 +8,22 @@
 
 // standard includes
 #include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace sunshine {
 
+  /**
+   * @brief Record one latency sample.
+   * @param value_ms Sample value in milliseconds (negative clamped to 0).
+   */
   void metric_accumulator_t::collect(double value_ms) {
-    if (value_ms < 0.0) {
+    if (!std::isfinite(value_ms) || value_ms < 0.0) {
       value_ms = 0.0;
+    }
+    if (value_ms > 60000.0) {
+      // Cap at 60s to avoid skewing avg on stalls.
+      value_ms = 60000.0;
     }
 
     samples.fetch_add(1, std::memory_order_relaxed);

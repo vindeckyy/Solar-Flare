@@ -9,10 +9,18 @@
 
 namespace stat_trackers {
 
+  /**
+   * @brief Format helper for one digit after decimal.
+   * @return Boost format "%1$.1f".
+   */
   boost::format one_digit_after_decimal() {
     return boost::format("%1$.1f");
   }
 
+  /**
+   * @brief Format helper for two digits after decimal.
+   * @return Boost format "%1$.2f".
+   */
   boost::format two_digits_after_decimal() {
     return boost::format("%1$.2f");
   }

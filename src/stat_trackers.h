@@ -16,21 +16,48 @@
 
 namespace stat_trackers {
 
+  /**
+   * @brief Format helper for one digit after decimal.
+   * @return Boost format "%1$.1f".
+   */
   boost::format one_digit_after_decimal();
 
+  /**
+   * @brief Format helper for two digits after decimal.
+   * @return Boost format "%1$.2f".
+   */
   boost::format two_digits_after_decimal();
 
+  /**
+   * @brief Tracks min/max/avg over an interval and fires a callback.
+   * @tparam T Numeric sample type.
+   */
   template<typename T>
   class min_max_avg_tracker {
   public:
     using callback_function = std::function<void(T stat_min, T stat_max, double stat_avg)>;
 
+    /**
+     * @brief Collect a sample and fire callback when interval elapsed.
+     * @param stat Sample value.
+     * @param callback Invoked with (min, max, avg) when interval expires.
+     * @param interval_in_seconds Interval between callbacks.
+     */
     void collect_and_callback_on_interval(T stat, const callback_function &callback, std::chrono::seconds interval_in_seconds) {
+      if (!callback) {
+        return;
+      }
+      if (interval_in_seconds.count() <= 0) {
+        interval_in_seconds = std::chrono::seconds(1);
+      }
       if (data.calls == 0) {
         data.last_callback_time = std::chrono::steady_clock::now();
       } else if (std::chrono::steady_clock::now() > data.last_callback_time + interval_in_seconds) {
-        callback(data.stat_min, data.stat_max, data.stat_total / data.calls);
+        if (data.calls > 0) {
+          callback(data.stat_min, data.stat_max, data.stat_total / static_cast<double>(data.calls));
+        }
         data = {};
+        data.last_callback_time = std::chrono::steady_clock::now();
       }
       data.stat_min = std::min(data.stat_min, stat);
       data.stat_max = std::max(data.stat_max, stat);
@@ -38,8 +65,12 @@ namespace stat_trackers {
       data.calls += 1;
     }
 
+    /**
+     * @brief Reset all accumulated state.
+     */
     void reset() {
       data = {};
+      data.last_callback_time = std::chrono::steady_clock::now();
     }
 
   private:

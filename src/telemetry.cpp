@@ -9,6 +9,7 @@
 
 // standard includes
 #include <atomic>
+#include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <mutex>
@@ -36,15 +37,22 @@ namespace sunshine::telemetry {
     std::atomic<unsigned long long> last_cpu_total {0};
     std::atomic<unsigned long long> last_cpu_idle {0};
 
-    /// Add one value to a ring buffer, wrapping at capacity.
+    /**
+     * @brief Add one value to a ring buffer, wrapping at capacity.
+     *
+     * @param series Ring buffer to update.
+     * @param value Sample value, caller must clamp negatives before call.
+     */
     void push_ring(series_t &series, double value) {
       if (series.values.size() < kSeriesCapacity) {
         series.values.push_back(value);
+        // head points to next write index, which equals size when not yet wrapped
+        series.head = series.values.size() % kSeriesCapacity;
       }
       else {
         series.values[series.head] = value;
+        series.head = (series.head + 1) % kSeriesCapacity;
       }
-      series.head = (series.head + 1) % kSeriesCapacity;
       if (series.count < kSeriesCapacity) {
         series.count++;
       }
@@ -159,8 +167,14 @@ namespace sunshine::telemetry {
   }  // namespace
 
   void record(std::string name, double value) {
-    if (value < 0.0) {
+    // Clamp negatives and non-finite values, telemetry is for display and must
+    // not propagate NaN/inf into JSON which would break the Web UI charts.
+    if (!std::isfinite(value) || value < 0.0) {
       value = 0.0;
+    }
+    // Cap absurdly large values (e.g. corrupt /proc read) to keep charts usable.
+    if (value > 1e9) {
+      value = 1e9;
     }
     std::lock_guard<std::mutex> lock(series_mutex);
     auto &series = get_or_create(name);

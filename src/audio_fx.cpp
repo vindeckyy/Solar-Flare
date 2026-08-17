@@ -100,11 +100,27 @@ namespace audio::fx {
 
   AGC::AGC(const config_t &cfg):
       _cfg(cfg) {
-    if (_cfg.sample_rate <= 0.0f) {
+    // Sanitize config: sample_rate must be valid, dB ranges must be ordered.
+    // All sanitization is idempotent so repeated construction or re-creation
+    // with the same config yields identical behaviour.
+    if (_cfg.sample_rate <= 0.0f || !std::isfinite(_cfg.sample_rate)) {
       _cfg.sample_rate = 48000.0f;
     }
+    if (_cfg.min_gain_db > _cfg.max_gain_db) {
+      std::swap(_cfg.min_gain_db, _cfg.max_gain_db);
+    }
+    // Clamp attack/hold/release to prevent pathological smoothing.
+    _cfg.attack_ms = std::max(0.0f, _cfg.attack_ms);
+    _cfg.hold_ms = std::max(0.0f, _cfg.hold_ms);
+    _cfg.release_ms = std::max(0.0f, _cfg.release_ms);
   }
 
+  /**
+   * @brief Apply AGC to a buffer; handles null/empty buffers as a no-op.
+   * @param samples Interleaved samples (modified in place), may be nullptr.
+   * @param frame_count Frames per channel, 0 means no-op.
+   * @param channels Channel count, <=0 means no-op.
+   */
   void AGC::process(float *samples, std::size_t frame_count, int channels) {
     if (!samples || frame_count == 0 || channels <= 0) {
       return;
@@ -169,11 +185,24 @@ namespace audio::fx {
 
   VAD::VAD(const config_t &cfg):
       _cfg(cfg) {
-    if (_cfg.sample_rate <= 0.0f) {
+    if (_cfg.sample_rate <= 0.0f || !std::isfinite(_cfg.sample_rate)) {
       _cfg.sample_rate = 48000.0f;
     }
+    // Normalize hysteresis so exit threshold is always below enter threshold.
+    if (_cfg.hysteresis_db < 0.0f) {
+      _cfg.hysteresis_db = 0.0f;
+    }
+    _cfg.min_speech_ms = std::max(0.0f, _cfg.min_speech_ms);
+    _cfg.min_silence_ms = std::max(0.0f, _cfg.min_silence_ms);
   }
 
+  /**
+   * @brief Observe a frame; handles null/empty as no-op and preserves state.
+   * @param samples Interleaved samples (read-only), may be nullptr.
+   * @param frame_count Frames per channel, 0 means no state change.
+   * @param channels Channel count, <=0 means no state change.
+   * @return Current speech decision.
+   */
   bool VAD::process(const float *samples, std::size_t frame_count, int channels) {
     if (!samples || frame_count == 0 || channels <= 0) {
       return _is_speech;
@@ -228,11 +257,20 @@ namespace audio::fx {
 
   Ducker::Ducker(const config_t &cfg):
       _cfg(cfg) {
-    if (_cfg.sample_rate <= 0.0f) {
+    if (_cfg.sample_rate <= 0.0f || !std::isfinite(_cfg.sample_rate)) {
       _cfg.sample_rate = 48000.0f;
     }
+    _cfg.attack_ms = std::max(0.0f, _cfg.attack_ms);
+    _cfg.release_ms = std::max(0.0f, _cfg.release_ms);
   }
 
+  /**
+   * @brief Apply ducking; handles null/empty buffers as no-op.
+   * @param samples Interleaved samples (modified in place), may be nullptr.
+   * @param frame_count Frames per channel, 0 means no-op.
+   * @param channels Channel count, <=0 means no-op.
+   * @param voice_active Voice flag from VAD.
+   */
   void Ducker::process(float *samples, std::size_t frame_count, int channels, bool voice_active) {
     if (!samples || frame_count == 0 || channels <= 0) {
       return;
@@ -278,20 +316,39 @@ namespace audio::fx {
     // divide-by-zero), but we also pin the noise gate to whichever sample
     // rate the AGC/VAD/Ducker agreed on so a 44.1 kHz stream gets the right
     // smoothing constants.
-    if (_cfg.agc.sample_rate <= 0.0f) {
-      _cfg.agc.sample_rate = 48000.0f;
+    // All checks are idempotent so constructing with a partially-zero config
+    // or calling reset() repeatedly yields the same state.
+    auto sanitize_rate = [](float rate, float fallback) {
+      return (rate > 0.0f && std::isfinite(rate)) ? rate : fallback;
+    };
+    _cfg.agc.sample_rate = sanitize_rate(_cfg.agc.sample_rate, 48000.0f);
+    _cfg.vad.sample_rate = sanitize_rate(_cfg.vad.sample_rate, _cfg.agc.sample_rate);
+    _cfg.ducker.sample_rate = sanitize_rate(_cfg.ducker.sample_rate, _cfg.agc.sample_rate);
+    _noise_gate_sample_rate = sanitize_rate(_noise_gate_sample_rate, _cfg.agc.sample_rate);
+    // Re-create sub-processors with sanitized rates so their internal alphas match.
+    _agc = AGC(_cfg.agc);
+    _vad = VAD(_cfg.vad);
+    _ducker = Ducker(_cfg.ducker);
+    // Preserve threshold defaults when caller left them zeroed: -55 dB is a
+    // reasonable noise-floor for a desktop mic.
+    if (!std::isfinite(_cfg.noise_gate_threshold_db)) {
+      _cfg.noise_gate_threshold_db = -55.0f;
     }
-    if (_cfg.vad.sample_rate <= 0.0f) {
-      _cfg.vad.sample_rate = _cfg.agc.sample_rate;
-    }
-    if (_cfg.ducker.sample_rate <= 0.0f) {
-      _cfg.ducker.sample_rate = _cfg.agc.sample_rate;
-    }
-    _noise_gate_sample_rate = _cfg.agc.sample_rate;
   }
 
+  /**
+   * @brief Process a frame through the FX chain; handles null/empty as no-op.
+   * @param samples Interleaved samples (modified in place), may be nullptr when no device data.
+   * @param frame_count Frames per channel, 0 means no-op (idempotent).
+   * @param channels Channel count, <=0 means no-op (handles empty device gracefully).
+   * @return Voice activity flag (false when VAD disabled or input empty).
+   */
   bool PreProcessor::process(float *samples, std::size_t frame_count, int channels) {
     if (!samples || frame_count == 0 || channels <= 0) {
+      return false;
+    }
+    // Defensive: clamp unreasonable frame sizes that could overflow total calculation.
+    if (frame_count > 100000 || channels > 32) {
       return false;
     }
 
@@ -338,11 +395,16 @@ namespace audio::fx {
     return speech;
   }
 
+  /**
+   * @brief Reset all FX stages; idempotent.
+   */
   void PreProcessor::reset() {
     _agc.reset();
     _vad.reset();
     _ducker.reset();
     _noise_gate_gain = 1.0f;
+    // Reset is idempotent: calling twice leaves the same state, so a
+    // stream restart or an empty-device retry does not leak gain or VAD timers.
   }
 
 }  // namespace audio::fx

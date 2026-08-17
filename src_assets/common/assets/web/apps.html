@@ -7,49 +7,43 @@
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
-  <div id="content" class="container">
-    <div class="my-4">
+  <main id="content" class="container">
+    <header class="my-4">
       <h1>{{ $t('apps.applications_title') }}<span v-if="apps.length"> ({{ appCountLabel }})</span></h1>
       <p>{{ $t('apps.applications_desc') }}</p>
-    </div>
+    </header>
 
-    <!-- Actions toolbar -->
-    <div class="toolbar apps-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <!-- Left side actions -->
+    <section class="toolbar apps-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3" aria-label="Applications toolbar">
       <div class="d-flex align-items-center gap-2">
-        <!-- Add new application -->
-        <button class="btn btn-primary" @click="newApp">
-          <layers-plus :size="18" class="icon"></layers-plus>
+        <button class="btn btn-primary" @click="newApp" type="button">
+          <layers-plus :size="18" class="icon" aria-hidden="true"></layers-plus>
           {{ $t('apps.add_new') }}
         </button>
       </div>
-      <!-- Right side actions -->
       <div class="d-flex align-items-center gap-2" v-if="apps && apps.length > 0">
-        <!-- Sort by name toggle -->
         <button class="btn btn-outline-secondary text-nowrap" type="button" @click="toggleSort"
                 :class="{ active: sortMode !== 'default' }"
                 :aria-pressed="sortMode !== 'default'"
-                :title="$t('apps.sort_by_name') + ': ' + sortModeLabel">
-          <arrow-up-down v-if="sortMode === 'default'" :size="16" class="icon me-1"></arrow-up-down>
-          <arrow-up v-else-if="sortMode === 'asc'" :size="16" class="icon me-1"></arrow-up>
-          <arrow-down v-else :size="16" class="icon me-1"></arrow-down>
+                :title="$t('apps.sort_by_name') + ': ' + sortModeLabel"
+                :aria-label="$t('apps.sort_by_name')">
+          <arrow-up-down v-if="sortMode === 'default'" :size="16" class="icon me-1" aria-hidden="true"></arrow-up-down>
+          <arrow-up v-else-if="sortMode === 'asc'" :size="16" class="icon me-1" aria-hidden="true"></arrow-up>
+          <arrow-down v-else :size="16" class="icon me-1" aria-hidden="true"></arrow-down>
           {{ $t('apps.sort_by_name') }}
         </button>
-        <!-- Search box -->
-        <div class="input-group">
-          <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')" />
+        <div class="input-group" role="search" aria-label="Search applications">
+          <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')" aria-label="Search applications" />
           <button v-if="searchQuery" class="btn btn-outline-secondary" type="button" @click="resetSearchQuery" :aria-label="$t('_common.close')">
-            <x :size="16" class="icon"></x>
+            <x :size="16" class="icon" aria-hidden="true"></x>
           </button>
-          <span v-else class="input-group-text">
-            <search :size="16" class="icon"></search>
+          <span v-else class="input-group-text" aria-hidden="true">
+            <search :size="16" class="icon" aria-hidden="true"></search>
           </span>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Apps Grid -->
-    <div class="row g-3" v-if="displayedApps.length > 0">
+    <section class="row g-3" v-if="displayedApps.length > 0" aria-label="Applications">
       <div class="col-12 col-sm-6 col-md-4 col-lg-3" v-for="{ app, index } in displayedApps" :key="index">
         <div class="card app-card h-100">
           <div class="app-poster-container">
@@ -98,20 +92,20 @@
     </div>
 
     <!-- No search results -->
-    <div v-else-if="apps && apps.length > 0" class="card">
+    <div v-else-if="apps && apps.length > 0" class="card" role="status">
       <div class="card-body text-center py-5">
         <p class="text-muted">{{ $t('apps.no_search_results') }}</p>
       </div>
     </div>
 
-    <!-- Empty State -->
-    <div v-else class="card">
+    <div v-else class="card" role="status">
       <div class="card-body text-center py-5">
         <p class="text-muted">{{ $t('apps.no_applications') }}</p>
       </div>
     </div>
 
-    <!-- Edit / Add Application modal -->
+    </section>
+
     <div class="modal fade" ref="editModal" tabindex="-1" aria-labelledby="appEditModalLabel"
          aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
       <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
@@ -557,7 +551,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </main>
 </body>
 <script type="module">
   import { createApp } from 'vue'

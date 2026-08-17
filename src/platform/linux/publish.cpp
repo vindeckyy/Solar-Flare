@@ -69,11 +69,11 @@ namespace avahi {
     ERR_DNS_NOTIMP = -39,  ///< DNS Error: Not implemented
 
     ERR_DNS_REFUSED = -40,  ///< DNS Error: Operation refused
-    ERR_DNS_YXDOMAIN = -41,  ///< TODO
-    ERR_DNS_YXRRSET = -42,  ///< TODO
-    ERR_DNS_NXRRSET = -43,  ///< TODO
+    ERR_DNS_YXDOMAIN = -41,  ///< DNS Error: Name exists when it should not
+    ERR_DNS_YXRRSET = -42,  ///< DNS Error: RRset exists when it should not
+    ERR_DNS_NXRRSET = -43,  ///< DNS Error: RRset does not exist
     ERR_DNS_NOTAUTH = -44,  ///< DNS Error: Not authorized
-    ERR_DNS_NOTZONE = -45,  ///< TODO
+    ERR_DNS_NOTZONE = -45,  ///< DNS Error: Name not contained in zone
     ERR_INVALID_RDATA = -46,  ///< Invalid RDATA
     ERR_INVALID_DNS_CLASS = -47,  ///< Invalid DNS class
     ERR_INVALID_DNS_TYPE = -48,  ///< Invalid DNS type
@@ -84,7 +84,7 @@ namespace avahi {
     ERR_IS_EMPTY = -52,  ///< Is empty
     ERR_NO_CHANGE = -53,  ///< The requested operation is invalid because it is redundant
 
-    ERR_MAX = -54  ///< TODO
+    ERR_MAX = -54  ///< Sentinel, not a real error
   };
 
   constexpr auto IF_UNSPEC = -1;

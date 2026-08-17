@@ -261,15 +261,20 @@ namespace net {
   }
 
   std::uint16_t map_port(int port) {
-    // calculate the port from the config port
-    auto mapped_port = (std::uint16_t) ((int) config::sunshine.port + port);
-
-    // Ensure port is in the range of 1024-65535
-    if (mapped_port < 1024 || mapped_port > 65535) {
-      BOOST_LOG(warning) << "Port out of range: "sv << mapped_port;
+    // Calculate the mapped port and clamp to valid unprivileged range.
+    // config::sunshine.port is the base (default 47989) plus offset per service.
+    long mapped = static_cast<long>(config::sunshine.port) + static_cast<long>(port);
+    // Clamp to 1024-65535 to avoid privileged or invalid ports, the ENet layer
+    // would otherwise silently fail to bind and the client sees no host.
+    if (mapped < 1024) {
+      BOOST_LOG(warning) << "Port out of range (low): "sv << mapped << ", clamping to 1024";
+      mapped = 1024;
+    } else if (mapped > 65535) {
+      BOOST_LOG(warning) << "Port out of range (high): "sv << mapped << ", clamping to 65535";
+      mapped = 65535;
     }
 
-    return mapped_port;
+    return static_cast<std::uint16_t>(mapped);
   }
 
   /**

@@ -20,10 +20,23 @@
               <small class="text-muted">{{ m.label }}</small>
               <strong class="fs-5">{{ formatValue(m.last, m.unit) }}</strong>
             </div>
-            <svg class="sf-sparkline w-100" :viewBox="`0 0 ${w} ${h}`" preserveAspectRatio="none" role="img"
-                 :aria-label="m.label">
-              <polyline v-if="m.points.length > 1" :points="m.points" fill="none" stroke="currentColor"
-                        stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+            <svg
+              class="sf-sparkline w-100"
+              :viewBox="'0 0 ' + w + ' ' + h"
+              preserveAspectRatio="none"
+              role="img"
+              :aria-label="m.label + ': ' + formatValue(m.last, m.unit) + ', avg ' + formatValue(m.avg, m.unit) + ', peak ' + formatValue(m.max, m.unit)"
+            >
+              <title>{{ m.label }} sparkline</title>
+              <polyline
+                v-if="m.points.length > 1"
+                :points="m.points"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+              />
             </svg>
             <small class="text-muted d-block mt-1">
               {{ $t('index.telemetry_avg', { value: formatValue(m.avg, m.unit) }) }}
@@ -38,12 +51,14 @@
 
 <script>
 /**
- * Host resource telemetry panel. Polls /api/stream/telemetry every second
- * and renders lightweight SVG sparklines (no charting dependency) for CPU,
- * memory and GPU utilisation over the last 10 minutes.
+ * @brief Host resource telemetry panel with lightweight SVG sparklines.
  *
+ * Polls "./api/stream/telemetry" every second and renders CPU, memory and
+ * GPU utilisation over the last 10 minutes without a charting dependency.
  * The backend store is Linux-only; non-Linux hosts return an empty series
- * object and the panel shows the "unavailable" view.
+ * and the panel shows the unavailable view. Sparklines include an
+ * aria-label with current/avg/peak for screen readers and respect
+ * prefers-reduced-motion by avoiding animation.
  */
 export default {
   name: 'TelemetryCharts',
@@ -96,10 +111,20 @@ export default {
     }
   },
   methods: {
+    /**
+     * @brief Format a telemetry value for display.
+     * @param {number} v Raw value.
+     * @param {string} unit Unit label.
+     * @return {string} Formatted string with one decimal.
+     */
     formatValue(v, unit) {
-      return `${Number(v ?? 0).toFixed(1)} ${unit}`
+      return Number(v ?? 0).toFixed(1) + " " + unit
     },
-    /** Map a series into SVG polyline points, normalised to the viewBox. */
+    /**
+     * @brief Map a series into SVG polyline points normalised to the viewBox.
+     * @param {Array<number>} series Values to plot.
+     * @return {Array<string>} Points as "x,y" strings.
+     */
     pointsFor(series) {
       const n = series.length
       if (!n) {
@@ -113,16 +138,20 @@ export default {
         return `${x.toFixed(1)},${y.toFixed(1)}`
       })
     },
+    /**
+     * @brief Poll telemetry endpoint and update series.
+     * @return {Promise<void>}
+     */
     async refresh() {
       try {
-        const r = await fetch('./api/stream/telemetry')
+        const r = await fetch("./api/stream/telemetry")
         if (!r.ok) {
           return
         }
         this.telemetry = await r.json()
       }
       catch (e) {
-        console.error('TelemetryCharts: poll failed', e)
+        console.error("TelemetryCharts: poll failed", e)
       }
     },
   },
@@ -137,5 +166,11 @@ export default {
   color: var(--bs-primary);
   display: block;
   height: 48px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-sparkline {
+    transition: none;
+  }
 }
 </style>

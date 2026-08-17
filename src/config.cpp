@@ -1414,12 +1414,31 @@ namespace config {
       video.dd.wa.hdr_toggle_delay = std::chrono::milliseconds {value};
     }
 
-    int_f(vars, "max_bitrate", video.max_bitrate);
+    // Validate max_bitrate: 0 = no ceiling, else clamp to [MAX_BITRATE_MIN_KBPS, BITRATE_MAX_KBPS].
+    // int_f alone would accept any integer including negative and overflow values,
+    // which would otherwise cap the stream at 0 kbps (black screen) or wrap.
+    {
+      bool had_key = vars.contains("max_bitrate");
+      int tmp = video.max_bitrate;
+      int_f(vars, "max_bitrate", tmp);
+      if (had_key) {
+        if (tmp != 0 && (tmp < MAX_BITRATE_MIN_KBPS || tmp > BITRATE_MAX_KBPS)) {
+          BOOST_LOG(warning) << "config: max_bitrate "sv << tmp << " out of range ["sv << MAX_BITRATE_MIN_KBPS << "," << BITRATE_MAX_KBPS << "]; keeping previous "sv << video.max_bitrate;
+        } else {
+          video.max_bitrate = tmp;
+        }
+      }
+    }
     double_between_f(vars, "minimum_fps_target", video.minimum_fps_target, {0.0, 1000.0});
 
     bool_f(vars, "adaptive_bitrate_enabled", video.adaptive_bitrate_enabled);
-    int_between_f(vars, "adaptive_bitrate_min", video.adaptive_bitrate_min, {100, 1000000});
-    int_between_f(vars, "adaptive_bitrate_max", video.adaptive_bitrate_max, {100, 1000000});
+    int_between_f(vars, "adaptive_bitrate_min", video.adaptive_bitrate_min, {BITRATE_MIN_KBPS, BITRATE_MAX_KBPS});
+    int_between_f(vars, "adaptive_bitrate_max", video.adaptive_bitrate_max, {BITRATE_MIN_KBPS, BITRATE_MAX_KBPS});
+    // Cross-validate adaptive range: min must not exceed max.
+    if (video.adaptive_bitrate_enabled && video.adaptive_bitrate_min > video.adaptive_bitrate_max) {
+      BOOST_LOG(warning) << "config: adaptive_bitrate_min ("sv << video.adaptive_bitrate_min << ") > adaptive_bitrate_max ("sv << video.adaptive_bitrate_max << "); swapping"sv;
+      std::swap(video.adaptive_bitrate_min, video.adaptive_bitrate_max);
+    }
 
     bool_f(vars, "headless_mode", video.linux_display.headless_mode);
     bool_f(vars, "linux_use_cage_compositor", video.linux_display.use_cage_compositor);
@@ -1575,7 +1594,23 @@ namespace config {
 
     int_between_f(vars, "lan_encryption_mode", stream.lan_encryption_mode, {0, 2});
     int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, {0, 2});
-    int_between_f(vars, "packetsize", stream.packetsize, {0, PACKETSIZE_MAX});
+    // Validate packetsize: 0 = auto (pipeline default), otherwise must be
+    // within [PACKETSIZE_MIN, PACKETSIZE_MAX]. Reject out-of-range values
+    // with a warning so a typo like packetsize=10 does not silently produce
+    // sub-MTU fragments that trigger 100% packet loss.
+    {
+      bool had_key = vars.contains("packetsize");
+      int tmp = stream.packetsize;
+      int_between_f(vars, "packetsize", tmp, {0, PACKETSIZE_MAX});
+      if (had_key) {
+        if (tmp != 0 && tmp < PACKETSIZE_MIN) {
+          BOOST_LOG(warning) << "config: packetsize "sv << tmp << " below minimum "sv << PACKETSIZE_MIN << "; clamping to "sv << PACKETSIZE_MIN;
+          tmp = PACKETSIZE_MIN;
+        }
+        // int_between_f already clamped to PACKETSIZE_MAX when present.
+        stream.packetsize = tmp;
+      }
+    }
 
     path_f(vars, "file_apps", stream.file_apps);
 #ifndef __ANDROID__
@@ -1590,7 +1625,7 @@ namespace config {
     }
 #endif
 
-    int_between_f(vars, "fec_percentage", stream.fec_percentage, {1, 255});
+    int_between_f(vars, "fec_percentage", stream.fec_percentage, {FEC_PERCENTAGE_MIN, FEC_PERCENTAGE_MAX});
 
     map_int_int_f(vars, "keybindings"s, input.keybindings);
 

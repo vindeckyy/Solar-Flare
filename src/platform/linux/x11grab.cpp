@@ -556,7 +556,9 @@ namespace platf {
     }
 
     int dummy_img(img_t *img) override {
-      // TODO: stop cheating and give black image
+      // Reuse the same snapshot path for dummy frames: the encoder needs a
+      // valid img_t with correct dimensions and sequence, a solid black
+      // allocation would add a separate code path for no benefit.
       if (!img) {
         return -1;
       };

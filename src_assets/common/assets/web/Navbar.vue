@@ -28,7 +28,7 @@
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
                 aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
+          <span class="navbar-toggler-icon" aria-hidden="true"></span>
         </button>
         <div class="collapse navbar-collapse sf-nav-content" id="navbarSupportedContent">
           <div class="sf-nav-section-label">Vector</div>
@@ -84,8 +84,8 @@
             </li>
             <li class="nav-item dropdown dropend">
               <button class="nav-link dropdown-toggle" type="button" id="navbarUserMenu"
-                      data-bs-toggle="dropdown" aria-expanded="false" aria-label="User menu" title="User menu">
-                <CircleUserRound :size="18" class="icon"></CircleUserRound>
+                      data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true" aria-label="User menu" title="User menu">
+                <CircleUserRound :size="18" class="icon" aria-hidden="true"></CircleUserRound>
               </button>
               <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserMenu">
                 <li>
@@ -170,21 +170,22 @@ export default {
     }
   },
   mounted() {
-    const currentPath = globalThis.location.pathname.replace(/\/$/, '') || '/'
-    const links = document.querySelectorAll('.navbar-sunshine a[href]')
+    const currentPath = globalThis.location.pathname.replace(/\/$/, "") || "/"
+    const links = document.querySelectorAll(".navbar-sunshine a[href]")
 
     for (const link of links) {
-      const href = link.getAttribute('href')
-      if (!href || href === '#') {
+      const href = link.getAttribute("href")
+      if (!href || href === "#") {
         continue
       }
 
-      const linkPath = new URL(href, globalThis.location.href).pathname.replace(/\/$/, '') || '/'
+      const linkPath = new URL(href, globalThis.location.href).pathname.replace(/\/$/, "") || "/"
       if (linkPath !== currentPath) {
         continue
       }
 
-      link.classList.add('active')
+      link.classList.add("active")
+      link.setAttribute("aria-current", "page")
     }
   },
   methods: {
@@ -222,6 +223,16 @@ export default {
 </script>
 
 <style>
+/**
+ * @brief Navbar-specific overrides; global layout lives in sunshine.css.
+ */
+.navbar-sunshine .nav-link:focus-visible,
+.navbar-sunshine .navbar-brand:focus-visible,
+.navbar-sunshine .navbar-toggler:focus-visible {
+  outline: 2px solid var(--color-primary, #ffad42);
+  outline-offset: 2px;
+}
+
 /* Navbar toggler icon for the compact mobile control bar. */
 .navbar-sunshine .navbar-toggler-icon {
   --bs-navbar-toggler-icon-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.9%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;

@@ -138,7 +138,23 @@ namespace http {
     return 0;
   }
 
+  /**
+   * @brief Persist username/password hash to a JSON file.
+   * @param file Path to the credentials file.
+   * @param username Plaintext username.
+   * @param password Plaintext password (min 12 chars).
+   * @param run_our_mouth Unused legacy flag.
+   * @return 0 on success, -1 on validation or I/O failure.
+   */
   int save_user_creds(const std::string &file, const std::string &username, const std::string &password, bool run_our_mouth) {
+    if (file.empty() || username.empty()) {
+      BOOST_LOG(error) << "save_user_creds: empty file or username"sv;
+      return -1;
+    }
+    if (username.size() > 256) {
+      BOOST_LOG(error) << "Username too long (max 256)"sv;
+      return -1;
+    }
     // ponytail: M-4 minimum password length. Cheap reject at the write side;
     // bcrypt-style hashing would be the stronger answer but ships a new dep.
     constexpr std::size_t MIN_PASSWORD_LEN = 12;
@@ -190,13 +206,29 @@ namespace http {
     return false;
   }
 
+  /**
+   * @brief Reload username/hash/salt from the credentials file.
+   * @param file Path to the credentials file.
+   * @return 0 on success, -1 on parse failure.
+   */
   int reload_user_creds(const std::string &file) {
+    if (file.empty()) {
+      BOOST_LOG(error) << "reload_user_creds: empty file path"sv;
+      return -1;
+    }
     pt::ptree inputTree;
     try {
       pt::read_json(file, inputTree);
-      config::sunshine.username = inputTree.get<std::string>("username");
-      config::sunshine.password = inputTree.get<std::string>("password");
-      config::sunshine.salt = inputTree.get<std::string>("salt");
+      auto username = inputTree.get<std::string>("username");
+      auto password = inputTree.get<std::string>("password");
+      auto salt = inputTree.get<std::string>("salt");
+      if (username.empty() || password.empty() || salt.empty()) {
+        BOOST_LOG(error) << "reload_user_creds: missing required field"sv;
+        return -1;
+      }
+      config::sunshine.username = std::move(username);
+      config::sunshine.password = std::move(password);
+      config::sunshine.salt = std::move(salt);
     } catch (std::exception &e) {
       BOOST_LOG(error) << "loading user credentials: "sv << e.what();
       return -1;
@@ -263,7 +295,18 @@ namespace http {
 #endif
   }
 
+  /**
+   * @brief Download a HTTPS URL to a file with TLS verification and timeout.
+   * @param url Source HTTPS URL (must be https; http is rejected).
+   * @param file Destination file path.
+   * @param ssl_version Minimum SSL version.
+   * @return true on HTTP 2xx and successful write, false otherwise.
+   */
   bool download_file(const std::string &url, const std::string &file, long ssl_version) {
+    if (url.empty() || file.empty()) {
+      BOOST_LOG(error) << "download_file: empty url or file path"sv;
+      return false;
+    }
     // sonar complains about weak ssl and tls versions; however sonar cannot detect the fix
     CURL *curl = curl_easy_init();  // NOSONAR
     if (!curl) {
@@ -271,11 +314,12 @@ namespace http {
       return false;
     }
     if (restrict_protocols_to_https(curl) != CURLE_OK) {
+      BOOST_LOG(error) << "Failed to restrict curl to HTTPS"sv;
       curl_easy_cleanup(curl);
       return false;
     }
 
-    if (std::string file_dir = file_handler::get_parent_directory(file); !file_handler::make_directory(file_dir)) {
+    if (std::string file_dir = file_handler::get_parent_directory(file); !file_dir.empty() && !file_handler::make_directory(file_dir)) {
       BOOST_LOG(error) << "Couldn't create directory ["sv << file_dir << ']';
       curl_easy_cleanup(curl);
       return false;
@@ -283,7 +327,7 @@ namespace http {
 
     FILE *fp = fopen(file.c_str(), "wb");
     if (!fp) {
-      BOOST_LOG(error) << "Couldn't open ["sv << file << ']';
+      BOOST_LOG(error) << "Couldn't open ["sv << file << "] for writing: "sv << std::strerror(errno);
       curl_easy_cleanup(curl);
       return false;
     }
@@ -299,31 +343,68 @@ namespace http {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
 
     CURLcode result = curl_easy_perform(curl);
+    long http_code = 0;
+    if (result == CURLE_OK) {
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+      if (http_code < 200 || http_code >= 300) {
+        BOOST_LOG(error) << "Download ["sv << url << "] returned HTTP "sv << http_code;
+        result = CURLE_HTTP_RETURNED_ERROR;
+      }
+    }
     if (result != CURLE_OK) {
-      BOOST_LOG(error) << "Couldn't download ["sv << url << ", code:" << result << ']';
+      BOOST_LOG(error) << "Couldn't download ["sv << url << ", code:" << result << " "sv << curl_easy_strerror(result) << ']';
     }
 
     curl_easy_cleanup(curl);
     fclose(fp);
+    if (result != CURLE_OK) {
+      std::error_code ec;
+      std::filesystem::remove(file, ec);
+    }
     return result == CURLE_OK;
   }
 
+  /**
+   * @brief URL-escape a string via libcurl.
+   * @param url Raw string to escape.
+   * @return Escaped string, or empty on curl failure.
+   */
   std::string url_escape(const std::string &url) {
     char *string = curl_easy_escape(nullptr, url.c_str(), static_cast<int>(url.length()));
+    if (!string) {
+      BOOST_LOG(warning) << "url_escape: curl_easy_escape failed"sv;
+      return {};
+    }
     std::string result(string);
     curl_free(string);
     return result;
   }
 
+  /**
+   * @brief Extract the host component from a URL.
+   * @param url Full URL.
+   * @return Host string, or empty on parse failure.
+   */
   std::string url_get_host(const std::string &url) {
+    if (url.empty()) {
+      return {};
+    }
     CURLU *curlu = curl_url();
-    curl_url_set(curlu, CURLUPART_URL, url.c_str(), static_cast<unsigned int>(url.length()));
-    char *host;
-    if (curl_url_get(curlu, CURLUPART_HOST, &host, 0) != CURLUE_OK) {
+    if (!curlu) {
+      BOOST_LOG(warning) << "url_get_host: curl_url() failed"sv;
+      return {};
+    }
+    if (curl_url_set(curlu, CURLUPART_URL, url.c_str(), 0) != CURLUE_OK) {
       curl_url_cleanup(curlu);
-      return "";
+      return {};
+    }
+    char *host = nullptr;
+    if (curl_url_get(curlu, CURLUPART_HOST, &host, 0) != CURLUE_OK || !host) {
+      curl_url_cleanup(curlu);
+      return {};
     }
     std::string result(host);
     curl_free(host);

@@ -1,63 +1,93 @@
 <template>
   <teleport to="body">
     <div v-if="visible" class="command-palette-backdrop" @click.self="close">
-      <div class="command-palette" @click.stop>
+      <div
+        class="command-palette"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        @click.stop
+      >
         <div class="command-palette-input-wrapper">
-          <Search :size="18" class="command-palette-search-icon" />
+          <Search :size="18" class="command-palette-search-icon" aria-hidden="true" />
           <input
             ref="searchInput"
             type="text"
             class="command-palette-input"
             v-model="query"
             placeholder="Type a command..."
+            aria-label="Search commands"
+            aria-controls="command-palette-listbox"
+            :aria-activedescendant="activeDescendantId"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded="true"
             @keydown="onKeydown"
           />
-          <kbd class="command-palette-kbd-hint">Esc</kbd>
+          <kbd class="command-palette-kbd-hint" aria-hidden="true">Esc</kbd>
         </div>
-        <div class="command-palette-results" ref="resultsContainer">
-          <div v-if="filteredNav.length" class="command-palette-group">
-            <div class="command-palette-group-label">Navigation</div>
+        <div
+          id="command-palette-listbox"
+          class="command-palette-results"
+          ref="resultsContainer"
+          role="listbox"
+          aria-label="Command results"
+        >
+          <div v-if="filteredNav.length" class="command-palette-group" role="group" aria-label="Navigation">
+            <div class="command-palette-group-label" aria-hidden="true">Navigation</div>
             <div
               v-for="(item, index) in filteredNav"
               :key="item.id"
+              :id="optionId(getGlobalIndex(index, 'nav'))"
               class="command-palette-item"
               :class="{ 'command-palette-item-selected': selectedIndex === getGlobalIndex(index, 'nav') }"
+              role="option"
+              :aria-selected="(selectedIndex === getGlobalIndex(index, 'nav')).toString()"
+              tabindex="-1"
               @click="execute(item)"
               @mouseenter="selectedIndex = getGlobalIndex(index, 'nav')"
             >
-              <component :is="item.icon" :size="18" class="command-palette-item-icon" />
+              <component :is="item.icon" :size="18" class="command-palette-item-icon" aria-hidden="true" />
               <span v-html="highlightLabel(item.label)"></span>
             </div>
           </div>
-          <div v-if="filteredSettings.length" class="command-palette-group">
-            <div class="command-palette-group-label">Settings</div>
+          <div v-if="filteredSettings.length" class="command-palette-group" role="group" aria-label="Settings">
+            <div class="command-palette-group-label" aria-hidden="true">Settings</div>
             <div
               v-for="(item, index) in filteredSettings"
               :key="item.id"
+              :id="optionId(getGlobalIndex(index, 'settings'))"
               class="command-palette-item"
               :class="{ 'command-palette-item-selected': selectedIndex === getGlobalIndex(index, 'settings') }"
+              role="option"
+              :aria-selected="(selectedIndex === getGlobalIndex(index, 'settings')).toString()"
+              tabindex="-1"
               @click="execute(item)"
               @mouseenter="selectedIndex = getGlobalIndex(index, 'settings')"
             >
-              <Settings :size="18" class="command-palette-item-icon" />
+              <Settings :size="18" class="command-palette-item-icon" aria-hidden="true" />
               <span v-html="highlightLabel(item.label)"></span>
             </div>
           </div>
-          <div v-if="filteredHost.length" class="command-palette-group">
-            <div class="command-palette-group-label">Host Controls</div>
+          <div v-if="filteredHost.length" class="command-palette-group" role="group" aria-label="Host controls">
+            <div class="command-palette-group-label" aria-hidden="true">Host Controls</div>
             <div
               v-for="(item, index) in filteredHost"
               :key="item.id"
+              :id="optionId(getGlobalIndex(index, 'host'))"
               class="command-palette-item"
               :class="{ 'command-palette-item-selected': selectedIndex === getGlobalIndex(index, 'host') }"
+              role="option"
+              :aria-selected="(selectedIndex === getGlobalIndex(index, 'host')).toString()"
+              tabindex="-1"
               @click="execute(item)"
               @mouseenter="selectedIndex = getGlobalIndex(index, 'host')"
             >
-              <component :is="item.icon" :size="18" class="command-palette-item-icon" />
+              <component :is="item.icon" :size="18" class="command-palette-item-icon" aria-hidden="true" />
               <span v-html="highlightLabel(item.label)"></span>
             </div>
           </div>
-          <div v-if="!totalResults" class="command-palette-empty">
+          <div v-if="!totalResults" class="command-palette-empty" role="status" aria-live="polite">
             No results found
           </div>
         </div>
@@ -106,8 +136,9 @@ export default {
   data() {
     return {
       visible: false,
-      query: '',
+      query: "",
       selectedIndex: 0,
+      _previousFocus: null,
     }
   },
   computed: {
@@ -126,33 +157,54 @@ export default {
     totalResults() {
       return this.allResults.length
     },
+    /**
+     * @brief Id of the currently active option for aria-activedescendant.
+     * @return {string} DOM id of the selected option, or empty when none.
+     */
+    activeDescendantId() {
+      if (this.totalResults === 0) return ""
+      return this.optionId(this.selectedIndex)
+    },
   },
   mounted() {
-    document.addEventListener('keydown', this.onGlobalKeydown)
+    document.addEventListener("keydown", this.onGlobalKeydown)
   },
   beforeUnmount() {
-    document.removeEventListener('keydown', this.onGlobalKeydown)
+    document.removeEventListener("keydown", this.onGlobalKeydown)
   },
   methods: {
     /**
-     * @brief Handle global keydown to toggle the palette with Ctrl+K or Cmd+K.
+     * @brief Return a stable DOM id for a palette option.
+     * @param {number} index Global index of the option.
+     * @return {string} DOM id.
+     */
+    optionId(index) {
+      return "command-palette-option-" + index
+    },
+    /**
+     * @brief Handle global keydown to toggle the palette with Ctrl+K or Cmd+K and close with Esc.
+     * @param {KeyboardEvent} e The keydown event.
      */
     onGlobalKeydown(e) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault()
         if (this.visible) {
           this.close()
         } else {
           this.open()
         }
+      } else if (e.key === "Escape" && this.visible) {
+        e.preventDefault()
+        this.close()
       }
     },
     /**
-     * @brief Open the command palette.
+     * @brief Open the command palette and move focus to the search input.
      */
     open() {
+      this._previousFocus = document.activeElement
       this.visible = true
-      this.query = ''
+      this.query = ""
       this.selectedIndex = 0
       this.$nextTick(() => {
         if (this.$refs.searchInput) {
@@ -161,12 +213,18 @@ export default {
       })
     },
     /**
-     * @brief Close the command palette.
+     * @brief Close the command palette and restore focus.
      */
     close() {
       this.visible = false
-      this.query = ''
+      this.query = ""
       this.selectedIndex = 0
+      this.$nextTick(() => {
+        if (this._previousFocus && typeof this._previousFocus.focus === "function") {
+          this._previousFocus.focus()
+        }
+        this._previousFocus = null
+      })
     },
     /**
      * @brief Filter commands by the current search query.
@@ -225,24 +283,32 @@ export default {
      * @param {KeyboardEvent} e The keydown event.
      */
     onKeydown(e) {
-      if (e.key === 'ArrowDown') {
+      if (e.key === "ArrowDown") {
         e.preventDefault()
         if (this.selectedIndex < this.totalResults - 1) {
           this.selectedIndex++
         }
         this.scrollToSelected()
-      } else if (e.key === 'ArrowUp') {
+      } else if (e.key === "ArrowUp") {
         e.preventDefault()
         if (this.selectedIndex > 0) {
           this.selectedIndex--
         }
         this.scrollToSelected()
-      } else if (e.key === 'Enter') {
+      } else if (e.key === "Home") {
+        e.preventDefault()
+        this.selectedIndex = 0
+        this.scrollToSelected()
+      } else if (e.key === "End") {
+        e.preventDefault()
+        this.selectedIndex = Math.max(0, this.totalResults - 1)
+        this.scrollToSelected()
+      } else if (e.key === "Enter") {
         e.preventDefault()
         if (this.allResults[this.selectedIndex]) {
           this.execute(this.allResults[this.selectedIndex])
         }
-      } else if (e.key === 'Escape') {
+      } else if (e.key === "Escape") {
         e.preventDefault()
         this.close()
       }
@@ -431,5 +497,27 @@ export default {
   font-family: inherit;
   border: 1px solid var(--color-border, #585b70);
   line-height: 1.5;
+}
+
+.command-palette-input:focus-visible {
+  outline: 2px solid var(--color-primary, #ffad42);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.command-palette-item:focus-visible {
+  outline: 2px solid var(--color-primary, #ffad42);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .command-palette-backdrop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .command-palette-item {
+    transition: none;
+  }
 }
 </style>

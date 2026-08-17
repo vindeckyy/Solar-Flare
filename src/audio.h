@@ -2,7 +2,15 @@
 
 /**
  * @file src/audio.h
- * @brief Declarations for audio capture and encoding.
+ * @brief Declarations for audio capture, Opus encoding, and pre-encoder FX chain.
+ *
+ * The capture pipeline is: platform mic -> FX PreProcessor
+ * (AGC -> VAD -> noise gate -> ducker) -> Opus encode -> RTP.
+ *
+ * FX stages are optional and tuned via config::solarflare.audio_fx. All
+ * controls are idempotent: calling reset() or stop multiple times is safe,
+ * and an empty device string falls back to the host or virtual sink with a
+ * warning instead of failing the stream.
  */
 #pragma once
 
@@ -42,32 +50,44 @@ namespace audio {
 
   extern opus_stream_config_t stream_configs[MAX_STREAM_CONFIG];
 
+  /**
+   * @brief Audio capture and encode configuration for a single stream.
+   *
+   * Channels and packet duration drive the Opus frame size. An empty
+   * device sink is treated as "use host/virtual fallback" rather than an error,
+   * so streams never fail solely due to a missing config string.
+   */
   struct config_t {
     enum flags_e : int {
-      HIGH_QUALITY,  ///< High quality audio
-      HOST_AUDIO,  ///< Host audio
-      CUSTOM_SURROUND_PARAMS,  ///< Custom surround parameters
-      CONTINUOUS_AUDIO,  ///< Continuous audio
+      HIGH_QUALITY,  ///< High quality audio (use high-bitrate stream variant)
+      HOST_AUDIO,  ///< Mix host audio into the captured stream
+      CUSTOM_SURROUND_PARAMS,  ///< Use customStreamParams instead of the preset mapping
+      CONTINUOUS_AUDIO,  ///< Capture continuously even during silence (avoids PipeWire suspend)
       MAX_FLAGS  ///< Maximum number of flags
     };
 
-    int packetDuration;
-    int channels;
-    int mask;
+    int packetDuration;  ///< Opus packet duration in ms (typically 5 or 10).
+    int channels;  ///< Requested channel count (2, 6, or 8).
+    int mask;  ///< Channel mask (reserved, currently unused, must be 0).
 
-    stream_params_t customStreamParams;
+    stream_params_t customStreamParams;  ///< Custom mapping when CUSTOM_SURROUND_PARAMS is set.
 
-    std::bitset<MAX_FLAGS> flags;
+    std::bitset<MAX_FLAGS> flags;  ///< Behavior flags (see flags_e).
   };
 
+  /**
+   * @brief Per-process audio context owning the platform control and sink state.
+   *
+   * Lifetime is tied to the shared audio control singleton. Controls are
+   * idempotent: init and shutdown may be called multiple times without leaking
+   * sinks or double-restoring defaults, and an empty sink is handled gracefully.
+   */
   struct audio_ctx_t {
-    // We want to change the sink for the first stream only
-    std::unique_ptr<std::atomic_bool> sink_flag;
+    std::unique_ptr<std::atomic_bool> sink_flag;  ///< True after the first stream claims sink selection.
+    std::unique_ptr<platf::audio_control_t> control;  ///< Platform audio backend (Pulse/PipeWire).
 
-    std::unique_ptr<platf::audio_control_t> control;
-
-    bool restore_sink;
-    platf::sink_t sink;
+    bool restore_sink = false;  ///< Whether the default sink must be restored on shutdown.
+    platf::sink_t sink;  ///< Snapshot of host and virtual sinks at init.
   };
 
   /**
@@ -115,6 +135,19 @@ namespace audio {
 
   using audio_ctx_ref_t = safe::shared_t<audio_ctx_t>::ptr_t;
 
+  /**
+   * @brief Capture audio, apply FX chain (AGC/VAD/ducking/gate), and encode Opus.
+   *
+   * FX chain order: capture -> AGC -> VAD (observes) -> noise gate -> ducker -> Opus.
+   * Each stage is independently switchable via config::solarflare.audio_fx; when a stage
+   * is disabled its cost is avoided. The function handles empty device strings by
+   * falling back to the host sink or virtual null sink, and all sink switches are
+   * idempotent so repeated capture starts do not leak or double-restore.
+   *
+   * @param mail Mailbox for shutdown signaling and packet queuing.
+   * @param config Audio stream parameters (channels, duration, flags).
+   * @param channel_data Opaque per-stream context forwarded to encoded packets.
+   */
   void capture(safe::mail_t mail, config_t config, void *channel_data);
 
   /**

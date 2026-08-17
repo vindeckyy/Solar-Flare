@@ -17,10 +17,28 @@ extern "C" {
 
 namespace video {
 
+  /**
+   * @brief Check whether a colorspace is HDR.
+   * @param colorspace Colorspace descriptor to test.
+   * @return True when the colorspace is BT.2020 with PQ (HDR), false otherwise.
+   */
   bool colorspace_is_hdr(const sunshine_colorspace_t &colorspace) {
     return colorspace.colorspace == colorspace_e::bt2020;
   }
 
+  /**
+   * @brief Derive a negotiated sunshine colorspace from client config and display capability.
+   *
+   * Validates the client-supplied encoderCscMode and dynamicRange, clamps
+   * out-of-range values with a warning, and forces BT.2020+PQ when HDR is
+   * requested and the display advertises HDR support. An invalid BT.2020 SDR
+   * + 8-bit combination is downgraded to Rec.709 so the encoder does not
+   * receive an unsupported color combination.
+   *
+   * @param config Client video config (encoderCscMode, dynamicRange).
+   * @param hdr_display True when the captured display reports HDR metadata.
+   * @return Validated sunshine_colorspace_t ready for encoder setup.
+   */
   sunshine_colorspace_t colorspace_from_client_config(const config_t &config, bool hdr_display) {
     sunshine_colorspace_t colorspace;
 
@@ -78,8 +96,27 @@ namespace video {
     return colorspace;
   }
 
+  /**
+   * @brief Convert a Sunshine colorspace to FFmpeg/SWS color parameters.
+   *
+   * Handles all known colorspace variants and clamps invalid bit depths or
+   * unknown enum values to a safe Rec.709 fallback so the caller never
+   * receives uninitialized AVColor* fields. BT.2020 variants require 10-bit
+   * depth and emit a warning when the caller violates that expectation.
+   *
+   * @param sunshine_colorspace Validated Sunshine colorspace descriptor.
+   * @return FFmpeg color description suitable for AVCodecContext and sws.
+   */
   avcodec_colorspace_t avcodec_colorspace_from_sunshine_colorspace(const sunshine_colorspace_t &sunshine_colorspace) {
-    avcodec_colorspace_t avcodec_colorspace;
+    avcodec_colorspace_t avcodec_colorspace {};
+
+    // Defensive: treat an out-of-range bit depth as 8-bit and warn, so
+    // subsequent asserts do not fire in release builds.
+    unsigned bit_depth = sunshine_colorspace.bit_depth;
+    if (bit_depth != 8 && bit_depth != 10) {
+      BOOST_LOG(warning) << "Invalid colorspace bit depth " << bit_depth << ", clamping to 8-bit";
+      bit_depth = 8;
+    }
 
     switch (sunshine_colorspace.colorspace) {
       case colorspace_e::rec601:
@@ -99,21 +136,34 @@ namespace video {
         break;
 
       case colorspace_e::bt2020sdr:
-        // Rec. 2020
+        // Rec. 2020 (SDR, gamma 2.4)
         avcodec_colorspace.primaries = AVCOL_PRI_BT2020;
-        assert(sunshine_colorspace.bit_depth == 10);
+        if (bit_depth != 10) {
+          BOOST_LOG(warning) << "BT.2020 SDR expects 10-bit depth, got " << bit_depth << " bit; using 10-bit transfer anyway";
+        }
         avcodec_colorspace.transfer_function = AVCOL_TRC_BT2020_10;
         avcodec_colorspace.matrix = AVCOL_SPC_BT2020_NCL;
         avcodec_colorspace.software_format = SWS_CS_BT2020;
         break;
 
       case colorspace_e::bt2020:
-        // Rec. 2020 with ST 2084 perceptual quantizer
+        // Rec. 2020 with ST 2084 perceptual quantizer (HDR)
         avcodec_colorspace.primaries = AVCOL_PRI_BT2020;
-        assert(sunshine_colorspace.bit_depth == 10);
+        if (bit_depth != 10) {
+          BOOST_LOG(warning) << "BT.2020 HDR expects 10-bit depth, got " << bit_depth << " bit; using PQ transfer anyway";
+        }
         avcodec_colorspace.transfer_function = AVCOL_TRC_SMPTE2084;
         avcodec_colorspace.matrix = AVCOL_SPC_BT2020_NCL;
         avcodec_colorspace.software_format = SWS_CS_BT2020;
+        break;
+
+      default:
+        BOOST_LOG(warning) << "Unknown colorspace enum " << static_cast<int>(sunshine_colorspace.colorspace)
+                           << ", falling back to Rec. 709";
+        avcodec_colorspace.primaries = AVCOL_PRI_BT709;
+        avcodec_colorspace.transfer_function = AVCOL_TRC_BT709;
+        avcodec_colorspace.matrix = AVCOL_SPC_BT709;
+        avcodec_colorspace.software_format = SWS_CS_ITU709;
         break;
     }
 
@@ -122,6 +172,18 @@ namespace video {
     return avcodec_colorspace;
   }
 
+  /**
+   * @brief Get static RGB->YUV color conversion matrix for a colorspace.
+   *
+   * Returns a precomputed color_t for the requested Sunshine colorspace and
+   * output range. Unknown colorspace enums are treated as Rec.709 with a
+   * warning, and invalid bit depths (not 8 or 10) are clamped to 8-bit so
+   * the caller never indexes out of bounds or produces nonsensical matrices.
+   *
+   * @param colorspace Targeted YUV colorspace.
+   * @param unorm_output True for UNORM (0.0-1.0) output, false for UINT.
+   * @return Pointer to a static color_t with conversion vectors.
+   */
   const color_t *color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace, bool unorm_output) {
     constexpr auto generate_color_vectors = [](const sunshine_colorspace_t &colorspace, bool unorm_output) -> color_t {
       // "Table 4 – Interpretation of matrix coefficients (MatrixCoefficients) value" section of ITU-T H.273
@@ -229,6 +291,13 @@ namespace video {
       generate_color_vectors({colorspace_e::bt2020, true, 10}, true),
     };
 
+    // Clamp invalid bit depths before indexing the precomputed table.
+    unsigned effective_bit_depth = colorspace.bit_depth;
+    if (effective_bit_depth != 8 && effective_bit_depth != 10) {
+      BOOST_LOG(warning) << "Invalid bit depth " << effective_bit_depth << " for color_vectors, clamping to 8";
+      effective_bit_depth = 8;
+    }
+
     const color_t *result = nullptr;
 
     switch (colorspace.colorspace) {
@@ -236,16 +305,20 @@ namespace video {
         result = &colors[0];
         break;
       case colorspace_e::rec709:
-      default:
         result = &colors[4];
         break;
       case colorspace_e::bt2020:
       case colorspace_e::bt2020sdr:
         result = &colors[8];
         break;
+      default:
+        BOOST_LOG(warning) << "Unknown colorspace enum " << static_cast<int>(colorspace.colorspace)
+                           << " in color_vectors_from_colorspace, falling back to Rec.709";
+        result = &colors[4];
+        break;
     }
 
-    if (colorspace.bit_depth == 10) {
+    if (effective_bit_depth == 10) {
       result += 2;
     }
     if (colorspace.full_range) {

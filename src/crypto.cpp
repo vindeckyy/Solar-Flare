@@ -10,6 +10,9 @@
 
 // local includes
 #include "crypto.h"
+#include "logging.h"
+
+using namespace std::literals;
 
 namespace crypto {
   using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
@@ -404,11 +407,23 @@ namespace crypto {
     };
   }
 
+  /**
+   * @brief Generate cryptographically secure random bytes.
+   * @param bytes Number of bytes to generate.
+   * @return Random byte string of length @p bytes. On failure, returns a
+   *         best-effort string; callers that require strong entropy should
+   *         check RAND_bytes return in the underlying OpenSSL path.
+   */
   std::string rand(std::size_t bytes) {
+    if (bytes == 0) {
+      return {};
+    }
     std::string r;
     r.resize(bytes);
 
-    RAND_bytes((uint8_t *) r.data(), (int) r.size());
+    if (RAND_bytes((uint8_t *) r.data(), (int) r.size()) != 1) {
+      BOOST_LOG(warning) << "crypto::rand: RAND_bytes failed"sv;
+    }
 
     return r;
   }
@@ -513,11 +528,29 @@ namespace crypto {
     EVP_MD_CTX_destroy(ctx);
   }
 
+  /**
+   * @brief Generate a random string from an alphabet.
+   *
+   * Each byte of entropy is mapped modulo alphabet length. The alphabet
+   * should be non-empty; an empty alphabet returns an empty string with
+   * a warning. Used for salts and token plaintext generation.
+   *
+   * @param bytes Length of the output string.
+   * @param alphabet Character set to draw from.
+   * @return Random string of length @p bytes.
+   */
   std::string rand_alphabet(std::size_t bytes, const std::string_view &alphabet) {
+    if (bytes == 0) {
+      return {};
+    }
+    if (alphabet.empty()) {
+      BOOST_LOG(warning) << "crypto::rand_alphabet: empty alphabet"sv;
+      return {};
+    }
     auto value = rand(bytes);
 
     for (std::size_t i = 0; i != value.size(); ++i) {
-      value[i] = alphabet[value[i] % alphabet.length()];
+      value[i] = alphabet[static_cast<unsigned char>(value[i]) % alphabet.length()];
     }
     return value;
   }

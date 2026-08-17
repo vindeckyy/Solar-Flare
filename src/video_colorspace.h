@@ -19,27 +19,49 @@ namespace video {
     bt2020,  ///< Rec. 2020 HDR
   };
 
+  /**
+   * @brief Negotiated color description for a stream.
+   */
   struct sunshine_colorspace_t {
-    colorspace_e colorspace;
-    bool full_range;
-    unsigned bit_depth;
+    colorspace_e colorspace;  ///< Logical colorspace (Rec.601 / Rec.709 / BT.2020 SDR / BT.2020 HDR).
+    bool full_range;  ///< True for JPEG (full) range, false for MPEG (limited).
+    unsigned bit_depth;  ///< Output bit depth (8 or 10). Other values are clamped to 8.
   };
 
+  /**
+   * @brief Check whether a colorspace is HDR (BT.2020 + ST2084).
+   * @param colorspace Colorspace to test.
+   * @return True for BT.2020 HDR, false otherwise.
+   */
   bool colorspace_is_hdr(const sunshine_colorspace_t &colorspace);
 
   // Declared in video.h
   struct config_t;
 
+  /**
+   * @brief Derive a Sunshine colorspace from a client config and display HDR capability.
+   * @param config Client video config (encoderCscMode, dynamicRange).
+   * @param hdr_display True when the captured display advertises HDR metadata.
+   * @return Validated Sunshine colorspace.
+   */
   sunshine_colorspace_t colorspace_from_client_config(const config_t &config, bool hdr_display);
 
+  /**
+   * @brief FFmpeg/SWS color description.
+   */
   struct avcodec_colorspace_t {
-    AVColorPrimaries primaries;
-    AVColorTransferCharacteristic transfer_function;
-    AVColorSpace matrix;
-    AVColorRange range;
-    int software_format;
+    AVColorPrimaries primaries;  ///< FFmpeg color primaries.
+    AVColorTransferCharacteristic transfer_function;  ///< FFmpeg transfer characteristic.
+    AVColorSpace matrix;  ///< FFmpeg colorspace matrix.
+    AVColorRange range;  ///< FFmpeg color range.
+    int software_format;  ///< SWS colorspace identifier (SWS_CS_*).
   };
 
+  /**
+   * @brief Convert a Sunshine colorspace to FFmpeg/SWS parameters.
+   * @param sunshine_colorspace Validated Sunshine colorspace.
+   * @return FFmpeg color description; unknown inputs fall back to Rec.709.
+   */
   avcodec_colorspace_t avcodec_colorspace_from_sunshine_colorspace(const sunshine_colorspace_t &sunshine_colorspace);
 
   struct alignas(16) color_t {

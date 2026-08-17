@@ -7,7 +7,7 @@
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
-  <div id="content" class="container">
+  <main id="content" class="container">
 
     <!-- SolarFlare host status -->
     <section class="sf-command-deck my-4" aria-labelledby="sf-dashboard-title">
@@ -36,7 +36,7 @@
         <div class="sf-field-ring sf-ring-mid"></div>
         <div class="sf-field-ring sf-ring-inner"></div>
         <div class="sf-solar-disc">
-          <img src="/images/solarflare-mark.svg" height="78" alt="">
+          <img src="/images/solarflare-mark.svg" height="78" alt="SolarFlare disc">
         </div>
         <span class="sf-plot-label sf-plot-north">N 00°</span>
         <span class="sf-plot-label sf-plot-east">E 90°</span>
@@ -70,25 +70,23 @@
       </div>
     </div>
 
-    <!-- Fatal Errors Alert -->
-    <div class="alert alert-danger my-4" v-if="fancyLogs.find(x => x.level === 'Fatal')">
+    <div class="alert alert-danger my-4" v-if="fancyLogs.find(x => x.level === 'Fatal')" role="alert">
       <div>
         <div class="d-flex align-items-center mb-3">
-          <alert-circle :size="32" class="icon-lg me-3"></alert-circle>
+          <alert-circle :size="32" class="icon-lg me-3" aria-hidden="true"></alert-circle>
           <div v-html="sanitizeLocaleHtml($t('index.startup_errors'))"></div>
         </div>
         <ul class="mb-3">
           <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
         </ul>
         <a class="btn btn-danger" href="./troubleshooting#logs">
-          <file-text :size="18" class="icon"></file-text>
+          <file-text :size="18" class="icon" aria-hidden="true"></file-text>
           View Logs
         </a>
       </div>
     </div>
 
-    <!-- ViGEmBus Warning -->
-    <div class="alert alert-warning my-4" v-if="platform === 'windows' && controllerEnabled && vigembus && (!vigembus.installed || !vigembus.version_compatible)">
+    <div class="alert alert-warning my-4" v-if="platform === 'windows' && controllerEnabled && vigembus && (!vigembus.installed || !vigembus.version_compatible)" role="alert">
       <div>
         <div class="d-flex align-items-center mb-3">
           <alert-triangle :size="32" class="icon-lg me-3"></alert-triangle>
@@ -119,39 +117,37 @@
           {{ $t('index.loading_latest') }}
         </div>
 
-        <div class="alert alert-success my-3" v-if="buildVersionIsDirty">
-          <package :size="18" class="icon"></package>
-          {{ $t('index.version_dirty') }} 🌇
+        <div class="alert alert-success my-3" v-if="buildVersionIsDirty" role="status">
+          <package :size="18" class="icon" aria-hidden="true"></package>
+          {{ $t('index.version_dirty') }}
         </div>
 
-        <div class="alert alert-info my-3" v-if="installedVersionNotStable">
-          <info :size="18" class="icon"></info>
+        <div class="alert alert-info my-3" v-if="installedVersionNotStable" role="status">
+          <info :size="18" class="icon" aria-hidden="true"></info>
           {{ $t('index.installed_version_not_stable') }}
         </div>
 
         <div v-else-if="(!preReleaseBuildAvailable || !notifyPreReleases) && !stableBuildAvailable && !buildVersionIsDirty">
-          <div class="alert alert-success my-3">
-            <check-circle :size="18" class="icon"></check-circle>
+          <div class="alert alert-success my-3" role="status">
+            <check-circle :size="18" class="icon" aria-hidden="true"></check-circle>
             {{ $t('index.version_latest') }}
           </div>
         </div>
 
         <div v-if="notifyPreReleases && preReleaseBuildAvailable">
-          <div class="alert alert-warning my-3">
-            <!-- header row -->
+          <div class="alert alert-warning my-3" role="status">
             <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
               <div class="d-flex align-items-center gap-3 flex-wrap">
-                <alert-circle :size="18" class="icon"></alert-circle>
+                <alert-circle :size="18" class="icon" aria-hidden="true"></alert-circle>
                 <span>{{ $t('index.new_pre_release') }}</span>
                 <h5 class="mb-0">{{ preReleaseVersion.release.name }}</h5>
               </div>
-              <a class="btn btn-success flex-shrink-0" :href="preReleaseVersion.release.html_url" target="_blank">
-                <download :size="18" class="icon"></download>
+              <a class="btn btn-success flex-shrink-0" :href="preReleaseVersion.release.html_url" target="_blank" rel="noopener">
+                <download :size="18" class="icon" aria-hidden="true"></download>
                 {{ $t('index.download') }}
               </a>
             </div>
 
-            <!-- body row (full width) -->
             <div class="markdown-body release-notes" v-html="convertMarkdownToHtml(preReleaseVersion.release.body)"></div>
           </div>
         </div>
@@ -171,20 +167,22 @@
       </div>
     </div>
 
-    <!-- Resources -->
-    <StreamStats></StreamStats>
+    <section aria-label="Stream statistics">
+      <StreamStats></StreamStats>
+    </section>
 
-    <!-- Host resource telemetry (CPU / RAM / GPU sparklines) -->
-    <TelemetryCharts></TelemetryCharts>
+    <section aria-label="Host telemetry">
+      <TelemetryCharts></TelemetryCharts>
+    </section>
 
-    <div class="my-4 sf-resource-grid">
+    <section class="my-4 sf-resource-grid" aria-label="Resources">
       <Resource-Card :installed-version-not-stable="installedVersionNotStable"></Resource-Card>
-    </div>
+    </section>
 
     <footer class="solarflare-footer">
       <span>Powered by <a href="https://github.com/vindeckyy/Solar-Flare" target="_blank" rel="noopener">SolarFlare</a> &middot; based on the <a href="https://github.com/LizardByte/Sunshine" target="_blank" rel="noopener">LizardByte upstream project</a></span>
     </footer>
-  </div>
+  </main>
 </body>
 
 <script type="module">

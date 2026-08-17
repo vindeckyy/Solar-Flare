@@ -93,7 +93,8 @@ namespace audio::fx {
      * @brief Reset internal state (current gain, hold timer).
      *
      * Call when starting a new stream to avoid carrying over gain from the
-     * previous session.
+     * previous session. Idempotent: multiple calls leave the object in the
+     * same initial state (gain=1.0, hold=0).
      */
     void reset();
 
@@ -159,6 +160,7 @@ namespace audio::fx {
 
     /**
      * @brief Reset internal timers / state.
+     * @details Idempotent: repeated calls are safe and leave the detector in the initial silence state.
      */
     void reset();
 
@@ -228,6 +230,7 @@ namespace audio::fx {
 
     /**
      * @brief Reset internal state.
+     * @details Idempotent: repeated calls are safe and restore gain to 0 dB.
      */
     void reset();
 
@@ -250,8 +253,15 @@ namespace audio::fx {
    *   capture -> [AGC] -> [VAD observes] -> [Noise gate] -> [Ducker] -> Opus
    *
    * Each stage can be enabled or disabled independently via the config. By
-   * default all stages are enabled; pass a config with the relevant @c enable_*
-   * flag set to false to bypass a stage.
+   * default all stages are disabled; the capture thread enables only those
+   * requested in config::solarflare.audio_fx so upstream Sunshine behaviour
+   * is preserved. The order matters: AGC normalizes first so VAD and gate
+   * operate on a consistent level, then ducking is applied last.
+   *
+   * All controls are idempotent: reset() may be called any number of times
+   * and process() safely handles null, empty, or zero-channel buffers (no-op
+   * with no state mutation). Empty-device fallback is handled upstream; this
+   * class never touches device strings.
    *
    * The PreProcessor is allocation-free after construction and lock-free for
    * single-producer use (which is exactly the Sunshine audio-encode thread).
@@ -304,6 +314,7 @@ namespace audio::fx {
 
     /**
      * @brief Reset all sub-processor state.
+     * @details Idempotent: may be called any number of times, including when already reset.
      */
     void reset();
 
