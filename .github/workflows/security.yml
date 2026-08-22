@@ -1,0 +1,19 @@
+name: Security
+
+on: [push, pull_request]
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fallback gitleaks scan
+        if: failure()
+        run: |
+          pip install gitleaks || pip3 install gitleaks
+          gitleaks detect --source . --no-git -v

@@ -47,7 +47,7 @@ namespace stat_trackers {
       if (!callback) {
         return;
       }
-      if (interval_in_seconds.count() <= 0) {
+      if (interval_in_seconds.count() < 0) {
         interval_in_seconds = std::chrono::seconds(1);
       }
       if (data.calls == 0) {

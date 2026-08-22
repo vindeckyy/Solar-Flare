@@ -17,6 +17,7 @@ option(BUILD_TESTS "Build tests" ON)
 option(NPM_OFFLINE "Use offline npm packages. You must ensure packages are in your npm cache." OFF)
 
 option(BUILD_WERROR "Enable -Werror flag." OFF)
+option(ENABLE_COVERAGE "Enable gcov coverage instrumentation for tests" OFF)
 
 # if this option is set, the build will exit after configuring special package configuration files
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)

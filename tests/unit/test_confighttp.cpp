@@ -1252,6 +1252,54 @@ TEST_F(ConfigHttpTest, SaveConfig_FailedWrite_ReturnsErrorBody) {
   GTEST_SKIP() << "/proc semantics differ on Windows; covered by platform tests.";
 #endif
 }
+TEST_F(ConfigHttpTest, GetHealthReturnsOkUnauthenticated) {
+  // Arrange: add health route for this test (fixture server does not auto-register real /api/health)
+  server->resource["^/health-test$"]["GET"] = [](
+                                                const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                              ) {
+    confighttp::getHealth(response, request);
+  };
+  // Act: unauthenticated GET (no Authorization header)
+  const auto response = client->request("GET", "/health-test");
+  // Assert
+  ASSERT_TRUE(response);
+  EXPECT_EQ(response->status_code, "200 OK");
+  const std::string body = response->content.string();
+  const nlohmann::json json_body = nlohmann::json::parse(body);
+  EXPECT_EQ(json_body["status"], "ok");
+  EXPECT_EQ(json_body["status_code"], 200);
+  EXPECT_EQ(json_body["version"], PROJECT_VERSION);
+  EXPECT_TRUE(json_body.contains("uptime"));
+  EXPECT_TRUE(json_body["uptime"].is_number());
+}
+
+TEST_F(ConfigHttpTest, AuthenticateRejectsOversizedPayload) {
+  // Arrange: add a POST route that goes through authenticate (payload guard lives in authenticate)
+  server->resource["^/oversized-test$"]["POST"] = [](
+                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                               ) {
+    const auto auth = confighttp::authenticate(response, request);
+    if (auth.authenticated) {
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      headers.emplace("Content-Type", "text/plain");
+      response->write("authenticated", headers);
+    }
+    // If not authenticated, authenticate() already sent 401/413/429
+  };
+  std::string large_body(1024 * 1024 + 100, 'a');
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+  headers.emplace("Content-Type", "application/json");
+  // Act
+  const auto response = client->request("POST", "/oversized-test", large_body, headers);
+  // Assert: payload too large should be 413, not 200
+  ASSERT_TRUE(response);
+  EXPECT_EQ(response->status_code, "413 Payload Too Large");
+  const std::string body = response->content.string();
+  // Body may be empty for 413, but status code is the proof
+}
 
 /**
  * @brief Test fixture for confighttp::browseDirectory tests.

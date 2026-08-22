@@ -4,13 +4,13 @@
  * @file game_scanner.cpp
  * @brief Implementation of game scanners for Steam, Lutris, and Heroic.
  */
-// standard includes
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 // lib includes
@@ -326,14 +326,17 @@ namespace game_scanner {
       BOOST_LOG(debug) << "game_scanner: no games found"sv;
     }
 
-    // Deduplicate by case-insensitive name, keeping first occurrence.
-    std::sort(games.begin(), games.end(), [](const GameEntry &a, const GameEntry &b) {
-      return a.name < b.name;
-    });
-    games.erase(std::unique(games.begin(), games.end(), [](const GameEntry &a, const GameEntry &b) {
-                  return a.name == b.name && a.launcher == b.launcher;
-                }),
-                games.end());
+    // Deduplicate by case-sensitive name+launcher, keeping first occurrence and preserving insertion order (Steam, Lutris, Heroic).
+    std::unordered_set<std::string> seen;
+    std::vector<GameEntry> deduped;
+    deduped.reserve(games.size());
+    for (auto &g : games) {
+      std::string key = g.name + '\0' + g.launcher;
+      if (seen.insert(key).second) {
+        deduped.push_back(std::move(g));
+      }
+    }
+    games = std::move(deduped);
 
     return games;
   }

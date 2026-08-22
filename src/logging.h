@@ -48,6 +48,33 @@ namespace logging {
   void formatter(const boost::log::record_view &view, boost::log::formatting_ostream &os);
 
   /**
+   * @brief Check if JSON logging is enabled.
+   *
+   * Checks the SUNSHINE_LOG_JSON environment variable. Returns true only
+   * when the variable is set to "1". Missing or empty value returns false.
+   *
+   * @return True if JSON logging is enabled, false otherwise.
+   * @examples
+   * if (is_json_logging_enabled()) { ... }
+   * @examples_end
+   */
+  bool is_json_logging_enabled();
+
+  /**
+   * @brief Escape a string for JSON output.
+   *
+   * Escapes double quotes, backslashes, newlines, carriage returns and tabs
+   * for safe embedding inside a JSON string value.
+   *
+   * @param s Input string to escape.
+   * @return Escaped string suitable for JSON.
+   * @examples
+   * json_escape("a\"b\n");
+   * @examples_end
+   */
+  std::string json_escape(const std::string &s);
+
+  /**
    * @brief Initialize the logging system.
    * @param min_log_level The minimum log level to output.
    * @param log_file The log file to write to.

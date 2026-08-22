@@ -21,47 +21,49 @@ set(INSTALL_GMOCK OFF)
 add_subdirectory("${GTEST_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest")
 include_directories("${GTEST_SOURCE_DIR}/googletest/include" "${GTEST_SOURCE_DIR}")
 
-# coverage
-# https://gcovr.com/en/stable/guide/compiling.html#compiler-options
-set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
-set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
+if(ENABLE_COVERAGE)
+    # coverage
+    # https://gcovr.com/en/stable/guide/compiling.html#compiler-options
+    set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
+    set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
 
-# Find the correct libgcov library path matching the gcc compiler version
-# This ensures the test executable links against the same libgcov version used during compilation
-if(UNIX AND NOT APPLE)
-    # Get the gcc compiler version
-    execute_process(
-        COMMAND ${CMAKE_C_COMPILER} -dumpversion
-        OUTPUT_VARIABLE GCC_VERSION
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-
-    # Extract major version
-    string(REGEX MATCH "^[0-9]+" GCC_MAJOR_VERSION "${GCC_VERSION}")
-
-    # Search for the gcc library directory matching this version
-    file(GLOB GCC_LIB_DIRS "/usr/lib/gcc/*/*${GCC_MAJOR_VERSION}.*")
-
-    if(GCC_LIB_DIRS)
-        list(GET GCC_LIB_DIRS 0 GCC_LIB_DIR)
-        message(STATUS "Found GCC library directory: ${GCC_LIB_DIR}")
-
-        # Look for libgcov.a in the gcc library directory
-        find_library(LIBGCOV_LIBRARY
-            NAMES gcov
-            PATHS ${GCC_LIB_DIR}
-            NO_DEFAULT_PATH
+    # Find the correct libgcov library path matching the gcc compiler version
+    # This ensures the test executable links against the same libgcov version used during compilation
+    if(UNIX AND NOT APPLE)
+        # Get the gcc compiler version
+        execute_process(
+            COMMAND ${CMAKE_C_COMPILER} -dumpversion
+            OUTPUT_VARIABLE GCC_VERSION
+            OUTPUT_STRIP_TRAILING_WHITESPACE
         )
 
-        if(LIBGCOV_LIBRARY)
-            message(STATUS "Found libgcov: ${LIBGCOV_LIBRARY}")
-            # Store this to link against later
-            set(GCOV_LINK_LIBRARY ${LIBGCOV_LIBRARY})
+        # Extract major version
+        string(REGEX MATCH "^[0-9]+" GCC_MAJOR_VERSION "${GCC_VERSION}")
+
+        # Search for the gcc library directory matching this version
+        file(GLOB GCC_LIB_DIRS "/usr/lib/gcc/*/*${GCC_MAJOR_VERSION}.*")
+
+        if(GCC_LIB_DIRS)
+            list(GET GCC_LIB_DIRS 0 GCC_LIB_DIR)
+            message(STATUS "Found GCC library directory: ${GCC_LIB_DIR}")
+
+            # Look for libgcov.a in the gcc library directory
+            find_library(LIBGCOV_LIBRARY
+                NAMES gcov
+                PATHS ${GCC_LIB_DIR}
+                NO_DEFAULT_PATH
+            )
+
+            if(LIBGCOV_LIBRARY)
+                message(STATUS "Found libgcov: ${LIBGCOV_LIBRARY}")
+                # Store this to link against later
+                set(GCOV_LINK_LIBRARY ${LIBGCOV_LIBRARY})
+            else()
+                message(WARNING "Could not find libgcov in ${GCC_LIB_DIR}")
+            endif()
         else()
-            message(WARNING "Could not find libgcov in ${GCC_LIB_DIR}")
+            message(WARNING "Could not find GCC library directory for version ${GCC_VERSION}")
         endif()
-    else()
-        message(WARNING "Could not find GCC library directory for version ${GCC_VERSION}")
     endif()
 endif()
 

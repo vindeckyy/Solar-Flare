@@ -1,0 +1,5 @@
+---
+Checks: '-*,bugprone-*,clang-analyzer-*,performance-*,readability-braces-around-statements'
+WarningsAsErrors: false
+HeaderFilterRegex: 'src/.*'
+FormatStyle: file

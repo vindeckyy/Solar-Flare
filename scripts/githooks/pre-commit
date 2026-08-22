@@ -1,0 +1,20 @@
+#!/bin/bash
+# Pre-commit hook: check staged C++ files with clang-format
+# Fails commit if formatting is incorrect
+
+files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|h)$')
+
+if [ -z "$files" ]; then
+  exit 0
+fi
+
+echo "$files" | xargs clang-format --dry-run --Werror
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo "clang-format check failed: staged C++ files need formatting"
+  echo "Run clang-format -i on the listed files and re-stage them"
+  exit 1
+fi
+
+exit 0

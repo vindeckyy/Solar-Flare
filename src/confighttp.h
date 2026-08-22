@@ -194,6 +194,14 @@ namespace confighttp {
    * @param request The HTTPS request object.
    */
   void getCSRFToken(const resp_https_t &response, const req_https_t &request);
+  /**
+   * @brief Health check, unauthenticated.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @details Returns 200 with status ok, version, and uptime.
+   * @api_examples{/api/health| GET| null}
+   */
+  void getHealth(const resp_https_t &response, const req_https_t &request);
 
   /**
    * @brief Handle the POST /api/config endpoint. Validates the JSON payload

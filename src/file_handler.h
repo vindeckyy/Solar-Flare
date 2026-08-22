@@ -57,4 +57,24 @@ namespace file_handler {
    * @examples_end
    */
   int write_file(const char *path, const std::string_view &contents);
+
+  /**
+   * @brief Check whether a requested path is safely contained within a root directory.
+   *
+   * Canonicalizes both @p path and @p root via @c std::filesystem::weakly_canonical
+   * and verifies the canonical requested path starts with the canonical root.
+   * This blocks directory-traversal (``..``) and symlink-escape attacks.
+   *
+   * @param path Requested file path to validate (absolute or relative).
+   * @param root Allowed root directory; the canonical @p path must be inside it.
+   * @return ``true`` if the resolved @p path is within @p root, ``false`` otherwise.
+   * @note Returns ``false`` for empty @p path or empty @p root, and for any
+   *       filesystem error (missing component, permission denied, etc.) where
+   *       @c weakly_canonical throws @c std::filesystem::filesystem_error.
+   * @examples
+   * bool ok = is_safe_path("/srv/assets/../etc/passwd", "/srv/assets");
+   * // ok == false
+   * @examples_end
+   */
+  bool is_safe_path(const std::string &path, const std::string &root);
 }  // namespace file_handler

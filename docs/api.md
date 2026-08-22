@@ -120,6 +120,11 @@ Returns host resource time series sampled once per second for the last
 (0-100, AMD sysfs). Each key maps to an array of samples, oldest first.
 Linux-only; other platforms return an object with only `window_s`.
 
+## GET /api/health
+@copydoc confighttp::getHealth()
+
+Unauthenticated. Returns `{ "status": "ok", "status_code": 200, "version": "2026.809.1", "uptime": <seconds> }` where `version` is `PROJECT_VERSION` and `uptime` is seconds since the confighttp server started. Use for load-balancer and container health checks.
+
 ## GET /api/sessions
 @copydoc confighttp::getSessions()
 

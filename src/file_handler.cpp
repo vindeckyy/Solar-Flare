@@ -15,6 +15,45 @@
 
 using namespace std::literals;
 
+namespace {
+  /**
+   * @brief Check whether a canonicalized requested path is inside a canonical root.
+   *
+   * Uses @c std::filesystem::weakly_canonical to resolve ``..``, ``.``, and
+   * symlinks as far as possible without requiring the leaf to exist. The
+   * resolved requested path must start with the resolved root and respect a
+   * directory boundary (``/``) to avoid false positives such as
+   * ``/tmp/root`` vs ``/tmp/root2``.
+   *
+   * @param requested Path supplied by the caller.
+   * @param root Allowed root directory.
+   * @return ``true`` if @p requested is within @p root, ``false`` otherwise
+   *         or on any @c std::filesystem::filesystem_error.
+   */
+  bool is_path_within_root(const std::filesystem::path &requested, const std::filesystem::path &root) {
+    try {
+      const auto canon_root = std::filesystem::weakly_canonical(root);
+      const auto canon_requested = std::filesystem::weakly_canonical(requested);
+      const std::string root_str = canon_root.string();
+      const std::string req_str = canon_requested.string();
+      if (req_str == root_str) {
+        return true;
+      }
+      if (req_str.size() > root_str.size() && req_str.rfind(root_str, 0) == 0) {
+        if (root_str == "/") {
+          return true;
+        }
+        if (req_str[root_str.size()] == '/') {
+          return true;
+        }
+      }
+      return false;
+    } catch (const std::filesystem::filesystem_error &) {
+      return false;
+    }
+  }
+}  // namespace
+
 namespace file_handler {
   std::string get_parent_directory(const std::string &path) {
     // remove any trailing path separators
@@ -130,5 +169,37 @@ namespace file_handler {
     }
 
     return 0;
+  }
+
+  /**
+   * @brief Check whether a requested path is safely contained within a root directory.
+   * @param path Requested file path to validate (absolute or relative).
+   * @param root Allowed root directory; the canonical @p path must be inside it.
+   * @return ``true`` if the resolved @p path is within @p root, ``false`` otherwise.
+   * @note Returns ``false`` for empty @p path or empty @p root, for non-existent
+   *       paths, and for any filesystem error where @c weakly_canonical throws
+   *       @c std::filesystem::filesystem_error. Non-existent files are treated
+   *       as unsafe so callers must create the file first and then validate.
+   */
+  bool is_safe_path(const std::string &path, const std::string &root) {
+    if (path.empty() || root.empty()) {
+      return false;
+    }
+    try {
+      const std::filesystem::path p(path);
+      const std::filesystem::path r(root);
+      std::error_code ec;
+      if (!std::filesystem::exists(r, ec) || ec) {
+        return false;
+      }
+      if (!std::filesystem::exists(p, ec) || ec) {
+        return false;
+      }
+      return is_path_within_root(p, r);
+    } catch (const std::filesystem::filesystem_error &) {
+      return false;
+    } catch (const std::exception &) {
+      return false;
+    }
   }
 }  // namespace file_handler

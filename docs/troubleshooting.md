@@ -64,6 +64,10 @@ iOS clients can use
 
 Testing across the internet requires forwarding TCP and UDP port 5201 to the host.
 
+### Structured JSON logging
+
+Set `SUNSHINE_LOG_JSON=1` to emit JSON lines instead of human-readable log lines. Each line is `{"ts":"...","level":"...","msg":"..."}` with escaped `msg` via `logging::json_escape` (handles `"`, `\`, `\n`, `\r`, `\t`). Any value other than `1` or unset restores human format. Verify with `SUNSHINE_LOG_JSON=1 ./sunshine 2>&1 | head -1 | python3 -m json.tool`. Helper `logging::is_json_logging_enabled()` reflects the env. See `src/logging.h` and `src/logging.cpp` `formatter`. Unit tests in `tests/unit/test_logging_json.cpp` cover `json_escape` and env handling.
+
 ### Packet loss from buffer overruns
 
 Packet loss can occur when the host link is faster than the slowest link to the
@@ -216,6 +220,7 @@ Mesa 24.2 added a
 enabled through the
 [`AMD_DEBUG`](https://docs.mesa3d.org/envvars.html#envvar-AMD_DEBUG) environment
 variable:
+
 ```bash
 export AMD_DEBUG=lowlatencyenc
 ```

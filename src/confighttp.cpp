@@ -132,6 +132,7 @@ namespace confighttp {
     headers.emplace("Content-Type", "application/json");
     headers.emplace("X-Frame-Options", "DENY");
     headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    headers.emplace("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     response->write(output_tree.dump(), headers);
   }
 
@@ -155,7 +156,8 @@ namespace confighttp {
       {"Content-Type", "application/json"},
       {"WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")"},
       {"X-Frame-Options", "DENY"},
-      {"Content-Security-Policy", "frame-ancestors 'none';"}
+      {"Content-Security-Policy", "frame-ancestors 'none';"},
+      {"Strict-Transport-Security", "max-age=31536000; includeSubDomains"}
     };
 
     response->write(code, tree.dump(), headers);
@@ -226,7 +228,8 @@ namespace confighttp {
     const SimpleWeb::CaseInsensitiveMultimap headers {
       {"Location", path},
       {"X-Frame-Options", "DENY"},
-      {"Content-Security-Policy", "frame-ancestors 'none';"}
+      {"Content-Security-Policy", "frame-ancestors 'none';"},
+      {"Strict-Transport-Security", "max-age=31536000; includeSubDomains"}
     };
     response->write(SimpleWeb::StatusCode::redirection_temporary_redirect, headers);
   }
@@ -297,6 +300,13 @@ namespace confighttp {
     if (!rate_limit_allow(address)) {
       BOOST_LOG(warning) << "Web UI: ["sv << address << "] -- rate limited"sv;
       response->write(SimpleWeb::StatusCode::client_error_too_many_requests);
+      return auth_result_t {};
+    }
+
+    // Payload size guard: reject >1MB bodies early.
+    if (request->content.size() > 1 * 1024 * 1024) {
+      BOOST_LOG(warning) << "Web UI: ["sv << address << "] -- payload too large (" << request->content.size() << " bytes)"sv;
+      response->write(SimpleWeb::StatusCode::client_error_payload_too_large);
       return auth_result_t {};
     }
 
@@ -382,7 +392,8 @@ namespace confighttp {
     const SimpleWeb::CaseInsensitiveMultimap headers {
       {"Content-Type", "application/json"},
       {"X-Frame-Options", "DENY"},
-      {"Content-Security-Policy", "frame-ancestors 'none';"}
+      {"Content-Security-Policy", "frame-ancestors 'none';"},
+      {"Strict-Transport-Security", "max-age=31536000; includeSubDomains"}
     };
     response->write(code, tree.dump(), headers);
   }
@@ -423,6 +434,7 @@ namespace confighttp {
     headers.emplace("Content-Type", "application/json");
     headers.emplace("X-Frame-Options", "DENY");
     headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    headers.emplace("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 
     response->write(code, tree.dump(), headers);
   }
@@ -445,6 +457,7 @@ namespace confighttp {
     headers.emplace("Content-Type", "application/json");
     headers.emplace("X-Frame-Options", "DENY");
     headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    headers.emplace("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 
     response->write(code, tree.dump(), headers);
   }
@@ -655,6 +668,8 @@ namespace confighttp {
     auto relPath = fs::relative(base, query);
     return *(relPath.begin()) != fs::path("..");
   }
+  // Health endpoint uptime base (steady clock)
+  static const auto g_health_start = std::chrono::steady_clock::now();
 
   /**
    * @brief Build security and cache headers for a static Web UI response.
@@ -668,6 +683,7 @@ namespace confighttp {
     headers.emplace("Cache-Control", cache_control);
     headers.emplace("X-Frame-Options", "DENY");
     headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    headers.emplace("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     return headers;
   }
 
@@ -701,13 +717,13 @@ namespace confighttp {
     // .relative_path sheds any leading slash that might exist in the request path
     auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
 
-    if (!isChildPath(filePath, allowed_root)) {
-      BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the allowed web folder";
-      bad_request(response, request);
-      return;
-    }
     if (!fs::exists(filePath) || !fs::is_regular_file(filePath)) {
       not_found(response, request);
+      return;
+    }
+    if (!file_handler::is_safe_path(filePath.string(), allowed_root.string())) {
+      BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the allowed web folder";
+      bad_request(response, request);
       return;
     }
 
@@ -1531,6 +1547,7 @@ namespace confighttp {
       headers.emplace("Content-Type", "image/png");
       headers.emplace("X-Frame-Options", "DENY");
       headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+      headers.emplace("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 
       response->write(SimpleWeb::StatusCode::success_ok, in, headers);
     } catch (std::exception &e) {
@@ -1803,6 +1820,23 @@ namespace confighttp {
     tree["status_code"] = SimpleWeb::StatusCode::success_ok;
     tree["status"] = true;
     tree["telemetry"] = sunshine::telemetry::snapshot();
+    send_response(response, tree);
+  }
+  /**
+   * @brief Health check, unauthenticated.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @details Returns 200 with status ok, project version, and uptime seconds since startup.
+   * @api_examples{/api/health| GET| null}
+   */
+  void getHealth(const resp_https_t &response, const req_https_t &request) {
+    print_req(request);
+    nlohmann::json tree;
+    tree["status_code"] = SimpleWeb::StatusCode::success_ok;
+    tree["status"] = "ok";
+    tree["version"] = PROJECT_VERSION;
+    auto uptime_s = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - g_health_start).count();
+    tree["uptime"] = uptime_s;
     send_response(response, tree);
   }
 
@@ -2080,6 +2114,7 @@ namespace confighttp {
     headers.emplace("Content-Type", "text/plain");
     headers.emplace("X-Frame-Options", "DENY");
     headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    headers.emplace("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     response->write(SimpleWeb::StatusCode::success_ok, content, headers);
   }
 
@@ -2771,6 +2806,7 @@ namespace confighttp {
     server.resource["^/api/stream/bitrate$"]["GET"] = getBitrate;
     server.resource["^/api/stream/latency$"]["GET"] = getStreamLatency;
     server.resource["^/api/stream/telemetry$"]["GET"] = getTelemetry;
+    server.resource["^/api/health$"]["GET"] = getHealth;
     server.resource["^/api/sessions$"]["GET"] = getSessions;
     server.resource["^/api/errors$"]["GET"] = getErrors;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;

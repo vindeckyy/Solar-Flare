@@ -5,9 +5,11 @@
  * @brief Definitions for logging related functions.
  */
 // standard includes
+#include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 
 // lib includes
 #include <boost/core/null_deleter.hpp>
@@ -62,6 +64,51 @@ namespace logging {
     sink.reset();
   }
 
+  /**
+   * @brief Check if JSON logging is enabled.
+   * @return True when SUNSHINE_LOG_JSON is "1", false on missing or empty.
+   */
+  bool is_json_logging_enabled() {
+    const char *env = std::getenv("SUNSHINE_LOG_JSON");
+    if (!env) {
+      return false;
+    }
+    return std::string_view(env) == "1";
+  }
+
+  /**
+   * @brief Escape a string for JSON output.
+   * @param s Input string to escape.
+   * @return Escaped string with \" \\ \n \r \t handling.
+   */
+  std::string json_escape(const std::string &s) {
+    std::string out;
+    out.reserve(s.size());
+    for (char c : s) {
+      switch (c) {
+        case '\"':
+          out += "\\\"";
+          break;
+        case '\\':
+          out += "\\\\";
+          break;
+        case '\n':
+          out += "\\n";
+          break;
+        case '\r':
+          out += "\\r";
+          break;
+        case '\t':
+          out += "\\t";
+          break;
+        default:
+          out += c;
+          break;
+      }
+    }
+    return out;
+  }
+
   void formatter(const boost::log::record_view &view, boost::log::formatting_ostream &os) {
     constexpr const char *message = "Message";
     constexpr const char *severity = "Severity";
@@ -69,30 +116,42 @@ namespace logging {
     auto log_level = view.attribute_values()[severity].extract<int>().get();
 
     std::string_view log_type;
+    std::string_view level_name;
     switch (log_level) {
       case 0:
         log_type = "Verbose: "sv;
+        level_name = "Verbose"sv;
         break;
       case 1:
         log_type = "Debug: "sv;
+        level_name = "Debug"sv;
         break;
       case 2:
         log_type = "Info: "sv;
+        level_name = "Info"sv;
         break;
       case 3:
         log_type = "Warning: "sv;
+        level_name = "Warning"sv;
         break;
       case 4:
         log_type = "Error: "sv;
+        level_name = "Error"sv;
         break;
       case 5:
         log_type = "Fatal: "sv;
+        level_name = "Fatal"sv;
         break;
 #ifdef SUNSHINE_TESTS
       case 10:
         log_type = "Tests: "sv;
+        level_name = "Tests"sv;
         break;
 #endif
+      default:
+        log_type = ""sv;
+        level_name = ""sv;
+        break;
     };
 
     auto now = std::chrono::system_clock::now();
@@ -103,8 +162,19 @@ namespace logging {
     auto t = std::chrono::system_clock::to_time_t(now);
     auto lt = *std::localtime(&t);
 
-    os << "["sv << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count() << "]: "sv
-       << log_type << view.attribute_values()[message].extract<std::string>();
+    const char *env = std::getenv("SUNSHINE_LOG_JSON");
+    bool json_enabled = env && std::string_view(env) == "1";
+    if (json_enabled) {
+      std::ostringstream ts_oss;
+      ts_oss << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count();
+      std::string ts_str = ts_oss.str();
+      auto msg_attr = view.attribute_values()[message].extract<std::string>();
+      std::string msg = msg_attr ? msg_attr.get() : "";
+      os << "{\"ts\":\"" << json_escape(ts_str) << "\",\"level\":\"" << json_escape(std::string(level_name)) << "\",\"msg\":\"" << json_escape(msg) << "\"}";
+    } else {
+      os << "["sv << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count() << "]: "sv
+         << log_type << view.attribute_values()[message].extract<std::string>();
+    }
   }
 #ifdef __ANDROID__
   namespace sinks = boost::log::sinks;
