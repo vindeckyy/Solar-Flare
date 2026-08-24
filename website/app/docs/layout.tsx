@@ -48,10 +48,10 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
       )}
 
       {/* Main Body with Sidebar */}
-      <div className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex gap-8 lg:gap-12">
+      <div className="flex-1 mx-auto w-full max-w-[88rem] px-4 sm:px-6 lg:px-8">
+        <div className="flex gap-8 lg:gap-10">
           {/* Desktop Left Sidebar */}
-          <div className="hidden lg:block w-64 shrink-0 border-r border-border/60 min-h-[calc(100vh-4rem)]">
+          <div className="hidden lg:block w-72 xl:w-80 shrink-0 border-r border-border/60 min-h-[calc(100vh-4rem)]">
             <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
               <DocsSidebar />
             </div>

@@ -48,7 +48,7 @@ export function DocsSidebar({ onLinkClick }: DocsSidebarProps) {
               <span>{category.name}</span>
             </div>
 
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {category.items.map((item) => {
                 const itemHref = `/docs/${item.slug}`
                 const isActive = pathname === itemHref
@@ -58,19 +58,19 @@ export function DocsSidebar({ onLinkClick }: DocsSidebarProps) {
                     key={item.slug}
                     href={itemHref}
                     onClick={onLinkClick}
-                    className={`group flex items-center justify-between rounded-lg px-3 py-1.5 text-sm transition-all ${
+                    className={`group flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-all ${
                       isActive
-                        ? 'bg-primary/15 font-medium text-primary border-l-2 border-primary rounded-l-none'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                        ? 'bg-primary/15 font-medium text-primary border-l-2 border-primary rounded-l-none pl-2.5'
+                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                     }`}
                   >
-                    <span className="truncate">{item.title}</span>
+                    <span className="truncate flex-1">{item.title}</span>
                     {item.badge && (
                       <span
-                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 transition-colors ${
                           isActive
-                            ? 'bg-primary/20 text-primary border-primary/30'
-                            : 'bg-muted text-muted-foreground border-border group-hover:border-primary/30 group-hover:text-foreground'
+                            ? 'bg-primary/20 text-primary border-primary/40 font-semibold'
+                            : 'bg-muted/80 text-muted-foreground border-border group-hover:border-primary/30 group-hover:text-foreground'
                         }`}
                       >
                         {item.badge}

@@ -67,7 +67,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
       {
         slug: 'getting-started',
         title: 'Installation & Quickstart',
-        badge: 'Start Here',
+        badge: 'Guide',
         description: 'Complete guide to installing SolarFlare on Linux, configuring firewalls, and pairing Moonlight.',
       },
       {
@@ -103,7 +103,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
       {
         slug: 'performance-tuning',
         title: 'Performance & Latency Tuning',
-        badge: 'Low Latency',
+        badge: 'Tuning',
         description: 'CPU pinning, GPU governors, PipeWire audio latency hints, and socket buffer tuning.',
       },
       {
