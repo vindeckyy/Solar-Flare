@@ -384,6 +384,273 @@ UAC prompt.
 }
 ```
 
+## Complete `apps.json` examples
+
+The snippets below are copy-paste-ready entries for the `"apps"` array in
+`~/.config/sunshine/apps.json` (or the path set by `file_apps`). Field names
+match the Web UI Applications tab. Combine multiple objects inside one file.
+
+> [!TIP]
+> `$(HOME)`, `$(PATH)`, and Sunshine environment variables such as
+> `SUNSHINE_CLIENT_WIDTH` expand at launch time. Use `detached` for launcher
+> commands that should not block session teardown (Steam, Epic, Lutris).
+
+### 1. Steam Big Picture (Linux)
+
+Steam self-updates and replaces its PID - launch via `detached` and close with
+`prep-cmd` undo.
+
+```json
+{
+  "name": "Steam Big Picture",
+  "image-path": "steam.png",
+  "detached": [
+    "setsid steam steam://open/bigpicture"
+  ],
+  "prep-cmd": [
+    {
+      "do": "",
+      "undo": "setsid steam steam://close/bigpicture"
+    }
+  ]
+}
+```
+
+### 2. Steam game by AppID (Linux)
+
+URI launch is the most reliable method across Proton versions and install paths.
+
+```json
+{
+  "name": "Hades",
+  "image-path": "box.png",
+  "detached": [
+    "setsid steam steam://rungameid/1145360"
+  ]
+}
+```
+
+### 3. Epic Games Store title (Windows, URI)
+
+Works for any Epic game when you know the catalog item ID from the Epic launcher URL.
+
+```json
+{
+  "name": "Fortnite",
+  "image-path": "box.png",
+  "cmd": "com.epicgames.launcher://apps/Fortnite?action=launch&silent=true"
+}
+```
+
+### 4. Lutris game (Linux)
+
+Launch through Lutris so Wine prefixes, DXVK, and gamemode hooks apply.
+
+```json
+{
+  "name": "Cyberpunk 2077 (Lutris)",
+  "image-path": "box.png",
+  "cmd": "lutris lutris:rungame/cyberpunk-2077",
+  "prep-cmd": [
+    {
+      "do": "gamemoderun true",
+      "undo": ""
+    }
+  ]
+}
+```
+
+### 5. Gamescope-wrapped Proton title (Linux)
+
+Force a nested resolution and FSR scaling inside Gamescope - pairs well with
+`compositor_backend = gamescope` in `sunshine.conf`.
+
+```json
+{
+  "name": "Elden Ring (Gamescope)",
+  "image-path": "box.png",
+  "cmd": "gamescope -W 1920 -H 1080 -r 60 -f -- %command%",
+  "detached": [
+    "setsid steam steam://rungameid/1245620"
+  ],
+  "working-dir": ""
+}
+```
+
+### 6. Wine prefix direct launch (Linux)
+
+When you maintain a standalone prefix outside Lutris/Steam.
+
+```json
+{
+  "name": "Old DirectX 9 Game",
+  "image-path": "box.png",
+  "cmd": "env WINEPREFIX=\"$(HOME)/.wine-game\" wine \"C:\\\\Games\\\\game.exe\"",
+  "working-dir": "$(HOME)/.wine-game/drive_c/Games"
+}
+```
+
+### 7. Heroic Games Launcher (Linux, Epic/GOG)
+
+Heroic exposes `heroic://` URIs similar to Steam.
+
+```json
+{
+  "name": "Hollow Knight (Heroic)",
+  "image-path": "box.png",
+  "detached": [
+    "heroic heroic://launch/HollowKnight"
+  ]
+}
+```
+
+### 8. Flatpak Steam (sandboxed host spawn)
+
+Flatpak Sunshine cannot see host binaries unless you delegate through
+`flatpak-spawn`.
+
+```json
+{
+  "name": "Steam Big Picture (Flatpak)",
+  "image-path": "steam.png",
+  "detached": [
+    "flatpak-spawn --host setsid steam steam://open/bigpicture"
+  ],
+  "prep-cmd": [
+    {
+      "do": "",
+      "undo": "flatpak-spawn --host setsid steam steam://close/bigpicture"
+    }
+  ]
+}
+```
+
+### 9. Desktop with dynamic resolution prep (Linux X11)
+
+Uses Sunshine client variables to match the Moonlight stream resolution.
+
+```json
+{
+  "name": "Desktop 1080p",
+  "image-path": "desktop.png",
+  "prep-cmd": [
+    {
+      "do": "xrandr --output HDMI-1 --mode ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} --rate ${SUNSHINE_CLIENT_FPS}",
+      "undo": "xrandr --output HDMI-1 --auto"
+    }
+  ]
+}
+```
+
+### 10. Competitive FPS - NVENC latency preset
+
+Per-app `encoder-preset` overrides the global `nvenc_tuning_preset` for this
+session only.
+
+```json
+{
+  "name": "Valorant",
+  "image-path": "shooter.png",
+  "cmd": "valorant-launcher",
+  "encoder-preset": 0,
+  "auto-detach": true,
+  "wait-all": true
+}
+```
+
+### 11. Cinematic single-player - quality preset
+
+```json
+{
+  "name": "Red Dead Redemption 2",
+  "image-path": "rdr2.png",
+  "detached": [
+    "setsid steam steam://rungameid/1174180"
+  ],
+  "encoder-preset": 2,
+  "exclude-global-prep-cmd": false
+}
+```
+
+### 12. Headless compositor game (Linux labwc)
+
+Assumes `headless_mode = enabled` in `sunshine.conf`. Launches a native Linux
+binary into the private compositor without touching your desktop session.
+
+```json
+{
+  "name": "SuperTuxKart (Headless)",
+  "image-path": "box.png",
+  "cmd": "supertuxkart",
+  "working-dir": "/usr/games",
+  "output": ""
+}
+```
+
+### 13. Windows elevated anti-cheat title
+
+When Sunshine runs as a Windows service, mark commands that need admin rights.
+
+```json
+{
+  "name": "Game With AntiCheat",
+  "image-path": "box.png",
+  "cmd": "C:\\Program Files\\Game\\Game.exe",
+  "elevated": true,
+  "prep-cmd": [
+    {
+      "do": "powershell.exe -command \"Start-Streaming\"",
+      "undo": "powershell.exe -command \"Stop-Streaming\"",
+      "elevated": false
+    }
+  ]
+}
+```
+
+### 14. macOS Steam URI
+
+```json
+{
+  "name": "Celeste",
+  "image-path": "box.png",
+  "detached": [
+    "open steam://rungameid/504230"
+  ]
+}
+```
+
+### Full file skeleton
+
+```json
+{
+  "env": {
+    "PATH": "$(PATH):$(HOME)/.local/bin"
+  },
+  "apps": [
+    {
+      "name": "Desktop",
+      "image-path": "desktop.png"
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | Display name in Moonlight |
+| `cmd` | string | Blocking command; session ends when it exits |
+| `detached` | string[] | Background commands (launchers) |
+| `working-dir` | string | Process working directory |
+| `image-path` | string | Tile image under Sunshine assets |
+| `output` | string | Log file path, `null`, or empty for stdout |
+| `prep-cmd` | object[] | `{ "do", "undo", "elevated"? }` run before/after |
+| `exclude-global-prep-cmd` | bool | Skip `global_prep_cmd` from sunshine.conf |
+| `elevated` | bool | Windows only - run with service privileges |
+| `auto-detach` | bool | Treat fast-exiting launchers as detached |
+| `wait-all` | bool | Wait for child process group |
+| `exit-timeout` | int | Seconds before force-kill (default 5) |
+| `encoder-preset` | int | `-1` inherit, `0` latency, `1` balanced, `2` quality |
+
 ## Per-Application Encoder Preset
 
 SolarFlare allows configuring an application-specific NVENC encoder tuning preset via the `encoder-preset` field in `apps.json`:

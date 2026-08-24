@@ -1,32 +1,386 @@
 # Building
 
 > [!NOTE]
-> This document retains inherited cross-platform build details. SolarFlare
-> build directories use the `cmake-build-` prefix; the maintained Linux path is
-> documented in [Porting SolarFlare](PORTING.md).
-Sunshine binaries are built using [CMake](https://cmake.org). The tree
-requires CMake ≥ 3.20 (`CMakeLists.txt`). The upstream Docker/CI builder
-(`scripts/linux_build.sh`) expects CMake ≥ 4.0.0. Prefer a current CMake
-from your distro.
+> SolarFlare build directories **must** use the `cmake-build-` prefix (for example
+> `cmake-build-release`, `cmake-build-tests`). The maintained Linux install path is
+> [`scripts/linux-install.sh`](../scripts/linux-install.sh); see
+> [Porting SolarFlare](PORTING.md) for per-distro package names and manual fallbacks.
 
-## Building Locally
+SolarFlare (Sunshine binary name) is built with [CMake](https://cmake.org) ≥ 3.20
+(`CMakeLists.txt`). The upstream Docker/CI builder
+([`scripts/linux_build.sh`](../scripts/linux_build.sh)) additionally expects CMake ≥
+4.0.0 and may bootstrap CMake 4.3.0 when the distro package is too old. Prefer a
+current CMake from your distribution or from [Kitware](https://cmake.org/download/).
 
-### Compiler
-It is recommended to use one of the following compilers:
+## Quick reference
 
-| Compiler    | Version |
-|:------------|:--------|
-| GCC         | 14+     |
-| Clang       | 17+     |
-| Apple Clang | 15+     |
+| Platform | Recommended path | Build directory |
+|----------|------------------|-----------------|
+| Linux (end user) | `./scripts/linux-install.sh` | `cmake-build-cachyos` (installer default) |
+| Linux (manual / packaging) | CMake + Ninja (this document) | `cmake-build-release` |
+| macOS | [`scripts/macos_build.sh`](../scripts/macos_build.sh) or manual CMake | `build` (script default) or `cmake-build-release` |
+| Windows | MSYS2 UCRT64 / CLANGARM64 shell | `cmake-build-release` |
+| FreeBSD | Manual CMake + `pkg` deps | `cmake-build-release` |
 
-### Dependencies
+## Compiler requirements
 
-#### FreeBSD
+| Compiler    | Minimum version | Notes |
+|:------------|:--------------|:------|
+| GCC         | 13+ (14+ recommended) | Required for C++23 (`<format>`, etc.). CI uses GCC 14 on most targets. |
+| Clang       | 17+ | Supported on Linux and FreeBSD. |
+| Apple Clang | 15+ | Xcode toolchain on macOS. |
+| MinGW-w64   | UCRT64 or CLANGARM64 | Windows only; must build on the target architecture (no cross-compile). |
+
+## CMake configuration options
+
+All options are declared in [`cmake/prep/options.cmake`](../cmake/prep/options.cmake).
+SolarFlare-specific compile flags live in
+[`cmake/compile_definitions/common.cmake`](../cmake/compile_definitions/common.cmake).
+
+### Global options
+
+| Option | Default | Purpose |
+|--------|---------|---------|
+| `BUILD_DOCS` | `ON` | Build Doxygen documentation. Set `OFF` for faster dev builds. |
+| `BUILD_TESTS` | `ON` | Build `test_sunshine` and enable CTest. |
+| `BUILD_WERROR` | `OFF` | Treat warnings as errors (`-Werror`). CI sets `ON`. |
+| `ENABLE_COVERAGE` | `OFF` | Enable gcov instrumentation for tests. |
+| `NPM_OFFLINE` | `OFF` | Use offline npm cache only (Flatpak / reproducible builds). |
+| `SUNSHINE_CONFIGURE_ONLY` | `OFF` | Generate packaging manifests only, then exit. |
+| `SOLARFLARE_FORK` | `ON` | SolarFlare branding in version banner (see `cmake/prep/build_version.cmake`). |
+| `BOOST_USE_STATIC` | `ON` (Linux), `OFF` (macOS) | Link Boost statically vs shared. |
+| `CUDA_FAIL_ON_MISSING` | `ON` | Fail configure when CUDA is enabled but not found. |
+| `CUDA_INHERIT_COMPILE_OPTIONS` | `ON` | Pass host CXX flags into NVCC. |
+| `SUNSHINE_ENABLE_TRAY` | `ON` | Build system tray (Qt). SolarFlare installer sets `OFF`. |
+| `SUNSHINE_SYSTEM_VULKAN_HEADERS` | `OFF` | Use system Vulkan headers instead of submodule. |
+| `SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS` | `OFF` | Use system Wayland protocols instead of submodule. |
+
+### Publisher metadata (cache strings)
+
+| Variable | Default in tree |
+|----------|-----------------|
+| `SUNSHINE_PUBLISHER_NAME` | `Third Party Publisher` |
+| `SUNSHINE_PUBLISHER_WEBSITE` | `https://github.com/vindeckyy/Solar-Flare` |
+| `SUNSHINE_PUBLISHER_ISSUE_URL` | `https://github.com/vindeckyy/Solar-Flare/issues` |
+
+### Linux-only options
+
+| Option | Default | Purpose |
+|--------|---------|---------|
+| `SUNSHINE_CACHYOS_NATIVE` | `ON` (auto on Linux) | Zen microarch detection, `-O3`, LTO, `-march` tuning. |
+| `SUNSHINE_ENABLE_CUDA` | `ON` | NVENC / CUDA capture paths. Installer sets `OFF`. |
+| `SUNSHINE_ENABLE_DRM` | `ON` | KMS/DRM screen capture. |
+| `SUNSHINE_ENABLE_VAAPI` | `ON` | VA-API encode paths. |
+| `SUNSHINE_ENABLE_VULKAN` | `ON` | Vulkan video encoding. |
+| `SUNSHINE_ENABLE_WAYLAND` | `ON` | Wayland capture. |
+| `SUNSHINE_ENABLE_X11` | `ON` | X11 capture. |
+| `SUNSHINE_ENABLE_KWIN` | `ON` | KWin ScreenCast portal. |
+| `SUNSHINE_ENABLE_PORTAL` | `ON` | XDG Desktop Portal capture. |
+| `SUNSHINE_BUILD_APPIMAGE` | `OFF` | AppImage layout and rules. |
+| `SUNSHINE_BUILD_FLATPAK` | `OFF` | Flatpak layout (no host setcap). |
+| `SUNSHINE_BUILD_HOMEBREW` | `OFF` | Homebrew formula install paths. |
+| `SUNSHINE_CONFIGURE_PKGBUILD` | `OFF` | Generate AUR files only. |
+| `SUNSHINE_CONFIGURE_FLATPAK_MAN` | `OFF` | Generate Flatpak manifest only. |
+
+### FFmpeg prebuilt binaries
+
+When `FFMPEG_PREPARED_BINARIES` is **not** set, CMake downloads pinned FFmpeg
+static libraries from the
+[`third-party/build-deps`](https://github.com/LizardByte/build-deps) submodule tag
+(see [Third-party packages](third_party_packages.md)). Override with:
+
+```bash
+-DFFMPEG_PREPARED_BINARIES=/path/to/extracted/ffmpeg
+```
+
+> [!TIP]
+> `scripts/linux-install.sh` passes `-DFFMPEG_PREBUILT=ON` for historical
+> compatibility; the effective mechanism is the automatic `build-deps` tag lookup
+> in [`cmake/dependencies/ffmpeg.cmake`](../cmake/dependencies/ffmpeg.cmake).
+
+### Recommended SolarFlare Linux configure
+
+Matches [`scripts/linux-install.sh`](../scripts/linux-install.sh):
+
+```bash
+git submodule update --init --recursive
+npm install --no-audit --no-fund
+
+cmake -S . -B cmake-build-release -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_DOCS=OFF \
+  -DBUILD_TESTS=OFF \
+  -DSUNSHINE_ENABLE_TRAY=OFF \
+  -DSUNSHINE_ENABLE_CUDA=OFF \
+  -DCUDA_FAIL_ON_MISSING=OFF \
+  -DSUNSHINE_CACHYOS_NATIVE=ON
+
+cmake --build cmake-build-release -j"$(nproc)"
+sudo cmake --install cmake-build-release
+```
+
+For a generic binary (build on one machine, run on another):
+
+```bash
+cmake ... -DSUNSHINE_CACHYOS_NATIVE=OFF
+```
+
+### Test build
+
+```bash
+cmake -S . -B cmake-build-tests -G Ninja \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DBUILD_TESTS=ON \
+  -DBUILD_DOCS=OFF
+cmake --build cmake-build-tests --target test_sunshine -j"$(nproc)"
+./cmake-build-tests/tests/test_sunshine --gtest_brief=1
+```
+
+---
+
+## Linux
+
+### End-user install (recommended)
+
+```bash
+git clone --recursive https://github.com/vindeckyy/Solar-Flare.git
+cd Solar-Flare
+./scripts/linux-install.sh
+```
+
+| Flag | Effect |
+|------|--------|
+| `--clean` | Remove `cmake-build-cachyos` and reconfigure from scratch. |
+| `--skip-deps` / `--no-pacman` | Skip package manager step; only rebuild. |
+| `--print-distro-id` | Print detected `/etc/os-release` ID and exit. |
+
+The installer also runs post-install steps: redesign systemd units, Hermes-KMS
+DKMS (when headers exist), polkit update helper, and fork verification.
+
+Per-distro **exact package names** are documented in [Porting SolarFlare](PORTING.md).
+
+### KMS capture and `setcap`
+
+DRM/KMS capture requires Linux capabilities on the `sunshine` binary:
+
+```bash
+sudo setcap 'cap_sys_admin,cap_sys_nice+p' /usr/local/bin/sunshine
+getcap /usr/local/bin/sunshine
+```
+
+`cmake --install` on a normal Linux install runs
+[`src_assets/linux/misc/postinst`](../src_assets/linux/misc/postinst) via CPack,
+which applies the same capabilities. AppImage and Flatpak builds use different
+paths (see their READMEs). If `getcap` shows nothing after install:
+
+1. Install `libcap2-bin` (Debian) / ensure `libcap` (Arch) is present.
+2. Re-run postinst manually: `sudo sh src_assets/linux/misc/postinst`
+3. Or apply setcap directly to the installed binary (see above).
+
+**Failure recovery - KMS / permission denied**
+
+| Symptom | Fix |
+|---------|-----|
+| `Permission denied` opening `/dev/dri/card*` | Apply setcap; add user to `video` group; log out/in. |
+| `Operation not permitted` during `cmake --install` | Previous package set immutable flag: `sudo chattr -R -i /usr/local` then reinstall. |
+| Wrong GPU / Mesa errors | See [Troubleshooting](troubleshooting.md); verify NVIDIA PRIME or single-GPU setup. |
+
+### CUDA (optional, NVFBC / NVENC)
+
+SolarFlare's default installer disables CUDA (`-DSUNSHINE_ENABLE_CUDA=OFF`) because
+most Linux users rely on VA-API/Vulkan. To build with CUDA:
+
+1. Install [NVIDIA driver](https://www.nvidia.com/drivers) and CUDA Toolkit matching your GCC.
+2. CI defaults (`linux_build.sh`): CUDA **13.1.1**, driver build **590.48.01**.
+3. Configure with `-DSUNSHINE_ENABLE_CUDA=ON` and `-DCMAKE_CUDA_COMPILER=$(which nvcc)`.
+
+Ubuntu 26.04+ may use `cuda-toolkit-13-1` system packages; older distros often use
+the [CUDA runfile](https://developer.nvidia.com/cuda-toolkit-archive). See
+[glibc/CUDA patches](../packaging/linux/patches/) if NVCC fails on `math_functions.h`.
+
+---
+
+## Windows
+
+> [!WARNING]
+> Cross-compilation is **not** supported. Build on the same architecture you deploy
+> (AMD64 in UCRT64, ARM64 in CLANGARM64).
+
+### Prerequisites
+
+1. Install [MSYS2](https://www.msys2.org).
+2. Open **MSYS2 UCRT64** (x86_64) or **MSYS2 CLANGARM64** (aarch64).
+3. On Windows, prefix every build command with the MSYS2 launcher (from repo root):
+
+```bat
+C:\msys64\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "<command>"
+```
+
+Replace `ucrt64` with `clangarm64` for ARM64 builds.
+
+### Update and toolchain
+
+```bash
+pacman -Syu
+```
+
+UCRT64 (x86_64):
+
+```bash
+export TOOLCHAIN="ucrt-x86_64"
+```
+
+CLANGARM64:
+
+```bash
+export TOOLCHAIN="clang-aarch64"
+```
+
+### Install dependencies
+
+```bash
+dependencies=(
+  "git"
+  "mingw-w64-${TOOLCHAIN}-boost"
+  "mingw-w64-${TOOLCHAIN}-cmake"
+  "mingw-w64-${TOOLCHAIN}-cppwinrt"
+  "mingw-w64-${TOOLCHAIN}-curl-winssl"
+  "mingw-w64-${TOOLCHAIN}-miniupnpc"
+  "mingw-w64-${TOOLCHAIN}-nlohmann-json"
+  "mingw-w64-${TOOLCHAIN}-onevpl"
+  "mingw-w64-${TOOLCHAIN}-openssl"
+  "mingw-w64-${TOOLCHAIN}-opus"
+  "mingw-w64-${TOOLCHAIN}-toolchain"
+)
+if [[ "${MSYSTEM}" == "UCRT64" ]]; then
+  dependencies+=(
+    "mingw-w64-${TOOLCHAIN}-MinHook"
+    "mingw-w64-${TOOLCHAIN}-nsis"
+  )
+fi
+pacman -S "${dependencies[@]}"
+```
+
+Additional requirements:
+
+- **Node.js** (LTS): install from [nodejs.org](https://nodejs.org/) and add to `PATH`
+  (CI uses Windows Node outside MSYS2 for the Web UI).
+- **WiX installer**: install [.NET SDK](https://dotnet.microsoft.com/download) 10.x.
+- **Doxygen** (optional docs): CI uses standalone Doxygen 1.11.0 installer because
+  the MSYS2 build interacts poorly with Graphviz.
+
+### Clone and build
+
+```bash
+git clone --recursive https://github.com/vindeckyy/Solar-Flare.git
+cd Solar-Flare
+npm install
+
+mkdir -p cmake-build-release
+cmake -B cmake-build-release -G Ninja -S . \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DBUILD_WERROR=ON \
+  -DSUNSHINE_ASSETS_DIR=assets
+ninja -C cmake-build-release
+```
+
+### Package
+
+```bash
+cpack -G NSIS --config ./cmake-build-release/CPackConfig.cmake   # installer
+cpack -G WIX  --config ./cmake-build-release/CPackConfig.cmake   # MSI (needs .NET)
+cpack -G ZIP  --config ./cmake-build-release/CPackConfig.cmake   # portable
+```
+
+**Failure recovery - Windows**
+
+| Symptom | Fix |
+|---------|-----|
+| `pacman -Syu` hangs on file locks | Close all MSYS2 windows; retry; reboot if needed. |
+| CMake cannot find OpenSSL / Opus | Ensure `TOOLCHAIN` matches your MSYS2 environment (`echo $MSYSTEM`). |
+| Web UI / `npm` errors | Run `npm install` from repo root; verify `node -v` in the same shell used for Ninja. |
+| Missing `VCRUNTIME` at runtime | Use NSIS/ZIP from CPack; do not copy `sunshine.exe` without bundled DLLs from `cmake-build-release`. |
+| ARM64: no NSIS | Expected; use ZIP or build frontend with external Node per upstream CI notes. |
+
+---
+
+## macOS
+
+Build with **Homebrew** (recommended) or **MacPorts**. Apple Silicon and Intel use
+different OpenSSL paths.
+
+### Homebrew dependencies
+
+```bash
+brew install cmake doxygen graphviz node pkgconf icu4c@78 miniupnpc openssl@3 opus llvm
+```
+
+Optional: `boost` (CMake can fetch/build if omitted).
+
+If CMake reports missing OpenSSL headers:
+
+@tabs{
+  @tab{ Intel | ```bash
+    ln -s /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
+    ```}
+  @tab{ Apple Silicon | ```bash
+    ln -s /opt/homebrew/opt/openssl/include/openssl /opt/homebrew/include/openssl
+    ```
+  }
+}
+
+### MacPorts dependencies
+
+```bash
+sudo port install cmake curl doxygen graphviz libopus miniupnpc ninja npm9 pkgconfig
+```
+
+### Manual CMake build
+
+```bash
+git submodule update --init --recursive
+npm install
+
+cmake -S . -B cmake-build-release -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_DOCS=OFF \
+  -DBUILD_TESTS=OFF \
+  -DICU_ROOT="$(brew --prefix icu4c@78)" \
+  -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3)" \
+  -DOpus_ROOT_DIR="$(brew --prefix opus)" \
+  -DSUNSHINE_ENABLE_TRAY=ON
+
+cmake --build cmake-build-release -j"$(sysctl -n hw.ncpu)"
+```
+
+### Release script (signed .dmg)
+
+[`scripts/macos_build.sh`](../scripts/macos_build.sh) automates deps, configure,
+build, and `cpack -G DragNDrop`. Signing requires `APPLE_CODESIGN_IDENTITY` and a
+notarytool keychain profile `notarytool-password`.
+
+```bash
+./scripts/macos_build.sh --skip-tests
+./scripts/macos_build.sh --skip-codesign   # local unsigned build
+```
+
+**Failure recovery - macOS**
+
+| Symptom | Fix |
+|---------|-----|
+| `openssl/ssl.h` not found | Set `OPENSSL_ROOT_DIR` to `brew --prefix openssl@3`. |
+| Codesign / notarize failure | Use `--skip-codesign` for dev builds; verify Developer ID cert in Keychain. |
+| Tray icon missing at runtime | Ensure `-DSUNSHINE_ENABLE_TRAY=ON` and Qt is linked (default in `macos_build.sh`). |
+
+---
+
+## FreeBSD
+
 > [!CAUTION]
-> Sunshine support for FreeBSD is experimental and may be incomplete or not work as expected
+> FreeBSD support is experimental and may be incomplete.
 
-##### Install dependencies
+### Install dependencies
+
 ```sh
 pkg install -y \
   audio/opus \
@@ -45,7 +399,6 @@ pkg install -y \
   graphics/wayland \
   multimedia/libva \
   net/miniupnpc \
-  ports-mgmt/pkg \
   security/openssl \
   shells/bash \
   www/npm-node22 \
@@ -56,215 +409,69 @@ pkg install -y \
   x11/libXtst
 ```
 
-#### Linux
-Dependencies vary depending on the distribution. The maintained SolarFlare
-installer is [`scripts/linux-install.sh`](../scripts/linux-install.sh); see
-[Porting SolarFlare](PORTING.md) for per-distro package translation.
-`scripts/cachyos-build.sh` is a compatibility wrapper for that installer.
-Upstream's
-[linux_build.sh](../scripts/linux_build.sh)
-remains a useful reference for
-inherited Debian-, Fedora-, and Arch-family dependency lists used by Docker/CI
-packaging. It is not the default end-user install path.
-
-##### KMS Capture
-If you are using KMS, patching the Sunshine binary with `setcap` is required. Some post-install scripts handle this. If building
-from source and using the binary directly, this will also work:
+### Build and package
 
 ```bash
-sudo cp cmake-build-release/sunshine /tmp
-sudo setcap cap_sys_admin,cap_sys_nice+p /tmp/sunshine
-sudo getcap /tmp/sunshine
-sudo mv /tmp/sunshine cmake-build-release/sunshine
-```
+git submodule update --init --recursive
+npm install
 
-##### CUDA Toolkit
-Sunshine requires CUDA Toolkit for NVFBC capture. There are two caveats to CUDA:
-
-1. The version installed depends on the version of GCC.
-2. The version of CUDA you use will determine compatibility with various GPU generations.
-   At the time of writing, match the defaults in `scripts/linux_build.sh`
-   and [Getting Started](getting_started.md): CUDA 13.1.1 with driver
-   590.48.01 (or newer compatible). See
-   [CUDA compatibility](https://docs.nvidia.com/deploy/cuda-compatibility/index.html)
-   for GPU generation coverage.
-
-> [!NOTE]
-> To install older versions, select the appropriate run file based on your desired CUDA version and architecture
-> according to [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive)
-
-#### macOS
-You can either use [Homebrew](https://brew.sh) or [MacPorts](https://www.macports.org) to install dependencies.
-
-##### Homebrew
-```bash
-dependencies=(
-  "boost"  # Optional
-  "cmake"
-  "doxygen"  # Optional, for docs
-  "graphviz"  # Optional, for docs
-  "icu4c"  # Optional, if boost is not installed
-  "miniupnpc"
-  "ninja"
-  "node"
-  "openssl@3"
-  "opus"
-  "pkg-config"
-)
-brew install "${dependencies[@]}"
-```
-
-If there are issues with an SSL header that is not found:
-
-@tabs{
-  @tab{ Intel | ```bash
-    ln -s /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
-    ```}
-  @tab{ Apple Silicon | ```bash
-    ln -s /opt/homebrew/opt/openssl/include/openssl /opt/homebrew/include/openssl
-    ```
-  }
-}
-
-##### MacPorts
-```bash
-dependencies=(
-  "cmake"
-  "curl"
-  "doxygen"  # Optional, for docs
-  "graphviz"  # Optional, for docs
-  "libopus"
-  "miniupnpc"
-  "ninja"
-  "npm9"
-  "pkgconfig"
-)
-sudo port install "${dependencies[@]}"
-```
-
-#### Windows
-
-> [!WARNING]
-> Cross-compilation is not supported on Windows. You must build on the target architecture.
-
-First, you need to install [MSYS2](https://www.msys2.org).
-
-For AMD64 startup "MSYS2 UCRT64" (or for ARM64 startup "MSYS2 CLANGARM64") then execute the following commands.
-
-##### Update all packages
-```bash
-pacman -Syu
-```
-
-##### Set toolchain variable
-For UCRT64:
-```bash
-export TOOLCHAIN="ucrt-x86_64"
-```
-
-For CLANGARM64:
-```bash
-export TOOLCHAIN="clang-aarch64"
-```
-
-##### Install dependencies
-```bash
-dependencies=(
-  "git"
-  "mingw-w64-${TOOLCHAIN}-boost"  # Optional
-  "mingw-w64-${TOOLCHAIN}-cmake"
-  "mingw-w64-${TOOLCHAIN}-cppwinrt"
-  "mingw-w64-${TOOLCHAIN}-curl-winssl"
-  "mingw-w64-${TOOLCHAIN}-doxygen"  # Optional, for docs... better to install official Doxygen
-  "mingw-w64-${TOOLCHAIN}-graphviz"  # Optional, for docs
-  "mingw-w64-${TOOLCHAIN}-miniupnpc"
-  "mingw-w64-${TOOLCHAIN}-onevpl"
-  "mingw-w64-${TOOLCHAIN}-openssl"
-  "mingw-w64-${TOOLCHAIN}-opus"
-  "mingw-w64-${TOOLCHAIN}-toolchain"
-)
-if [[ "${MSYSTEM}" == "UCRT64" ]]; then
-  dependencies+=(
-    "mingw-w64-${TOOLCHAIN}-MinHook"
-    "mingw-w64-${TOOLCHAIN}-nodejs"
-    "mingw-w64-${TOOLCHAIN}-nsis"
-  )
-fi
-pacman -S "${dependencies[@]}"
-```
-
-To create a WiX installer, you also need to install [.NET](https://dotnet.microsoft.com/download).
-
-For ARM64: To build frontend, you also need to install [Node.JS](https://nodejs.org/en/download)
-
-### Clone
-Ensure [git](https://git-scm.com) is installed on your system, then clone the repository using the following command:
-
-```bash
-git clone --recursive https://github.com/vindeckyy/Solar-Flare.git
-cd Solar-Flare
-mkdir cmake-build-release
-```
-
-### Build
-
-```bash
 cmake -B cmake-build-release -G Ninja -S .
 ninja -C cmake-build-release -j2
+cpack -G FREEBSD --config ./cmake-build-release/CPackConfig.cmake
 ```
 
-> [!TIP]
-> Available build options live in this tree's
-> [`cmake/prep/options.cmake`](../cmake/prep/options.cmake). SolarFlare also
-> documents `SUNSHINE_CACHYOS_NATIVE` and related Linux flags in
-> [Porting SolarFlare](PORTING.md).
+---
 
-### Package
+## Packaging (all platforms)
 
 @tabs{
-  @tab{FreeBSD | @tabs{
-    @tab{pkg | ```bash
-      cpack -G FREEBSD --config ./cmake-build-release/CPackConfig.cmake
-      ```}
-  }}
-  @tab{Linux | @tabs{
-    @tab{deb | ```bash
-      cpack -G DEB --config ./cmake-build-release/CPackConfig.cmake
-      ```}
-    @tab{rpm | ```bash
-      cpack -G RPM --config ./cmake-build-release/CPackConfig.cmake
-      ```}
-  }}
-  @tab{macOS | @tabs{
-    @tab{DragNDrop | ```bash
-      cpack -G DragNDrop --config ./cmake-build-release/CPackConfig.cmake
-      ```}
-  }}
-  @tab{Windows | @tabs{
-    @tab{NSIS Installer | ```bash
-      cpack -G NSIS --config ./cmake-build-release/CPackConfig.cmake
-      ```}
-    @tab{WiX Installer | ```bash
-      cpack -G WIX --config ./cmake-build-release/CPackConfig.cmake
-      ```}
-    @tab{Portable | ```bash
-      cpack -G ZIP --config ./cmake-build-release/CPackConfig.cmake
-      ```}
-  }}
+  @tab{Linux deb/rpm | ```bash
+    cpack -G DEB --config ./cmake-build-release/CPackConfig.cmake
+    cpack -G RPM --config ./cmake-build-release/CPackConfig.cmake
+    ```}
+  @tab{macOS | ```bash
+    cpack -G DragNDrop --config ./cmake-build-release/CPackConfig.cmake
+    ```}
+  @tab{Windows | ```bash
+    cpack -G NSIS --config ./cmake-build-release/CPackConfig.cmake
+    cpack -G WIX  --config ./cmake-build-release/CPackConfig.cmake
+    cpack -G ZIP  --config ./cmake-build-release/CPackConfig.cmake
+    ```}
+  @tab{FreeBSD | ```bash
+    cpack -G FREEBSD --config ./cmake-build-release/CPackConfig.cmake
+    ```}
 }
 
-### Remote Build
-It may be beneficial to build remotely in some cases. This will enable easier building on different operating systems.
+Flatpak and AppImage workflows are documented under
+[`packaging/linux/flatpak/README.md`](../packaging/linux/flatpak/README.md).
 
-1. Fork the project
-2. Activate workflows
-3. Trigger the *CI* workflow manually
-4. Download the artifacts/binaries from the workflow run summary
+---
+
+## Remote / CI builds
+
+To obtain binaries without a local toolchain:
+
+1. Fork the repository and enable GitHub Actions.
+2. Trigger the **CI** workflow manually.
+3. Download artifacts from the workflow run summary.
 
 > [!IMPORTANT]
-> CI workflow artifacts are not SolarFlare release packages. End users should
-> install with `./scripts/linux-install.sh` or update an existing install from
-> the published GitHub release assets documented in the repository README.
+> CI artifacts are **not** official SolarFlare release packages. End users should
+> install via `./scripts/linux-install.sh` or published GitHub release assets
+> (see repository README).
+
+---
+
+## Common build failures (all platforms)
+
+| Failure | Likely cause | Recovery |
+|---------|--------------|----------|
+| Empty `third-party/*` at configure | Submodules not initialized | `git submodule update --init --recursive` |
+| `FFmpeg release tag is unavailable` | `build-deps` submodule not at a tag | `cd third-party/build-deps && git fetch --tags` |
+| `No pinned FFmpeg checksum` | Unsupported arch/OS combo | Build on x86_64/aarch64 Linux, Windows, macOS, or FreeBSD amd64 |
+| Doxygen / doc target fails | Missing `doxygen` or `graphviz` | `-DBUILD_DOCS=OFF` |
+| Link OOM during LTO | `-flto` on low RAM | `-DSUNSHINE_CACHYOS_NATIVE=OFF` or reduce `-j` |
+| `ninja: error: loading 'build.ninja'` | Wrong build dir | Use consistent `-B cmake-build-release` |
 
 <div class="section_buttons">
 

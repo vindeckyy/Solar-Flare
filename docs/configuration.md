@@ -36,8 +36,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## General
 
-### locale
 
+### locale
 <table>
     <tr>
         <td>Description</td>
@@ -141,7 +141,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### sunshine_name
-
 <table>
     <tr>
         <td>Description</td>
@@ -162,7 +161,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### min_log_level
-
 <table>
     <tr>
         <td>Description</td>
@@ -216,7 +214,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### global_prep_cmd
-
 <table>
     <tr>
         <td>Description</td>
@@ -240,7 +237,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### notify_pre_releases
-
 <table>
     <tr>
         <td>Description</td>
@@ -263,7 +259,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### system_tray
-
 <table>
     <tr>
         <td>Description</td>
@@ -287,14 +282,24 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## Headless Stream
 
-### headless_mode
+@admonition{ Linux only | Headless streaming routes game launches into a private
+nested compositor (labwc, krfb, or gamescope) instead of capturing your desktop.
+Enable [headless_mode](#headless_mode) first, then pick a
+[compositor_backend](#compositor_backend). Use [headless_width](#headless_width),
+[headless_height](#headless_height), and [headless_refresh](#headless_refresh) to
+pin a virtual display mode when the client does not request one. See also
+[docs/CONFIGURATION.md](CONFIGURATION.md#headless-compositor-streaming) for
+backend selection recipes. }
 
+### headless_mode
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             Run games in a private headless compositor instead of hijacking the desktop.
             When enabled, games launch inside an isolated compositor environment.
+            Your desktop session stays untouched - ideal for sharing a workstation
+            or streaming from a multi-user machine.
             @note{Linux only.}
         </td>
     </tr>
@@ -305,6 +310,22 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
+        <td>Interactions</td>
+        <td colspan="2">
+            Requires [linux_use_cage_compositor](#linux_use_cage_compositor) or a
+            non-auto [compositor_backend](#compositor_backend) for nested capture.
+            Independent of [headless_virtual_display](#headless_virtual_display)
+            (file-only fork key for xrandr virtual outputs on monitor-less servers).
+        </td>
+    </tr>
+    <tr>
+        <td>Platform notes</td>
+        <td colspan="2">
+            Wayland session strongly recommended. X11 desktop capture is unchanged
+            when headless mode is disabled.
+        </td>
+    </tr>
+    <tr>
         <td>Example</td>
         <td colspan="2">@code{}
             headless_mode = enabled
@@ -313,7 +334,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### linux_use_cage_compositor
-
 <table>
     <tr>
         <td>Description</td>
@@ -339,7 +359,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### linux_prefer_gpu_native_capture
-
 <table>
     <tr>
         <td>Description</td>
@@ -365,7 +384,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### compositor_backend
-
 <table>
     <tr>
         <td>Description</td>
@@ -408,10 +426,99 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### headless_width
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Override the headless virtual display width in pixels. When 0, the
+            client-requested resolution is used. Applied to the headless
+            compositor (labwc / krfb / gamescope) and the xrandr VIRTUAL1
+            fallback output.
+            @note{Linux only. Requires [headless_mode](#headless_mode) or
+            [headless_virtual_display](#headless_virtual_display).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-7680</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            headless_width = 3840
+            @endcode</td>
+    </tr>
+</table>
+
+### headless_height
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Override the headless virtual display height in pixels. When 0, the
+            client-requested resolution is used.
+            @note{Linux only. Requires [headless_mode](#headless_mode) or
+            [headless_virtual_display](#headless_virtual_display).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-4320</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            headless_height = 2160
+            @endcode</td>
+    </tr>
+</table>
+
+### headless_refresh
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Override the headless virtual display refresh rate in Hz. When 0,
+            the client-requested framerate is used.
+            @note{Linux only. Requires [headless_mode](#headless_mode) or
+            [headless_virtual_display](#headless_virtual_display).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-240</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            headless_refresh = 120
+            @endcode</td>
+    </tr>
+</table>
+
 ## Input
 
-### controller
 
+### controller
 <table>
     <tr>
         <td>Description</td>
@@ -434,7 +541,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### gamepad
-
 <table>
     <tr>
         <td>Description</td>
@@ -483,7 +589,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### ds4_back_as_touchpad_click
-
 <table>
     <tr>
         <td>Description</td>
@@ -508,7 +613,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### motion_as_ds4
-
 <table>
     <tr>
         <td>Description</td>
@@ -536,7 +640,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### touchpad_as_ds4
-
 <table>
     <tr>
         <td>Description</td>
@@ -564,7 +667,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### ds5_inputtino_randomize_mac
-
 <table>
     <tr>
         <td>Description</td>
@@ -588,7 +690,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### back_button_timeout
-
 <table>
     <tr>
         <td>Description</td>
@@ -613,7 +714,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### keyboard
-
 <table>
     <tr>
         <td>Description</td>
@@ -636,7 +736,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### key_repeat_delay
-
 <table>
     <tr>
         <td>Description</td>
@@ -660,7 +759,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### key_repeat_frequency
-
 <table>
     <tr>
         <td>Description</td>
@@ -684,7 +782,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### always_send_scancodes
-
 <table>
     <tr>
         <td>Description</td>
@@ -715,7 +812,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### key_rightalt_to_key_win
-
 <table>
     <tr>
         <td>Description</td>
@@ -738,7 +834,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### mouse
-
 <table>
     <tr>
         <td>Description</td>
@@ -761,7 +856,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### high_resolution_scrolling
-
 <table>
     <tr>
         <td>Description</td>
@@ -787,7 +881,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### native_pen_touch
-
 <table>
     <tr>
         <td>Description</td>
@@ -812,7 +905,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### keybindings
-
 <table>
     <tr>
         <td>Description</td>
@@ -849,8 +941,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## Audio/Video
 
-### audio_sink
+@admonition{ SolarFlare audio | Keys prefixed with `sf_audio_` and `sf_opus_` are
+SolarFlare fork tunables for the pre-encoder audio pipeline and Opus encoder.
+All default to upstream-compatible values (effects off, Opus LOWDELAY/CBR).
+See [docs/CONFIGURATION.md](CONFIGURATION.md#audio-fx-pre-encoder-processing) for
+tuning recipes. Hot-reloadable via the config watcher. }
 
+
+### audio_sink
 <table>
     <tr>
         <td>Description</td>
@@ -920,7 +1018,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### virtual_sink
-
 <table>
     <tr>
         <td>Description</td>
@@ -950,7 +1047,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### stream_audio
-
 <table>
     <tr>
         <td>Description</td>
@@ -973,7 +1069,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### install_steam_audio_drivers
-
 <table>
     <tr>
         <td>Description</td>
@@ -998,7 +1093,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### adapter_name
-
 <table>
     <tr>
         <td>Description</td>
@@ -1051,7 +1145,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### output_name
-
 <table>
     <tr>
         <td>Description</td>
@@ -1166,7 +1259,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### dd_configuration_option
-
 <table>
     <tr>
         <td>Description</td>
@@ -1211,7 +1303,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### dd_resolution_option
-
 <table>
     <tr>
         <td>Description</td>
@@ -1247,7 +1338,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### dd_manual_resolution
-
 <table>
     <tr>
         <td>Description</td>
@@ -1270,7 +1360,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### dd_refresh_rate_option
-
 <table>
     <tr>
         <td>Description</td>
@@ -1305,7 +1394,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### dd_manual_refresh_rate
-
 <table>
     <tr>
         <td>Description</td>
@@ -1329,7 +1417,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### dd_hdr_option
-
 <table>
     <tr>
         <td>Description</td>
@@ -1360,7 +1447,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### dd_wa_hdr_toggle_delay
-
 <table>
     <tr>
         <td>Description</td>
@@ -1387,7 +1473,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### dd_config_revert_delay
-
 <table>
     <tr>
         <td>Description</td>
@@ -1411,7 +1496,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 
 ### dd_config_revert_on_disconnect
-
 <table>
     <tr>
         <td>Description</td>
@@ -1435,7 +1519,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### dd_mode_remapping
-
 <table>
     <tr>
         <td>Description</td>
@@ -1521,7 +1604,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### max_bitrate
-
 <table>
     <tr>
         <td>Description</td>
@@ -1544,7 +1626,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### minimum_fps_target
-
 <table>
     <tr>
         <td>Description</td>
@@ -1570,7 +1651,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### adaptive_bitrate_enabled
-
 <table>
     <tr>
         <td>Description</td>
@@ -1595,7 +1675,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### adaptive_bitrate_min
-
 <table>
     <tr>
         <td>Description</td>
@@ -1623,7 +1702,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### adaptive_bitrate_max
-
 <table>
     <tr>
         <td>Description</td>
@@ -1650,10 +1728,689 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### idle_timeout_min
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Automatically stop a streaming session after this many minutes
+            without any client input (mouse, keyboard, gamepad). Frees the
+            capture/encode pipeline and lets other clients connect when a
+            client is left idle. 0 disables the watchdog. A grace period of
+            a few seconds is applied before the session is torn down.
+            @note{SolarFlare fork. Hot-reloadable via the config watcher.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-600 (0 = disabled)</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            idle_timeout_min = 15
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Apply automatic gain control before Opus encoding. Smooth gain riding so the encoded
+            audio sits closer to a target loudness level. Disabled by default (upstream behaviour).
+            @note{SolarFlare fork. Editable in the Web UI Audio/Video tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_vad
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Run voice activity detection on the captured audio to drive ducking and other
+            voice-aware behaviour. Disabled by default (upstream behaviour).
+            @note{SolarFlare fork. Editable in the Web UI Audio/Video tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_vad = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_ducking
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When voice is active (requires [sf_audio_vad](#sf_audio_vad)), briefly reduce the
+            game-audio level so speech is more intelligible. Disabled by default (upstream
+            behaviour).
+            @note{SolarFlare fork. Editable in the Web UI Audio/Video tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_ducking = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_noise_gate
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Apply a noise gate that suppresses signal below
+            [sf_audio_noise_gate_db](#sf_audio_noise_gate_db). Kills microphone-style noise
+            floor. Disabled by default (upstream behaviour).
+            @note{SolarFlare fork. Editable in the Web UI Audio/Video tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_noise_gate = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_noise_gate_db
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Noise gate threshold in dBFS. Audio power below this level is muted.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_noise_gate](#sf_audio_noise_gate).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -55
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-90 to -10</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_noise_gate_db = -50
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_target_db
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Target RMS loudness for automatic gain control in dBFS.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -20
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-40 to -6</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_target_db = -18
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_max_gain_db
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Maximum boost in dB that automatic gain control can apply.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            12
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0 to 30</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_max_gain_db = 15
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_min_gain_db
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Maximum cut in dB that automatic gain control can apply.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -12
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-30 to 0</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_min_gain_db = -10
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_attack_ms
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Attack time in milliseconds for automatic gain control to ramp gain up.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            10
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1 to 500</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_attack_ms = 8
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_hold_ms
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Hold duration in milliseconds before automatic gain control starts releasing.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            200
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0 to 5000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_hold_ms = 150
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_release_ms
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Release time in milliseconds for automatic gain control to ramp gain back down.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            100
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1 to 5000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_release_ms = 80
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_vad_threshold_db
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Voice activity detection threshold in dBFS.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -45
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-80 to -10</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_vad_threshold_db = -40
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_vad_hysteresis_db
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Hysteresis band in dB around VAD threshold to prevent rapid fluttering.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            6
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0 to 30</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_vad_hysteresis_db = 5
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_vad_min_speech_ms
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Minimum speech duration in milliseconds before triggering voice-active state.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            100
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">10 to 2000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_vad_min_speech_ms = 80
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_vad_min_silence_ms
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Minimum silence duration in milliseconds before releasing voice-active state.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            200
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">10 to 5000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_vad_min_silence_ms = 150
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_ducker_attenuation_db
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Game audio attenuation in dB applied when ducking is triggered.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_ducking](#sf_audio_ducking).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -12
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-40 to 0</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_ducker_attenuation_db = -15
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_ducker_attack_ms
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Ramp-down speed in milliseconds when speech starts.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_ducking](#sf_audio_ducking).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            50
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1 to 2000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_ducker_attack_ms = 40
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_ducker_release_ms
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Ramp-up recovery speed in milliseconds when speech ends.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_ducking](#sf_audio_ducking).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            500
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1 to 5000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_ducker_release_ms = 400
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_application
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Opus application mode. 0 = RESTRICTED_LOWDELAY (upstream default, lowest latency),
+            1 = VOIP (better speech intelligibility), 2 = AUDIO (better music and sound effects).
+            @note{SolarFlare fork. Editable in the Web UI Audio/Video tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-2</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_application = 0
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_vbr
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Opus variable bitrate mode. 0 = CBR (upstream default), 1 = Constrained VBR,
+            2 = Full VBR. VBR typically gives better quality at the same bitrate.
+            @note{SolarFlare fork. Editable in the Web UI Audio/Video tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-2</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_vbr = 0
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_complexity
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Opus encoder complexity. 0 = lowest CPU usage / lowest quality, 10 = highest CPU
+            usage / highest quality. Upstream default is 10.
+            @note{SolarFlare fork. Editable in the Web UI Audio/Video tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            10
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-10</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_complexity = 10
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_fec
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Enable Opus in-band forward error correction. Sends redundant copies of each packet so
+            the decoder can recover from single-packet loss. Enabled by default (upstream default).
+            @note{SolarFlare fork. Editable in the Web UI Audio/Video tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_fec = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_expected_loss_pct
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Tell Opus the expected packet-loss percentage so it can pre-allocate FEC bits. 0
+            disables the hint (upstream default). Higher values trade bandwidth for robustness.
+            @note{SolarFlare fork. Editable in the Web UI Audio/Video tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0-100</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_expected_loss_pct = 0
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_opus_bandwidth_extension
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Allow Opus to use super-wideband or fullband (>16 kHz) encoding modes. Enabled by
+            default (upstream default). Disabling restricts to wideband (16 kHz) for compatibility.
+            @note{SolarFlare fork. Editable in the Web UI Audio/Video tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_opus_bandwidth_extension = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+<div class="section_buttons">
+
+| Previous          |                            Next |
+|:------------------|--------------------------------:|
+| [Legal](legal.md) | [App Examples](app_examples.md) |
+
+</div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>
 ## Network
 
-### upnp
 
+### upnp
 <table>
     <tr>
         <td>Description</td>
@@ -1676,7 +2433,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### address_family
-
 <table>
     <tr>
         <td>Description</td>
@@ -1708,7 +2464,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### bind_address
-
 <table>
     <tr>
         <td>Description</td>
@@ -1748,7 +2503,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### port
-
 <table>
     <tr>
         <td>Description</td>
@@ -1776,7 +2530,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### origin_web_ui_allowed
-
 <table>
     <tr>
         <td>Description</td>
@@ -1812,7 +2565,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### csrf_allowed_origins
-
 <table>
     <tr>
         <td>Description</td>
@@ -1841,7 +2593,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### external_ip
-
 <table>
     <tr>
         <td>Description</td>
@@ -1862,7 +2613,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### lan_encryption_mode
-
 <table>
     <tr>
         <td>Description</td>
@@ -1899,7 +2649,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### wan_encryption_mode
-
 <table>
     <tr>
         <td>Description</td>
@@ -1936,7 +2685,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### ping_timeout
-
 <table>
     <tr>
         <td>Description</td>
@@ -1959,7 +2707,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### packetsize
-
 <table>
     <tr>
         <td>Description</td>
@@ -2020,7 +2767,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### trusted_subnet_auto_pairing
-
 <table>
     <tr>
         <td>Description</td>
@@ -2046,7 +2792,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### trusted_subnets
-
 <table>
     <tr>
         <td>Description</td>
@@ -2070,10 +2815,45 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### webhook_secret
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            HMAC-SHA256 secret used to sign webhook payloads. When non-empty,
+            every stream start/stop webhook POST carries an
+            `X-Solarflare-Signature: sha256=<hex>` header computed over the
+            request body, so receivers can verify the payload really came
+            from this host. Pair with numbered `webhook_url_<n>` keys in the
+            SolarFlare Fork section.
+            @note{SolarFlare fork. Also configurable in the Web UI Network tab.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            (empty)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Interactions</td>
+        <td colspan="2">
+            Session history is written to `session_history.jsonl` and exposed via
+            `GET /api/sessions` even when no webhooks are configured.
+        </td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            webhook_secret = change-me
+            @endcode</td>
+    </tr>
+</table>
+
 ## Config Files
 
-### file_apps
 
+### file_apps
 <table>
     <tr>
         <td>Description</td>
@@ -2097,7 +2877,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### credentials_file
-
 <table>
     <tr>
         <td>Description</td>
@@ -2120,7 +2899,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### log_path
-
 <table>
     <tr>
         <td>Description</td>
@@ -2143,7 +2921,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### pkey
-
 <table>
     <tr>
         <td>Description</td>
@@ -2168,7 +2945,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### cert
-
 <table>
     <tr>
         <td>Description</td>
@@ -2193,7 +2969,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### file_state
-
 <table>
     <tr>
         <td>Description</td>
@@ -2217,8 +2992,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## Advanced
 
-### fec_percentage
 
+### fec_percentage
 <table>
     <tr>
         <td>Description</td>
@@ -2247,7 +3022,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### qp
-
 <table>
     <tr>
         <td>Description</td>
@@ -2271,7 +3045,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### min_threads
-
 <table>
     <tr>
         <td>Description</td>
@@ -2297,7 +3070,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### hevc_mode
-
 <table>
     <tr>
         <td>Description</td>
@@ -2339,7 +3111,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### av1_mode
-
 <table>
     <tr>
         <td>Description</td>
@@ -2381,7 +3152,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### capture
-
 <table>
     <tr>
         <td>Description</td>
@@ -2442,7 +3212,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### encoder
-
 <table>
     <tr>
         <td>Description</td>
@@ -2490,8 +3259,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## NVIDIA NVENC Encoder
 
-### nvenc_preset
 
+### nvenc_preset
 <table>
     <tr>
         <td>Description</td>
@@ -2547,7 +3316,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_twopass
-
 <table>
     <tr>
         <td>Description</td>
@@ -2587,7 +3355,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_spatial_aq
-
 <table>
     <tr>
         <td>Description</td>
@@ -2613,7 +3380,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_vbv_increase
-
 <table>
     <tr>
         <td>Description</td>
@@ -2647,7 +3413,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_realtime_hags
-
 <table>
     <tr>
         <td>Description</td>
@@ -2675,7 +3440,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_split_encode
-
 <table>
     <tr>
         <td>Description</td>
@@ -2715,7 +3479,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_latency_over_power
-
 <table>
     <tr>
         <td>Description</td>
@@ -2742,7 +3505,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_opengl_vulkan_on_dxgi
-
 <table>
     <tr>
         <td>Description</td>
@@ -2769,7 +3531,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_h264_cavlc
-
 <table>
     <tr>
         <td>Description</td>
@@ -2796,7 +3557,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_weighted_prediction
-
 <table>
     <tr>
         <td>Description</td>
@@ -2821,7 +3581,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_enable_min_qp
-
 <table>
     <tr>
         <td>Description</td>
@@ -2847,7 +3606,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_min_qp_h264
-
 <table>
     <tr>
         <td>Description</td>
@@ -2876,7 +3634,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_min_qp_hevc
-
 <table>
     <tr>
         <td>Description</td>
@@ -2905,7 +3662,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_min_qp_av1
-
 <table>
     <tr>
         <td>Description</td>
@@ -2934,7 +3690,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_filler_data
-
 <table>
     <tr>
         <td>Description</td>
@@ -2959,7 +3714,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_rc_lookahead
-
 <table>
     <tr>
         <td>Description</td>
@@ -2989,7 +3743,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_surfaces
-
 <table>
     <tr>
         <td>Description</td>
@@ -3018,7 +3771,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_bframes
-
 <table>
     <tr>
         <td>Description</td>
@@ -3048,7 +3800,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_zerolatency
-
 <table>
     <tr>
         <td>Description</td>
@@ -3075,7 +3826,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_aq_strength
-
 <table>
     <tr>
         <td>Description</td>
@@ -3107,7 +3857,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_temporal_aq
-
 <table>
     <tr>
         <td>Description</td>
@@ -3134,7 +3883,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### nvenc_tuning_preset
-
 <table>
     <tr>
         <td>Description</td>
@@ -3168,8 +3916,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## Intel QuickSync Encoder
 
-### qsv_preset
 
+### qsv_preset
 <table>
     <tr>
         <td>Description</td>
@@ -3222,7 +3970,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### qsv_coder
-
 <table>
     <tr>
         <td>Description</td>
@@ -3260,7 +4007,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### qsv_slow_hevc
-
 <table>
     <tr>
         <td>Description</td>
@@ -3286,8 +4032,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## AMD AMF Encoder
 
-### amd_usage
 
+### amd_usage
 <table>
     <tr>
         <td>Description</td>
@@ -3334,7 +4080,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### amd_rc
-
 <table>
     <tr>
         <td>Description</td>
@@ -3378,7 +4123,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### amd_enforce_hrd
-
 <table>
     <tr>
         <td>Description</td>
@@ -3403,7 +4147,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### amd_quality
-
 <table>
     <tr>
         <td>Description</td>
@@ -3440,7 +4183,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### amd_preanalysis
-
 <table>
     <tr>
         <td>Description</td>
@@ -3464,7 +4206,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### amd_vbaq
-
 <table>
     <tr>
         <td>Description</td>
@@ -3489,7 +4230,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### amd_coder
-
 <table>
     <tr>
         <td>Description</td>
@@ -3528,8 +4268,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## VideoToolbox Encoder
 
-### vt_coder
 
+### vt_coder
 <table>
     <tr>
         <td>Description</td>
@@ -3566,7 +4306,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vt_software
-
 <table>
     <tr>
         <td>Description</td>
@@ -3607,7 +4346,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vt_realtime
-
 <table>
     <tr>
         <td>Description</td>
@@ -3633,8 +4371,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## VA-API Encoder
 
-### vaapi_strict_rc_buffer
 
+### vaapi_strict_rc_buffer
 <table>
     <tr>
         <td>Description</td>
@@ -3664,7 +4402,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vaapi_rc_mode
-
 <table>
     <tr>
         <td>Description</td>
@@ -3701,7 +4438,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vaapi_quality
-
 <table>
     <tr>
         <td>Description</td>
@@ -3726,7 +4462,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vaapi_min_qp
-
 <table>
     <tr>
         <td>Description</td>
@@ -3750,7 +4485,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vaapi_max_qp
-
 <table>
     <tr>
         <td>Description</td>
@@ -3774,7 +4508,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vaapi_slice_count
-
 <table>
     <tr>
         <td>Description</td>
@@ -3798,7 +4531,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vaapi_async_depth
-
 <table>
     <tr>
         <td>Description</td>
@@ -3822,7 +4554,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vaapi_rc_buffer_frames
-
 <table>
     <tr>
         <td>Description</td>
@@ -3849,8 +4580,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## Vulkan Encoder
 
-### vk_tune
 
+### vk_tune
 <table>
     <tr>
         <td>Description</td>
@@ -3899,7 +4630,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vk_rc_mode
-
 <table>
     <tr>
         <td>Description</td>
@@ -3943,7 +4673,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vk_min_qp
-
 <table>
     <tr>
         <td>Description</td>
@@ -3969,7 +4698,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### vk_max_qp
-
 <table>
     <tr>
         <td>Description</td>
@@ -3996,8 +4724,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## Software Encoder
 
-### sw_preset
 
+### sw_preset
 <table>
     <tr>
         <td>Description</td>
@@ -4068,7 +4796,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 </table>
 
 ### sw_tune
-
 <table>
     <tr>
         <td>Description</td>
@@ -4123,6 +4850,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## SolarFlare Fork
 
+
 @admonition{ Fork-only | These options exist only in the SolarFlare fork
 ([vindeckyy/Solar-Flare](https://github.com/vindeckyy/Solar-Flare)).
 They are not part of upstream LizardByte/Sunshine and will be silently
@@ -4131,7 +4859,6 @@ pre-config-fork hardcoded values, so a vanilla install is bit-for-bit
 identical to a build without this configuration section. }
 
 ### busy_poll_us
-
 <table>
     <tr>
         <td>Description</td>
@@ -4160,7 +4887,6 @@ identical to a build without this configuration section. }
 </table>
 
 ### rate_cap_pct
-
 <table>
     <tr>
         <td>Description</td>
@@ -4188,7 +4914,6 @@ identical to a build without this configuration section. }
 </table>
 
 ### enet_4mib_buffer
-
 <table>
     <tr>
         <td>Description</td>
@@ -4217,7 +4942,6 @@ identical to a build without this configuration section. }
 </table>
 
 ### pipewire_latency_ms
-
 <table>
     <tr>
         <td>Description</td>
@@ -4245,7 +4969,6 @@ identical to a build without this configuration section. }
 </table>
 
 ### cpu_pinning
-
 <table>
     <tr>
         <td>Description</td>
@@ -4275,7 +4998,6 @@ identical to a build without this configuration section. }
 </table>
 
 ### dscp_qos
-
 <table>
     <tr>
         <td>Description</td>
@@ -4301,7 +5023,6 @@ identical to a build without this configuration section. }
 </table>
 
 ### gpu_governor
-
 <table>
     <tr>
         <td>Description</td>
@@ -4329,7 +5050,6 @@ identical to a build without this configuration section. }
 </table>
 
 ### headless_virtual_display
-
 <table>
     <tr>
         <td>Description</td>
@@ -4355,88 +5075,7 @@ identical to a build without this configuration section. }
     </tr>
 </table>
 
-### headless_width
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Override the headless virtual display width in pixels. When 0, the
-            client-requested resolution is used. Applied to the headless
-            compositor (labwc / krfb / gamescope) and the xrandr VIRTUAL1
-            fallback output.
-            @note{Linux only. Requires [headless_mode](#headless_mode) or
-            [headless_virtual_display](#headless_virtual_display).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            0
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            headless_width = 3840
-            @endcode</td>
-    </tr>
-</table>
-
-### headless_height
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Override the headless virtual display height in pixels. When 0, the
-            client-requested resolution is used.
-            @note{Linux only. Requires [headless_mode](#headless_mode) or
-            [headless_virtual_display](#headless_virtual_display).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            0
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            headless_height = 2160
-            @endcode</td>
-    </tr>
-</table>
-
-### headless_refresh
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Override the headless virtual display refresh rate in Hz. When 0,
-            the client-requested framerate is used.
-            @note{Linux only. Requires [headless_mode](#headless_mode) or
-            [headless_virtual_display](#headless_virtual_display).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            0
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            headless_refresh = 120
-            @endcode</td>
-    </tr>
-</table>
-
 ### latency_mode
-
 <table>
     <tr>
         <td>Description</td>
@@ -4470,116 +5109,7 @@ identical to a build without this configuration section. }
     </tr>
 </table>
 
-### idle_timeout_min
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Automatically stop a streaming session after this many minutes
-            without any client input (mouse, keyboard, gamepad). Frees the
-            capture/encode pipeline and lets other clients connect when a
-            client is left idle. 0 disables the watchdog. A grace period of
-            a few seconds is applied before the session is torn down.
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            0
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            idle_timeout_min = 15
-            @endcode</td>
-    </tr>
-</table>
-
-### webhook_secret
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            HMAC-SHA256 secret used to sign webhook payloads. When non-empty,
-            every stream start/stop webhook POST carries an
-            `X-Solarflare-Signature: sha256=<hex>` header computed over the
-            request body, so receivers can verify the payload really came
-            from this host.
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            (empty)
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            webhook_secret = change-me
-            @endcode</td>
-    </tr>
-</table>
-
-### webhook_url_<n>
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Numbered webhook destination URLs notified on stream start and stop events.
-            SolarFlare POSTs a JSON lifecycle payload to each configured endpoint.
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            (empty)
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            webhook_url_0 = https://example.com/hooks/stream
-            @endcode</td>
-    </tr>
-</table>
-
-### client_profile_<name>_<field>
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Per-client streaming profiles keyed by Moonlight client device name (`uniqueid`).
-            Supported fields include `max_bitrate` (kbps), `hevc_mode`, `av1_mode`, and
-            `latency_mode` (`safe` or `aggressive`). A value of `0` falls back to the global setting.
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            (empty)
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            client_profile_Phone_max_bitrate = 15000
-            client_profile_Phone_latency_mode = aggressive
-            @endcode</td>
-    </tr>
-</table>
-
 ### skip_wayland_correlation
-
 <table>
     <tr>
         <td>Description</td>
@@ -4607,665 +5137,56 @@ identical to a build without this configuration section. }
     </tr>
 </table>
 
-### sf_audio_agc
-
+### webhook_url_<n>
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Apply automatic gain control before Opus encoding. Smooth gain riding so the encoded
-            audio sits closer to a target loudness level. Disabled by default (upstream behaviour).
+            Numbered webhook destination URLs notified on stream start and stop events.
+            SolarFlare POSTs a JSON lifecycle payload to each configured endpoint.
             @note{This option only exists in the SolarFlare fork.}
         </td>
     </tr>
     <tr>
         <td>Default</td>
         <td colspan="2">@code{}
-            disabled
+            (empty)
             @endcode</td>
     </tr>
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            sf_audio_agc = enabled
+            webhook_url_0 = https://example.com/hooks/stream
             @endcode</td>
     </tr>
 </table>
 
-### sf_audio_agc_target_db
-
+### client_profile_<name>_<field>
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Target RMS loudness for automatic gain control in dBFS.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            -20
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">-40 to -6</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_agc_target_db = -18
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_agc_max_gain_db
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Maximum boost in dB that automatic gain control can apply.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            12
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">0 to 30</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_agc_max_gain_db = 15
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_agc_min_gain_db
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Maximum cut in dB that automatic gain control can apply.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            -12
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">-30 to 0</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_agc_min_gain_db = -10
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_agc_attack_ms
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Attack time in milliseconds for automatic gain control to ramp gain up.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            10
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">1 to 500</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_agc_attack_ms = 8
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_agc_hold_ms
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Hold duration in milliseconds before automatic gain control starts releasing.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            200
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">0 to 5000</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_agc_hold_ms = 150
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_agc_release_ms
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Release time in milliseconds for automatic gain control to ramp gain back down.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            100
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">1 to 5000</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_agc_release_ms = 80
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_vad
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Run voice activity detection on the captured audio to drive ducking and other
-            voice-aware behaviour. Disabled by default (upstream behaviour).
+            Per-client streaming profiles keyed by Moonlight client device name (`uniqueid`).
+            Supported fields include `max_bitrate` (kbps), `hevc_mode`, `av1_mode`, and
+            `latency_mode` (`safe` or `aggressive`). A value of `0` falls back to the global setting.
             @note{This option only exists in the SolarFlare fork.}
         </td>
     </tr>
     <tr>
         <td>Default</td>
         <td colspan="2">@code{}
-            disabled
+            (empty)
             @endcode</td>
     </tr>
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            sf_audio_vad = enabled
+            client_profile_Phone_max_bitrate = 15000
+            client_profile_Phone_latency_mode = aggressive
             @endcode</td>
     </tr>
 </table>
 
-### sf_audio_vad_threshold_db
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Voice activity detection threshold in dBFS.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            -45
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">-80 to -10</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_vad_threshold_db = -40
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_vad_hysteresis_db
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Hysteresis band in dB around VAD threshold to prevent rapid fluttering.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            6
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">0 to 30</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_vad_hysteresis_db = 5
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_vad_min_speech_ms
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Minimum speech duration in milliseconds before triggering voice-active state.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            100
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">10 to 2000</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_vad_min_speech_ms = 80
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_vad_min_silence_ms
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Minimum silence duration in milliseconds before releasing voice-active state.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            200
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">10 to 5000</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_vad_min_silence_ms = 150
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_ducking
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            When voice is active (requires [sf_audio_vad](#sf_audio_vad)), briefly reduce the
-            game-audio level so speech is more intelligible. Disabled by default (upstream
-            behaviour).
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            disabled
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_ducking = enabled
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_ducker_attenuation_db
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Game audio attenuation in dB applied when ducking is triggered.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_ducking](#sf_audio_ducking).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            -12
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">-40 to 0</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_ducker_attenuation_db = -15
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_ducker_attack_ms
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Ramp-down speed in milliseconds when speech starts.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_ducking](#sf_audio_ducking).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            50
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">1 to 2000</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_ducker_attack_ms = 40
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_ducker_release_ms
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Ramp-up recovery speed in milliseconds when speech ends.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_ducking](#sf_audio_ducking).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            500
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">1 to 5000</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_ducker_release_ms = 400
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_noise_gate
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Apply a noise gate that suppresses signal below
-            [sf_audio_noise_gate_db](#sf_audio_noise_gate_db). Kills microphone-style noise
-            floor. Disabled by default (upstream behaviour).
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            disabled
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_noise_gate = enabled
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_audio_noise_gate_db
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Noise gate threshold in dBFS. Audio power below this level is muted.
-            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_noise_gate](#sf_audio_noise_gate).}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            -55
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">-90 to -10</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_audio_noise_gate_db = -50
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_opus_application
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Opus application mode. 0 = RESTRICTED_LOWDELAY (upstream default, lowest latency),
-            1 = VOIP (better speech intelligibility), 2 = AUDIO (better music and sound effects).
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            0
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">0-2</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_opus_application = 0
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_opus_vbr
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Opus variable bitrate mode. 0 = CBR (upstream default), 1 = Constrained VBR,
-            2 = Full VBR. VBR typically gives better quality at the same bitrate.
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            0
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">0-2</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_opus_vbr = 0
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_opus_complexity
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Opus encoder complexity. 0 = lowest CPU usage / lowest quality, 10 = highest CPU
-            usage / highest quality. Upstream default is 10.
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            10
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">0-10</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_opus_complexity = 10
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_opus_fec
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Enable Opus in-band forward error correction. Sends redundant copies of each packet so
-            the decoder can recover from single-packet loss. Enabled by default (upstream default).
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            enabled
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_opus_fec = enabled
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_opus_expected_loss_pct
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Tell Opus the expected packet-loss percentage so it can pre-allocate FEC bits. 0
-            disables the hint (upstream default). Higher values trade bandwidth for robustness.
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            0
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">0-100</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_opus_expected_loss_pct = 0
-            @endcode</td>
-    </tr>
-</table>
-
-### sf_opus_bandwidth_extension
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Allow Opus to use super-wideband or fullband (>16 kHz) encoding modes. Enabled by
-            default (upstream default). Disabling restricts to wideband (16 kHz) for compatibility.
-            @note{This option only exists in the SolarFlare fork.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            enabled
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            sf_opus_bandwidth_extension = enabled
-            @endcode</td>
-    </tr>
-</table>
 
 <div class="section_buttons">
 

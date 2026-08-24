@@ -1,8 +1,24 @@
 # Upstream Changelog
 
-This embedded feed is the LizardByte/Sunshine changelog and covers the
-inherited streaming foundation. SolarFlare-specific releases and changes are
-tracked in the [SolarFlare changelog](CHANGELOG-SolarFlare.md).
+This embedded feed is the **LizardByte/Sunshine** changelog and covers the
+inherited streaming foundation (capture, encode, protocol, cross-platform hosts).
+
+## SolarFlare vs upstream history
+
+| Document | Contents |
+|---|---|
+| **This page** (`changelog.md`) | Upstream Sunshine releases (auto-embedded below) |
+| [CHANGELOG-SolarFlare.md](CHANGELOG-SolarFlare.md) | Fork-only features, Linux tuning, Web UI, API scopes |
+| [README](../README.md) | Current SolarFlare release badge and install policy |
+| [Maintainers - release](maintainers/release.md) | How SolarFlare versions and tags are cut |
+
+When triaging a bug, determine whether it reproduces on upstream Sunshine. If yes,
+consider reporting to LizardByte; if fork-specific (Web UI, `solarflare_t` keys,
+network pacing), report to SolarFlare Security Advisories.
+
+---
+
+## Upstream feed
 
 @htmlonly
 <script type="module" src="https://md-block.verou.me/md-block.js"></script>

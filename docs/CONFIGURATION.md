@@ -25,6 +25,9 @@ still supported.
 | `dscp_qos`            | bool   | true | -       | Tag ENet packets with DSCP CS3 so routers prioritize streaming over bulk traffic (Linux only). |
 | `gpu_governor`        | bool   | true | -       | Raise AMD DRM cards to `performance` for async capture; RAII restores `auto` on teardown (Linux only). |
 | `headless_virtual_display` | bool | false | -    | If no displays detected, try creating a virtual xrandr output (Linux only, opt-in). |
+| `headless_mode`       | bool | false | - | Route game launches into a private nested compositor (Web UI Headless tab). |
+| `linux_use_cage_compositor` | bool | false | - | Use labwc nested compositor for headless streaming. |
+| `compositor_backend`  | string | auto | auto/labwc/krfb/gamescope | Headless display backend selection. |
 | `headless_width`      | int | 0   | 0-7680  | Override the headless virtual display width in pixels. 0 follows the client's requested resolution. |
 | `headless_height`     | int | 0   | 0-4320  | Override the headless virtual display height in pixels. 0 follows the client's requested resolution. |
 | `headless_refresh`    | int | 0   | 0-240   | Override the headless virtual display refresh rate in Hz. 0 follows the client's requested framerate. |
@@ -449,13 +452,276 @@ When `trusted_subnet_auto_pairing` is enabled, Moonlight clients originating fro
 
 ## Scoped API tokens
 
-External scripts and automation tools can authenticate to the REST API using scoped bearer tokens configured in `sunshine.conf` or minted via `POST /api/tokens`:
+External scripts and automation tools can authenticate to the REST API using scoped
+bearer tokens configured in `sunshine.conf` or minted via `POST /api/tokens`.
+is shown exactly once when minted via `POST /api/tokens` or the Web UI. In
+`sunshine.conf`, each token is a TOML-style object inside the `api_tokens` array:
 
-```bash
-api_tokens = home-assistant	$2b$12$...	salt123	stream:control,logs:get|dashboard	$2b$12$...	salt456	stream:stats
+```toml
+api_tokens = [
+  { name = "home-assistant", token_hash = "abc123...", salt = "deadbeef", scopes = ["config:get", "apps:launch"] },
+  { name = "ci-bot", token_hash = "def456...", salt = "cafebabe", scopes = ["apps:get", "apps:close", "logs:get"] }
+]
 ```
 
-Tokens use pipe-separated entries with tab-separated fields: `name\thash\tsalt\tscopes`. Available scopes: `admin`, `stream:control`, `stream:stats`, `logs:get`, `config:read`, `config:write`.
+Authenticate with `Authorization: Bearer <plaintext_token>`. Basic Auth with the
+admin username/password still grants the wildcard `*` scope (full access).
+
+| Scope | Endpoint access |
+|---|---|
+| `config:get` | Read `/api/config` |
+| `config:set` | Write `/api/config` |
+| `apps:get` | List apps (`GET /api/apps`) |
+| `apps:launch` | Launch an app (`POST /api/apps`) |
+| `apps:close` | Stop a running app (`POST /api/apps/close`) |
+| `clients:list` | List paired clients |
+| `clients:pair` | Pair a new client |
+| `clients:unpair` | Unpair one or all clients |
+| `logs:get` | Read the log file |
+| `display:reset` | Reset display-device persistence |
+| `tokens:manage` | CRUD API tokens via `/api/tokens` |
+| `*` | All of the above (admin path only) |
+
+Grant the minimum scopes needed. A Home Assistant automation that only launches
+games needs `apps:launch` - not `config:set` or `clients:unpair`.
+
+## Headless compositor streaming
+
+SolarFlare can route games into a private nested compositor instead of capturing
+your desktop. This is controlled by the **Headless Stream** tab keys documented
+in [configuration.md](configuration.md):
+
+| Key | Purpose |
+|---|---|
+| `headless_mode` | Master switch - launch apps into the private compositor |
+| `linux_use_cage_compositor` | Route into labwc nested Wayland compositor |
+| `linux_prefer_gpu_native_capture` | Prefer DMA-BUF capture over X11 fallback |
+| `compositor_backend` | `auto`, `labwc`, `krfb`, or `gamescope` |
+| `headless_width` / `headless_height` / `headless_refresh` | Fixed virtual display mode (0 = follow client) |
+
+**Backend selection (`compositor_backend`):**
+
+- **`auto`** (default): On KWin, prefer `krfb-virtualmonitor`; elsewhere use `labwc`.
+- **`labwc`**: Nested labwc compositor - best general-purpose Wayland headless path.
+- **`krfb`**: KWin virtual monitor integration - lowest overhead on KDE Plasma 6.
+- **`gamescope`**: Gamescope micro-compositor - useful for per-game resolution scaling,
+  FSR, and sandboxing Proton titles away from the desktop session.
+
+`headless_virtual_display` (file-only fork key) is a separate fallback for bare
+headless servers with **no** physical outputs: it creates an `xrandr VIRTUAL1`
+output. Use it when Sunshine refuses to start because no display is detected.
+Combine with `headless_width` / `headless_height` / `headless_refresh` for a
+fixed 1920×1080@120 virtual panel on a datacenter GPU.
+
+## Tuning recipes
+
+Copy-paste snippets for common scenarios. All keys go in `~/.config/sunshine/sunshine.conf`
+unless noted. Restart Sunshine (or rely on the config watcher for hot-reloadable keys)
+after editing.
+
+### Recipe: Wired 4K60 LAN (NVIDIA, lowest latency)
+
+Goal: sub-5 ms glass-to-glass on a dedicated 2.5 GbE link.
+
+```bash
+# Network fast path
+busy_poll_us = 100
+rate_cap_pct = 90
+enet_4mib_buffer = true
+dscp_qos = true
+cpu_pinning = true
+latency_mode = aggressive
+pipewire_latency_ms = 4
+
+# NVENC one-knob preset (overrides individual nvenc_* when set)
+nvenc_tuning_preset = 0
+
+# Optional ceiling if clients request too much bitrate
+max_bitrate = 80000
+packetsize = 0
+```
+
+Per-game override in `apps.json`: `"encoder-preset": 0` for competitive titles.
+
+### Recipe: Wi-Fi 6/7 handheld (Steam Deck, phone)
+
+Goal: stable 1080p60 over lossy wireless with graceful degradation.
+
+```bash
+busy_poll_us = 50
+rate_cap_pct = 70
+pipewire_latency_ms = 12
+latency_mode = safe
+fec_percentage = 30
+packetsize = 1024
+
+# Client profile (replace Phone with your Moonlight device name)
+client_profile_Phone_max_bitrate = 15000
+client_profile_Phone_hevc_mode = 2
+client_profile_Phone_latency_mode = aggressive
+
+# Opus hints for packet loss
+sf_opus_fec = true
+sf_opus_expected_loss_pct = 8
+sf_opus_vbr = 1
+```
+
+### Recipe: AMD VA-API Linux desktop
+
+Goal: reliable HEVC on Mesa/RADV without encoder stalls.
+
+```bash
+gpu_governor = true
+encoder = vaapi
+vaapi_rc_mode = 3
+vaapi_quality = 4
+vaapi_strict_rc_buffer = true
+vaapi_async_depth = 2
+max_bitrate = 50000
+```
+
+If you see VBV underruns, raise `vaapi_rc_buffer_frames` to `2`.
+
+### Recipe: Headless homelab (no monitor)
+
+Goal: stream a 1080p desktop from a GPU server in a rack.
+
+```bash
+headless_virtual_display = true
+headless_width = 1920
+headless_height = 1080
+headless_refresh = 60
+headless_mode = true
+compositor_backend = labwc
+linux_use_cage_compositor = true
+```
+
+Launch **Desktop** from Moonlight; Sunshine creates the virtual output before capture.
+
+### Recipe: Couch co-op with voice chat (audio FX)
+
+Goal: intelligible microphone over loud game audio without manual volume riding.
+
+```bash
+sf_audio_agc = true
+sf_audio_agc_target_db = -18
+sf_audio_vad = true
+sf_audio_ducking = true
+sf_audio_ducker_attenuation_db = -15
+sf_audio_noise_gate = true
+sf_audio_noise_gate_db = -50
+sf_opus_application = 1
+```
+
+Requires `stream_audio = enabled` and a working `audio_sink` / `virtual_sink` pair.
+
+### Recipe: Shared LAN (roommate torrenting)
+
+Goal: prioritize stream packets when the link is congested.
+
+```bash
+rate_cap_pct = 55
+dscp_qos = true
+busy_poll_us = 0
+adaptive_bitrate_enabled = true
+adaptive_bitrate_min = 5000
+adaptive_bitrate_max = 40000
+```
+
+Also enable **QoS / WMM** on your router and map DSCP CS3 to the highest queue.
+
+### Recipe: Trusted living-room TV (auto-pair)
+
+Goal: Moonlight on a fixed set-top box pairs without entering a PIN each reinstall.
+
+```bash
+trusted_subnets = 192.168.1.0/24
+trusted_subnet_auto_pairing = true
+origin_web_ui_allowed = lan
+```
+
+Restrict subnets to the smallest CIDR that covers only trusted devices. Never use
+`0.0.0.0/0`.
+
+### Recipe: Home automation webhooks
+
+Goal: turn off lights when streaming starts, restore when it ends.
+
+```bash
+webhook_url_0 = http://192.168.1.50:8123/api/webhook/solarflare_stream
+webhook_secret = your-long-random-secret
+idle_timeout_min = 30
+```
+
+Verify signatures in your receiver:
+
+```python
+import hmac, hashlib
+expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+assert request.headers["X-Solarflare-Signature"] == expected
+```
+
+### Recipe: Intel QuickSync laptop (battery vs plugged-in)
+
+**Plugged in / performance:**
+
+```bash
+qsv_preset = 4
+qsv_slow_hevc = false
+nvenc_tuning_preset = -1
+encoder = qsv
+max_bitrate = 60000
+```
+
+**On battery (lower power):**
+
+```bash
+qsv_preset = 7
+max_bitrate = 20000
+minimum_fps_target = 30
+idle_timeout_min = 10
+```
+
+### Recipe: macOS VideoToolbox remote workstation
+
+```bash
+encoder = videotoolbox
+vt_realtime = enabled
+vt_coder = cabac
+max_bitrate = 80000
+```
+
+VideoToolbox ignores most `nvenc_*` / `vaapi_*` keys - set encoder-specific tabs only.
+
+### Recipe: Disable all SolarFlare tuning (upstream parity)
+
+Useful for A/B testing or bug isolation:
+
+```bash
+busy_poll_us = 0
+enet_4mib_buffer = false
+cpu_pinning = false
+dscp_qos = false
+gpu_governor = false
+latency_mode = safe
+pipewire_latency_ms = 8
+# Leave sf_audio_* / sf_opus_* at defaults (all off / upstream-compatible)
+```
+
+`rate_cap_pct = 80` is already the historical hardcoded value and needs no change.
+
+## Config hot reload
+
+SolarFlare polls `sunshine.conf` every 2 seconds (`start_config_watcher()` in
+`config.cpp`). These fork keys reload without restart:
+
+- All `sf_audio_*` / `sf_opus_*` tunables (next session)
+- `idle_timeout_min`, `latency_mode`, `busy_poll_us`, `rate_cap_pct`,
+  `enet_4mib_buffer`, `pipewire_latency_ms`, `cpu_pinning`, `dscp_qos`,
+  `gpu_governor`, `skip_wayland_correlation`
+
+Keys that require a **new stream session** (applied at launch): `headless_*`,
+`client_profile_*`, `nvenc_tuning_preset`, encoder/capture selection.
 
 ## A quick A/B test
 

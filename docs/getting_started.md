@@ -17,6 +17,326 @@
 The package tables below are retained as an upstream Sunshine reference.
 They describe LizardByte artifacts, not SolarFlare releases.
 
+---
+
+## SolarFlare on Linux: first run
+
+This section is the maintained SolarFlare operator guide for Linux x86-64 hosts.
+It covers install verification, pairing, networking, firewall rules, headless
+setup, and multi-GPU scenarios. For the one-command install summary, see the
+repository [README](../README.md#install).
+
+### Prerequisites
+
+| Requirement | Details |
+|---|---|
+| **OS** | 64-bit Linux; installer supports Arch-family, Debian/Ubuntu, Fedora-family, openSUSE, Bazzite, NixOS |
+| **CPU** | x86-64 with SSE4.2; AVX2 paths used when the CachyOS native build is enabled |
+| **GPU** | Hardware encoder recommended (NVENC, VAAPI). Software encode works but costs CPU |
+| **Session** | Logged-in graphical session for most capture backends (X11, Wayland, PipeWire portal) |
+| **Groups** | User in `input` and `video` groups (installer configures udev rules) |
+| **Client** | [Moonlight](https://moonlight-stream.org/) on any supported client platform |
+
+> [!NOTE]
+> SolarFlare retains Sunshine compatibility identifiers: the binary is `sunshine`,
+> configuration lives in `~/.config/sunshine/`, and the systemd user unit is
+> `app-dev.lizardbyte.app.Sunshine.service` (aliased to `sunshine.service`).
+
+### Step-by-step: fresh install to first stream
+
+#### 1. Clone and build
+
+```bash
+git clone --recursive https://github.com/vindeckyy/Solar-Flare.git
+cd Solar-Flare
+./scripts/linux-install.sh
+```
+
+On **Bazzite**, the installer layers packages with `rpm-ostree` and exits with
+a reboot requirement. Reboot, then re-run `./scripts/linux-install.sh --skip-deps`
+to complete the build.
+
+On **NixOS**, follow the declarative host block in [Porting](PORTING.md#nixos)
+before starting the service.
+
+#### 2. Enable the user service
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
+```
+
+Verify:
+
+```bash
+systemctl --user --no-pager status app-dev.lizardbyte.app.Sunshine.service
+journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -n 30 --no-pager
+```
+
+Look for a SolarFlare version line, available encoders, and no fatal errors.
+
+#### 3. Open the Web UI and create credentials
+
+1. Browse to `https://localhost:47990` or `https://<LAN-IP>:47990`.
+2. Accept the browser warning about the self-signed certificate.
+3. On first launch, set a username and password. **Record these** - there is no
+   recovery path except `sunshine --creds` from the host shell.
+
+#### 4. Configure applications
+
+- Open **Applications** and add entries manually, or use the game scanner for
+  Steam, Lutris, and Heroic.
+- Keep the default **Desktop** entry for full-desktop streaming.
+- See [App examples](app_examples.md) for Steam Big Picture, Proton, and
+  compositor-specific launch patterns.
+
+#### 5. Pair Moonlight
+
+| Step | Host (Web UI) | Client (Moonlight) |
+|---|---|---|
+| 1 | Service running | Install Moonlight from [moonlight-stream.org](https://moonlight-stream.org/) |
+| 2 | Note host LAN IP (`ip -4 addr`) | **Add PC** → enter host IP (or wait for mDNS) |
+| 3 | Open **PIN** tab | Client displays a 4-digit PIN |
+| 4 | Enter PIN + device name → **Pair** | Accept pairing when prompted |
+| 5 | - | Select an application to start streaming |
+
+> [!TIP]
+> If pairing fails immediately, check that TCP **47989** and **47984** are
+> reachable from the client. UDP ports are not required until stream start.
+
+> [!WARNING]
+> AP isolation on Wi-Fi blocks client-to-host traffic even when both devices
+> are on the "same" SSID. Disable client isolation in the access point or use
+> wired Ethernet for the host.
+
+#### 6. Confirm stream health
+
+During an active stream, open **Troubleshooting** in the Web UI. Address any
+encoder, capture, or audio warnings before tuning fork keys. For network issues,
+run an iPerf3 test as described in [Troubleshooting](troubleshooting.md).
+
+### Port matrix (default `port = 47989`)
+
+All ports below are derived from the `port` setting in `sunshine.conf`. If you
+change `port`, add the same delta to every entry. The Web UI configuration page
+shows the effective port list for your host.
+
+| # | Service | Protocol | Default | Offset from `port` |
+|---|---|---|---|---|
+| 1 | GameStream HTTP | TCP | 47989 | +0 |
+| 2 | GameStream HTTPS | TCP | 47984 | −5 |
+| 3 | Web UI | TCP | 47990 | +1 |
+| 4 | RTSP setup | TCP | 48010 | +21 |
+| 5 | Video stream | UDP | 47998 | negotiated / well-known |
+| 6 | Audio stream | UDP | 47999 | negotiated / well-known |
+| 7 | Control channel | UDP | 48000 | negotiated / well-known |
+| 8 | Auxiliary UDP | UDP | 48002 | negotiated / well-known |
+| 9 | RTSP (UDP mode) | UDP | 48010 | +21 |
+
+> [!NOTE]
+> Moonlight's built-in connectivity test uses the well-known port numbers in
+> columns 5–9. After changing `port`, forward and allow the shifted equivalents
+> on routers and host firewalls.
+
+For the full upstream `port` option documentation, see
+[configuration.md - port](configuration.md).
+
+### Firewall rules by distribution
+
+Allow traffic **from your Moonlight client subnet** to the host on the ports
+above. LAN-only setups do not need to expose the Web UI (47990) to the WAN.
+
+#### ufw (Debian, Ubuntu, Mint)
+
+```bash
+# Replace 192.168.1.0/24 with your client subnet
+CLIENT_SUBNET="192.168.1.0/24"
+
+for p in 47984 47989 47990 48010; do
+  sudo ufw allow from "$CLIENT_SUBNET" to any port "$p" proto tcp
+done
+for p in 47998 47999 48000 48002 48010; do
+  sudo ufw allow from "$CLIENT_SUBNET" to any port "$p" proto udp
+done
+sudo ufw reload
+```
+
+#### firewalld (Fedora, Nobara, RHEL family)
+
+```bash
+sudo firewall-cmd --permanent --add-port=47984-47990/tcp
+sudo firewall-cmd --permanent --add-port=48010/tcp
+sudo firewall-cmd --permanent --add-port=47998-48002/udp
+sudo firewall-cmd --permanent --add-port=48010/udp
+sudo firewall-cmd --reload
+```
+
+Tighten with `--add-rich-rule` and `source address=` when you know the client
+subnet.
+
+#### nftables (generic)
+
+```bash
+sudo nft add rule inet filter input ip saddr 192.168.1.0/24 tcp dport { 47984, 47989, 47990, 48010 } accept
+sudo nft add rule inet filter input ip saddr 192.168.1.0/24 udp dport { 47998, 47999, 48000, 48002, 48010 } accept
+```
+
+Persist rules through your distribution's nftables configuration path.
+
+#### NixOS
+
+Declarative example (also in [Porting](PORTING.md#nixos)):
+
+```nix
+networking.firewall = {
+  allowedTCPPorts = [ 47984 47989 47990 48010 ];
+  allowedUDPPorts = [ 47998 47999 48000 48002 48010 ];
+};
+```
+
+#### CachyOS / Arch (no active firewall)
+
+Many rolling Arch installs ship without a host firewall. If you use
+`iptables-nft` or `ufw`, apply the rules above. Router ACLs may still block
+traffic - verify with `nc -zv <host-ip> 47989` from the client.
+
+### Internet streaming and UPnP
+
+For access outside your LAN:
+
+1. Enable **UPnP** in the Web UI (inherited Sunshine setting).
+2. Confirm mappings on your router's UPnP status page.
+3. Ensure `origin_web_ui_allowed` matches your threat model (`lan` recommended).
+
+> [!WARNING]
+> Do not run SolarFlare together with Moonlight Internet Hosting Tool versions
+> older than v5.6 - UPnP mappings conflict. See
+> [GameStream migration](gamestream_migration.md#internet-streaming).
+
+Manual port forwarding uses the same TCP/UDP list as the port matrix. Point
+Moonlight at your public IP or DDNS hostname.
+
+### Moonlight client compatibility
+
+| Client | Install | Pairing notes |
+|---|---|---|
+| **Moonlight Qt** | [Releases](https://github.com/moonlight-stream/moonlight-qt/releases) | Best desktop experience; HDR, HEVC, AV1 when host supports them |
+| **Moonlight Android** | Play Store / [APK](https://github.com/moonlight-stream/moonlight-android/releases) | Enable "Optimize game settings" per preference; manual IP if mDNS fails |
+| **Moonlight iOS** | App Store | Command key mapping differs on macOS host; see inherited notes below |
+| **Moonlight tvOS** | App Store | Apple TV remote acts as touchpad in desktop mode |
+| **Moonlight Web** | [moonlight-stream.org](https://moonlight-stream.org/) | Browser-based; fewer codec options |
+
+SolarFlare does not require a specific client version beyond Moonlight's normal
+GameStream host support. Third-party clients using `moonlight-common-c` may work
+but are not tested by the SolarFlare project.
+
+**Keyboard shortcuts** (all clients, during stream): `Ctrl+Alt+Shift+N` toggles
+cursor visibility; `Ctrl+Alt+Shift+F1`–`F12` switches host monitors.
+
+### Headless and virtual display setup
+
+Use these patterns when the host has no monitor, or you want a dedicated virtual
+framebuffer for streaming.
+
+#### Option A: Virtual display (`headless_virtual_display`)
+
+Add to `~/.config/sunshine/sunshine.conf`:
+
+```ini
+headless_virtual_display = true
+headless_width = 1920
+headless_height = 1080
+headless_refresh = 120
+```
+
+SolarFlare creates a virtual `xrandr` output when no physical displays are
+detected. See [CONFIGURATION.md - headless](CONFIGURATION.md#headless_virtual_display).
+
+#### Option B: HDMI/DP dummy plug or EDID emulator
+
+Recommended for **NVIDIA NVENC** hosts. The GPU must see a connected display
+for stable modes and driver initialization. Dummy plugs are inexpensive and avoid
+compositor edge cases.
+
+#### Option C: Compositor-backed headless (Gamescope, labwc, nested session)
+
+Run a nested compositor or gamescope session as the capture target. Useful for
+container-adjacent setups and reproducible resolutions. See
+[Guides - headless streaming](guides.md#headless-and-ssh-access).
+
+#### Option D: Hermes-KMS (optional kernel module)
+
+`./scripts/linux-install.sh` attempts to DKMS-install Hermes-KMS when kernel
+headers are present. It exposes a `HERMES-1` capture source in the Web UI.
+Requires kernel headers and `dkms`; safe to skip on unsupported kernels.
+
+> [!CAUTION]
+> KMS HDR capture requires a compositor with HDR rendering (KDE Plasma 6,
+> Gamescope). X11 and NvFBC paths do not carry HDR on Linux.
+
+### Multi-GPU and hybrid graphics
+
+| Layout | Problem | Mitigation |
+|---|---|---|
+| **NVIDIA + AMD/Intel laptop** | Game runs on dGPU but capture grabs iGPU desktop | Use `prime-run` / `DRI_PRIME=1` so the game and display align; or plug external monitor into dGPU |
+| **Dual NVIDIA** | Wrong card encodes | Set `adapter_name` / `output_name` in config or Web UI |
+| **eGPU enclosure** | Black screen in stream | Attach dummy plug to eGPU output; launch game on that display |
+| **VFIO passthrough VM** | Host GPU unavailable | SolarFlare runs on the host OS, not inside the VM - passthrough the GPU to the VM *or* stream from host, not both on one card |
+
+**AMD async capture:** `gpu_governor = true` (default) forces `performance`
+during streams. **NVIDIA:** optional `nvidia-clock-lock.service` from
+`packaging/linux/redesign/` locks boost clocks when `coolbits` allows.
+
+Verify the active renderer before streaming:
+
+```bash
+glxinfo -B | grep -E 'OpenGL vendor|OpenGL renderer'
+nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
+```
+
+### Service management reference
+
+| Task | Command |
+|---|---|
+| Start once | `systemctl --user start app-dev.lizardbyte.app.Sunshine.service` |
+| Stop | `systemctl --user stop app-dev.lizardbyte.app.Sunshine.service` |
+| Enable on login | `systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service` |
+| View logs | `journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -f` |
+| Run foreground (debug) | `sunshine` or `sunshine ~/.config/sunshine/sunshine.conf` |
+| Reset Web UI password | `sunshine --creds <user> <pass>` |
+
+> [!NOTE]
+> The service unit name `app-dev.lizardbyte.app.Sunshine.service` matches the
+> Flatpak application ID for XDG Desktop Portal compatibility. The alias
+> `sunshine.service` still works.
+
+### Common first-run problems
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Web UI unreachable | Service not running or firewall | Check `systemctl --user status`; open TCP 47990 |
+| `401` from curl but browser fails | Certificate warning dismissed incorrectly | Use `https://`; add exception |
+| Pairing times out | TCP 47989 blocked | Fix firewall; disable AP isolation |
+| Black screen after connect | No display / wrong GPU | Dummy plug or `headless_virtual_display` |
+| No gamepad input | Missing `input` group | `sudo usermod -aG input $USER`; re-login |
+| Encoder error in logs | Missing VA-API/NVENC | Install GPU drivers; see [Troubleshooting](troubleshooting.md) |
+| Fork keys ignored | Wrong binary installed | `sunshine --version \| grep SolarFlare`; rebuild with `linux-install.sh --clean` |
+
+### Configuration file locations
+
+| File | Purpose |
+|---|---|
+| `~/.config/sunshine/sunshine.conf` | Host settings (upstream + fork keys) |
+| `~/.config/sunshine/apps.json` | Application definitions |
+| `~/.config/sunshine/sunshine.log` | Rotating log file (also visible in Web UI) |
+| `~/.config/sunshine/certs/` | TLS certificate for Web UI and GameStream |
+| `~/.config/sunshine/pair/` | Paired client certificates |
+
+Fork-specific keys are documented in [CONFIGURATION.md](CONFIGURATION.md).
+Inherited keys are in [configuration.md](configuration.md).
+
+---
+
 ## Inherited Sunshine binaries
 
 Upstream Sunshine publishes binaries for FreeBSD, Linux, macOS, and Windows.

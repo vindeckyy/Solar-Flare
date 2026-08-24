@@ -86,7 +86,7 @@ export const DOC_CATEGORIES: DocCategory[] = [
         slug: 'configuration',
         title: 'Configuration Reference',
         badge: 'Core',
-        description: 'All 11 host-level tunables, headless displays, Audio FX, Opus DSP, and streaming controls.',
+        description: 'Fork-specific network, scheduling, capture, and watchdog tunables plus Audio FX, Opus DSP, webhooks, API tokens, and per-client profiles.',
       },
       {
         slug: 'app-examples',
@@ -275,7 +275,7 @@ journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -f`,
         id: 'host-tunables',
         title: 'Fork Host Tunables',
         content:
-          'SolarFlare exposes 11 host-level network, scheduling, capture, and watchdog controls in sunshine.conf:',
+          'SolarFlare exposes fork-specific network, scheduling, capture, and watchdog controls in sunshine.conf (see docs/CONFIGURATION.md for the full inventory):',
         params: [
           {
             name: 'busy_poll_us',
@@ -359,7 +359,33 @@ journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -f`,
             description: 'Automatically stop stream after N minutes of no client input. 0 disables the watchdog.',
             example: 'idle_timeout_min = 15',
           },
+          {
+            name: 'nvenc_tuning_preset',
+            type: 'int',
+            defaultVal: '-1',
+            range: '-1 to 2',
+            description: 'NVENC profile: -1 manual, 0 latency, 1 balanced, 2 quality. Per-app overrides in apps.json.',
+            example: 'nvenc_tuning_preset = 0',
+          },
+          {
+            name: 'trusted_subnets',
+            type: 'string',
+            defaultVal: '""',
+            description: 'Comma-separated CIDR subnets for LAN auto-pairing policy (use with trusted_subnet_auto_pairing).',
+            example: 'trusted_subnets = 192.168.1.0/24',
+          },
+          {
+            name: 'webhook_url_0',
+            type: 'string',
+            defaultVal: '""',
+            description: 'HTTPS endpoint notified on stream start/stop. Numbered keys webhook_url_0, webhook_url_1, …',
+            example: 'webhook_url_0 = https://hooks.example.com/sf',
+          },
         ],
+        callout: {
+          type: 'important',
+          text: 'Full fork key reference: docs/CONFIGURATION.md. Inherited upstream options: docs/configuration.md.',
+        },
       },
       {
         id: 'audio-fx',

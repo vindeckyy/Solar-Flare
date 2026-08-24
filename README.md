@@ -14,7 +14,9 @@
   <p>
     <a href="https://vindeckyy.github.io/Solar-Flare/">Website</a> |
     <a href="#install">Install</a> |
+    <a href="#first-run-and-pairing">Pairing</a> |
     <a href="#web-interface">Interface</a> |
+    <a href="#network-ports-and-firewall">Ports</a> |
     <a href="#performance-architecture">Architecture</a> |
     <a href="#configuration">Configuration</a> |
     <a href="#build-and-test">Build</a> |
@@ -47,6 +49,21 @@ devices, managing applications, changing host settings, and checking logs.
 > pairings remain compatible. User-facing product identity is SolarFlare;
 > compatibility identifiers such as `sunshine`, `SUNSHINE_CLIENT_*`, and
 > `~/.config/sunshine` intentionally remain unchanged.
+
+### SolarFlare vs upstream Sunshine
+
+| Topic | SolarFlare | Upstream Sunshine |
+|---|---|---|
+| **Maintained install path (Linux)** | `./scripts/linux-install.sh` | Distro packages, AppImage, Flatpak, Docker |
+| **Release artifacts** | `sunshine-x86_64`, `solarflare-linux-x86_64.tar.gz` | Platform installers per OS |
+| **Web UI** | SolarFlare redesign with PWA, telemetry, fork controls | Upstream Sunshine UI |
+| **Fork tunables** | Network pacing, CPU pinning, audio FX, headless capture, webhooks | Not present |
+| **Config / state paths** | `~/.config/sunshine/` (unchanged) | Same |
+| **Service unit** | `app-dev.lizardbyte.app.Sunshine.service` | Same |
+
+When this README or linked docs mention "Sunshine" in a compatibility context
+(executable name, config keys, Moonlight pairing), that refers to the shared
+protocol surface - not the upstream LizardByte distribution.
 
 ## Fork additions
 
@@ -128,7 +145,7 @@ SolarFlare v1.2.2 publishes three Linux x86-64 files:
 > [!CAUTION]
 > New users should always build fresh with `./scripts/linux-install.sh`. The
 > release binaries are only for people updating an already working SolarFlare
-> install. Prefer Update now in the Web UI when that path is available.
+> install. Prefer **Update now** in the Web UI when that path is available.
 >
 > Build from source for Web UI changes, desktop files and icons, shaders, udev
 > rules, the systemd user service unit, and installer helpers such as
@@ -157,10 +174,42 @@ Nix shell and installs into `~/.local`. Read the
 [porting guide](docs/PORTING.md) for the required declarative host settings
 or before using an unsupported distribution.
 
+| Distribution family | Package manager used by installer | Notes |
+|---|---|---|
+| Arch, CachyOS, Manjaro, EndeavourOS | `pacman` | Primary development target |
+| Debian, Ubuntu, Mint, Pop!, Kali | `apt` | Requires GCC 13+; see [Porting](docs/PORTING.md) |
+| Fedora, Nobara, Rocky, Alma | `dnf` | `rpm-fusion` may be required for FFmpeg headers |
+| openSUSE Tumbleweed / Leap | `zypper` | Package names use underscores in some cases |
+| Bazzite / rpm-ostree | `rpm-ostree` | **Reboot required** after dependency layering |
+| NixOS | `nix-shell` | User-local install; declarative host config required |
+
 `scripts/linux-install.sh` is the maintained SolarFlare path.
 `scripts/linux_build.sh` is the inherited upstream Docker/CI builder and is
 not required for normal installs. `scripts/cachyos-build.sh` remains as a
 compatibility wrapper that forwards to `linux-install.sh`.
+
+#### Installer flags
+
+| Flag | Effect |
+|---|---|
+| *(none)* | Full install: deps, submodules, cmake, build, install, post-install services |
+| `--clean` | Remove `cmake-build-cachyos` before configuring |
+| `--skip-deps` | Skip package installation; rebuild only |
+| `--print-distro-id` | Print detected distro ID and exit |
+
+#### What the installer places on disk
+
+| Path | Purpose |
+|---|---|
+| `/usr/local/bin/sunshine` | Host executable (or `~/.local/bin/sunshine` on NixOS) |
+| `~/.config/sunshine/sunshine.conf` | Created on first run if missing |
+| `~/.config/sunshine/apps.json` | Application catalog |
+| `~/.config/systemd/user/app-dev.lizardbyte.app.Sunshine.service` | User service unit |
+| `/usr/local/libexec/solarflare-update-apply` | Privileged Web UI update helper |
+| `/etc/systemd/system/*` (optional) | Fork redesign performance services |
+
+Capabilities `cap_sys_admin` and `cap_sys_nice` are applied to the installed
+binary so capture, scheduling, and buffer tuning work without running as root.
 
 ### Update an existing installation
 
@@ -193,10 +242,128 @@ getcap /usr/local/bin/sunshine
 journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -n 50 --no-pager
 curl --insecure --output /dev/null --write-out '%{http_code}\n' \
   https://localhost:47990/
+sunshine --version 2>&1 | grep -m1 'Fork: SolarFlare'
 ```
+
+| Check | Expected result |
+|---|---|
+| Service status | `active (running)` |
+| `getcap` | `cap_sys_admin,cap_sys_nice=p` on the binary |
+| `curl` (before login) | HTTP `401` (UI is serving, auth required) |
+| `--version` | Line containing `Fork: SolarFlare` |
 
 An unauthenticated `curl` request should return `401`; the browser login page
 becomes available after credentials are configured.
+
+## First run and pairing
+
+After install, complete these steps once before streaming from Moonlight.
+
+1. **Start the service** (if not already running):
+   ```bash
+   systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
+   ```
+2. **Open the Web UI** at `https://localhost:47990` (or `https://<host-lan-ip>:47990`).
+   Accept the self-signed certificate warning - SolarFlare uses a locally generated TLS cert.
+3. **Create credentials** on first launch. Store them securely; reset with
+   `sunshine --creds <user> <pass>` if forgotten ([troubleshooting](docs/troubleshooting.md)).
+4. **Add applications** under **Applications**, or run the built-in game scanner.
+5. **Pair Moonlight:**
+   - On the client, add the host by IP or mDNS hostname.
+   - When Moonlight shows a PIN, open **PIN** in the Web UI, enter the PIN and a device name, then confirm.
+   - Select an application in Moonlight to start the stream.
+
+> [!TIP]
+> If the host does not appear automatically, add it manually in Moonlight with
+> the host's LAN IP address. mDNS discovery requires the client and host to be
+> on the same broadcast domain without AP isolation.
+
+> [!WARNING]
+> Trusted-subnet auto-pairing (`trusted_subnets`, `trusted_subnet_auto_pairing`)
+> skips the PIN for clients on listed CIDR ranges. Use only on networks you fully
+> control. See [SolarFlare configuration](docs/CONFIGURATION.md#trusted_subnets).
+
+Step-by-step pairing flows, firewall rules, and client-specific notes live in
+[Getting started - SolarFlare on Linux](docs/getting_started.md#solarflare-on-linux-first-run).
+
+## Network ports and firewall
+
+With the default `port = 47989` in `sunshine.conf`, SolarFlare binds the
+GameStream-compatible port set below. Changing `port` shifts every derived
+port by the same offset - see the [port setting](docs/configuration.md) in the
+complete configuration reference.
+
+| Service | Protocol | Default port | Required for |
+|---|---|---|---|
+| GameStream HTTP | TCP | 47989 | Client discovery, pairing, launch |
+| GameStream HTTPS | TCP | 47984 | Secure GameStream API |
+| Web UI | TCP | 47990 | Browser configuration (LAN by default) |
+| RTSP setup | TCP | 48010 | Stream negotiation |
+| Video | UDP | 47998 | Encoded video (primary stream) |
+| Audio | UDP | 47999 | Opus audio |
+| Control | UDP | 48000 | Input and control channel |
+| Additional UDP | UDP | 48002 | Auxiliary stream traffic |
+| RTSP (UDP) | UDP | 48010 | RTSP when used over UDP |
+
+> [!NOTE]
+> Moonlight connectivity tests reference these well-known port numbers. If you
+> change the base `port`, open the corresponding shifted ports on your firewall
+> and router.
+
+**LAN streaming:** Allow the TCP and UDP ports above between the Moonlight
+client subnet and the host. **Internet streaming:** Enable UPnP in the Web UI
+or forward the same ports manually on your router.
+
+Distro-specific firewall examples (`ufw`, `firewalld`, `nftables`, NixOS) are
+documented in [Getting started](docs/getting_started.md#firewall-rules-by-distribution).
+
+## Moonlight client compatibility
+
+SolarFlare speaks the Moonlight / GameStream host protocol. Any client built on
+[moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c)
+or the official Moonlight apps should pair and stream against a correctly
+configured SolarFlare host.
+
+| Client | Platforms | SolarFlare notes |
+|---|---|---|
+| [Moonlight Desktop](https://github.com/moonlight-stream/moonlight-qt) | Windows, macOS, Linux | Recommended desktop client; full codec and HDR feature set |
+| [Moonlight Android](https://github.com/moonlight-stream/moonlight-android) | Android, Android TV | Use manual host add if mDNS is blocked |
+| [Moonlight iOS / tvOS](https://github.com/moonlight-stream/moonlight-ios) | iPhone, iPad, Apple TV | Same pairing flow; HDR depends on client and host encode path |
+| [Moonlight Web](https://moonlight-stream.org/) | Chrome, Edge | Browser client; lower feature surface than native apps |
+| [Moonlight Embedded](https://github.com/moonlight-stream/moonlight-embedded) | Raspberry Pi, embedded Linux | Host must be a separate machine; runs client only |
+| Third-party forks | Various | Compatibility varies; unsupported by SolarFlare |
+
+**Codec support** depends on host hardware (NVENC, VAAPI, software) and client
+capabilities. H.264 is universally supported; HEVC and AV1 require encoder and
+client support on both ends. Per-client overrides are available via
+`client_profile_*` keys - see [SolarFlare configuration](docs/CONFIGURATION.md#per-client-streaming-profiles).
+
+## Headless hosts and multi-GPU systems
+
+### Headless (no monitor attached)
+
+SolarFlare can stream from machines without a physical display:
+
+1. Enable `headless_virtual_display = true` and optional
+   `headless_width` / `headless_height` / `headless_refresh` in
+   `sunshine.conf` - see [headless capture](docs/CONFIGURATION.md#headless_virtual_display).
+2. For NVIDIA hosts, an HDMI/DP dummy plug or EDID emulator is still often
+   required for stable modes and NVENC initialization.
+3. KMS capture (HDR, lowest latency on AMD/Intel) needs an active DRM output;
+   virtual outputs and Hermes-KMS are covered in [Getting started](docs/getting_started.md#headless-and-virtual-display-setup).
+
+### Multi-GPU and hybrid graphics
+
+| Scenario | Guidance |
+|---|---|
+| **Laptop hybrid (iGPU + dGPU)** | Run games on the GPU that owns the display being captured. PRIME offload alone may capture the wrong framebuffer. |
+| **External GPU (eGPU)** | Connect a display or dummy plug to the eGPU; run the game on that output. |
+| **Multi-GPU workstation** | Select the capture adapter in the Web UI or `adapter_name` / `output_name` settings. |
+| **NVIDIA primary** | Ensure the user session loads the discrete driver (`nvidia` module, not `nouveau`). |
+
+SolarFlare's `gpu_governor` fork key raises AMD cards to `performance` during
+capture. NVIDIA clock locking is available via optional
+[redesign services](packaging/linux/redesign/README.md).
 
 ## Configuration
 
@@ -271,7 +438,9 @@ Platform-specific dependencies and compiler requirements are documented in
 
 | Document | Use it for |
 |---|---|
-| [Getting started](docs/getting_started.md) | Inherited platform background and client prerequisites |
+| [Getting started](docs/getting_started.md) | SolarFlare Linux setup, pairing, firewall, ports; inherited platform reference |
+| [Guides](docs/guides.md) | Curated how-tos: headless, LAN tuning, multi-GPU, migration workflows |
+| [GameStream migration](docs/gamestream_migration.md) | Moving from NVIDIA GameStream or Moonlight Internet Hosting Tool |
 | [SolarFlare configuration](docs/CONFIGURATION.md) | Fork-specific network, scheduling, audio, and capture controls |
 | [Complete configuration](docs/configuration.md) | Every inherited host option |
 | [Porting](docs/PORTING.md) | Distribution packages, toolchains, and manual builds |

@@ -1,5 +1,238 @@
 # Troubleshooting
 
+This guide walks through the most common SolarFlare failure modes on Linux
+(the primary release target) and inherited platforms. Use the **symptom index**
+to jump directly to a fix, or follow the **structured diagnostic flow** when
+the cause is unclear.
+
+> [!TIP]
+> The Web UI **Troubleshooting** page exposes live host state, log tail,
+> capability checks, and one-click recovery actions. Open `https://<host>:47990`
+> after authenticating.
+
+## Symptom index
+
+| Symptom | Section |
+|---|---|
+| Cannot open Web UI / 401 loop | [Web UI access](#web-ui-access), [Forgotten credentials](#forgotten-credentials) |
+| Moonlight cannot find host | [Discovery & firewall](#discovery-firewall-and-ports) |
+| Pairing PIN fails or loops | [Pairing problems](#pairing-problems) |
+| Black screen in stream | [KMS on Nvidia](#kms-streaming-fails-on-nvidia-gpus), [Capture backend](#capture-backend-selection) |
+| No audio | [Audio routing](#audio-routing-linux) |
+| Stutter / packet loss | [Network performance test](#network-performance-test), [Packet loss](#packet-loss-from-buffer-overruns) |
+| High encode latency | [AMD encoding](#amd-encoding-latency-issues), [Performance tuning](performance_tuning.md) |
+| Input not reaching game | [Input not working](#input-not-working), [Controller in Steam](#controller-works-in-steam-but-not-in-games) |
+| Game won't launch from app | [Application launch failures](#application-launch-failures) |
+| Update failed | [Host update failures](#host-update-failures) |
+| Encoder errors in logs | [Hardware encoding fails](#hardware-encoding-fails) |
+
+---
+
+## Structured diagnostic flow
+
+Work top-down. Stop when the symptom resolves.
+
+```mermaid
+flowchart TD
+  A[Symptom observed] --> B{Service running?}
+  B -->|No| B1["systemctl --user status app-dev.lizardbyte.app.Sunshine.service"]
+  B -->|Yes| C{Web UI reachable?}
+  C -->|No| C1[Firewall / ports / credentials]
+  C -->|Yes| D{Moonlight pairs?}
+  D -->|No| D1[Discovery / PIN / trusted subnets]
+  D -->|Yes| E{Stream starts?}
+  E -->|No| E1[Apps.json / cmd / permissions]
+  E -->|Yes| F{Video OK?}
+  F -->|No| F1[Capture backend / KMS caps / encoder]
+  F -->|Yes| G{Audio OK?}
+  G -->|No| G1[PipeWire / sink / latency]
+  G -->|Yes| H{Smooth playback?}
+  H -->|No| H1[Network / bitrate / buffers]
+```
+
+### Step 1 - Verify the service
+
+```bash
+systemctl --user --no-pager status app-dev.lizardbyte.app.Sunshine.service
+journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -n 100 --no-pager
+```
+
+Expected: `active (running)`. If failed, read the last 20 log lines for missing
+libraries, port bind failures, or config parse errors.
+
+### Step 2 - Verify capabilities (Linux KMS)
+
+```bash
+getcap "$(command -v sunshine)"
+```
+
+Expected after `./scripts/linux-install.sh` or manual update:
+
+```text
+/usr/local/bin/sunshine cap_sys_admin,cap_sys_nice=p
+```
+
+Without `cap_sys_admin`, KMS capture fails. Re-apply:
+
+```bash
+sudo setcap 'cap_sys_admin,cap_sys_nice+p' /usr/local/bin/sunshine
+```
+
+### Step 3 - Verify Web UI
+
+```bash
+curl --insecure -o /dev/null -w '%{http_code}\n' https://localhost:47990/
+```
+
+Unauthenticated requests should return `401` (service is listening). `000` or
+connection refused indicates firewall or service not bound.
+
+### Step 4 - Verify discovery and streaming ports
+
+See [Discovery, firewall, and ports](#discovery-firewall-and-ports).
+
+### Step 5 - Test network path
+
+Run [iPerf3](#network-performance-test) at your target Moonlight bitrate before
+encoder or capture changes.
+
+---
+
+## Discovery, firewall, and ports
+
+SolarFlare uses fixed ports compatible with Moonlight / GameStream expectations.
+
+| Port | Protocol | Purpose |
+|---|---|---|
+| 47984–47990 | TCP | Control, RTSP, Web UI (47990 HTTPS) |
+| 48010 | TCP | Additional control (version-dependent) |
+| 47998–48000 | UDP | Video/audio stream (primary video often 47998) |
+| 48010 | UDP | Some control paths |
+
+### Firewall (firewalld example)
+
+```bash
+sudo firewall-cmd --permanent --add-port=47984-47990/tcp
+sudo firewall-cmd --permanent --add-port=48010/tcp
+sudo firewall-cmd --permanent --add-port=47998-48000/udp
+sudo firewall-cmd --reload
+```
+
+### Firewall (ufw example)
+
+```bash
+sudo ufw allow 47984:47990/tcp
+sudo ufw allow 48010/tcp
+sudo ufw allow 47998:48000/udp
+```
+
+### LAN discovery
+
+Moonlight discovers hosts via mDNS (`_nvstream._tcp`). If discovery fails but
+manual IP connection works, check:
+
+- Host and client on same broadcast domain (VLAN isolation blocks mDNS)
+- `avahi-daemon` / `systemd-resolved` running on host
+- Multicast blocked by AP "client isolation"
+
+Add the host manually in Moonlight with `https://<host-ip>:47990` as needed.
+
+---
+
+## Pairing problems
+
+### PIN rejected or not shown
+
+1. Confirm host clock is synchronized (`timedatectl status`)
+2. Open Web UI → PIN screen; enter PIN within timeout
+3. Check `trusted_subnets` / `trusted_subnet_auto_pairing` in
+   [CONFIGURATION.md](CONFIGURATION.md) - overly broad subnets can pair
+   unexpected clients; misconfigured CIDR blocks can block legitimate LAN clients
+
+### Existing Sunshine pairings after fork migration
+
+SolarFlare preserves `~/.config/sunshine` state and certificate layout. If a
+client still references an old host certificate, unpair on **both** sides and
+re-pair. See [GameStream migration](gamestream_migration.md).
+
+---
+
+## Capture backend selection
+
+Set `capture` in `sunshine.conf` or the Web UI Capture tab.
+
+| Backend | Symptom when wrong | Fix |
+|---|---|---|
+| `kms` | Black screen, permission errors | setcap, `nvidia_drm.modeset=1`, try portal |
+| `nvfbc` | Fails on Wayland / missing CUDA | Use KMS or portal on modern Linux |
+| `x11` | Works but high latency | Prefer KMS when available |
+| `portal` | Wrong monitor / mouse offset | `skip_wayland_correlation`, compositor settings |
+
+Logs show the active capture module at stream start. Cross-reference
+[Performance tuning - Capture backend](performance_tuning.md#capture-backend-selection).
+
+---
+
+## Audio routing (Linux)
+
+### No audio in stream
+
+1. Confirm default sink plays locally (`pw-play` / `speaker-test`)
+2. Check SolarFlare logs for PipeWire connection errors
+3. Lower `pipewire_latency_ms` only **after** crackling is ruled out - start at 8 ms
+4. Ensure the game/application audio goes to the sink SolarFlare captures
+
+### Crackling or desync
+
+- Raise `pipewire_latency_ms` to 12–16 ms
+- Disable heavy `sf_audio_*` FX one at a time
+- Close browser tabs using PipeWire screen share on same sink
+
+### Wrong device captured
+
+Set explicit audio sink in Web UI or `audio_sink` in `sunshine.conf`.
+List sinks: `pactl list sinks short` or `wpctl status`.
+
+---
+
+## Application launch failures
+
+### Command exits immediately
+
+- Test `cmd` from the same user/session as the systemd service
+- Games requiring a display may need `headless_virtual_display = true` or a
+  physical monitor attached
+- Steam `steam://` URLs need Steam running or `steam -silent` in `prep-cmd`
+
+### Permission denied on game files
+
+The service runs as your user (user systemd unit). If files are root-owned or
+on NTFS mounts with `noexec`, fix permissions or mount options.
+
+### Anti-cheat / kernel modules
+
+Some titles block virtual input or capture. This is a game policy limitation,
+not a SolarFlare bug. Try portal capture or official remote-play solutions.
+
+See [Application examples](app_examples.md) for working `apps.json` patterns.
+
+---
+
+## Host update failures
+
+SolarFlare supports in-UI updates when installed via `./scripts/linux-install.sh`.
+
+| Failure | Cause | Fix |
+|---|---|---|
+| Update button greyed | Active stream | Stop stream, retry |
+| Checksum mismatch | Download corruption | Manual download from releases; verify `SHA256SUMS` |
+| Permission denied on `/usr/local` | Missing helper | Install `solarflare-update-apply` from source build |
+| Service won't restart | Port still bound | `journalctl --user -u ...`; kill stale sunshine |
+
+Manual binary update procedure: [README - Update](../README.md#update-an-existing-installation).
+
+---
+
 ## General
 
 ### Forgotten credentials
