@@ -60,7 +60,15 @@ export function DocsSearchModal({ isOpen, onClose }: DocsSearchModalProps) {
       }
 
       article.sections.forEach((sec) => {
-        if (sec.title.toLowerCase().includes(q) || (sec.content && sec.content.toLowerCase().includes(q))) {
+        const haystack = [
+          sec.title,
+          sec.content,
+          ...(sec.tabs?.flatMap((tab) => [tab.label, tab.content]) || []),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        if (haystack.includes(q)) {
           hits.push({
             type: 'section',
             slug: article.slug,

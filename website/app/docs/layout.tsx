@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { DocsHeader } from '@/components/docs/docs-header'
 import { DocsSidebar } from '@/components/docs/docs-sidebar'
 import { DocsSearchModal } from '@/components/docs/docs-search-modal'
@@ -10,18 +10,35 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setIsSearchOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      {/* Search Modal */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 -z-10 opacity-40"
+        style={{
+          background:
+            'radial-gradient(900px circle at 15% -10%, color-mix(in oklch, var(--primary) 14%, transparent), transparent 50%)',
+        }}
+      />
+
       <DocsSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
 
-      {/* Docs Header */}
       <DocsHeader
         onOpenSearch={() => setIsSearchOpen(true)}
         onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
       />
 
-      {/* Mobile Sidebar Overlay */}
       {isMobileSidebarOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
           <div
@@ -47,17 +64,14 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         </div>
       )}
 
-      {/* Main Body with Sidebar */}
       <div className="flex-1 mx-auto w-full max-w-[88rem] px-4 sm:px-6 lg:px-8">
         <div className="flex gap-8 lg:gap-10">
-          {/* Desktop Left Sidebar */}
           <div className="hidden lg:block w-72 xl:w-80 shrink-0 border-r border-border/60 min-h-[calc(100vh-4rem)]">
             <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
               <DocsSidebar />
             </div>
           </div>
 
-          {/* Main Article Container */}
           <main className="flex-1 min-w-0 py-8 lg:py-10">{children}</main>
         </div>
       </div>

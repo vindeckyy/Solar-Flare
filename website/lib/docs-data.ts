@@ -1,38 +1,67 @@
+export interface DocCallout {
+  type: 'note' | 'tip' | 'important' | 'warning' | 'caution'
+  text: string
+}
+
+export interface DocCodeBlock {
+  language: string
+  code: string
+}
+
+export interface DocParam {
+  name: string
+  type: string
+  defaultVal: string
+  range?: string
+  description: string
+  example?: string
+  note?: string
+}
+
+export interface DocEndpoint {
+  method: 'GET' | 'POST' | 'DELETE' | 'PUT'
+  path: string
+  auth: string
+  scopes?: string[]
+  description: string
+  requestBody?: string
+  responseBody?: string
+  notes?: string
+}
+
+export interface DocTable {
+  headers: string[]
+  rows: string[][]
+}
+
+/**
+ * @brief One panel inside a DocsTabs group.
+ */
+export interface DocTab {
+  id: string
+  label: string
+  content?: string
+  code?: DocCodeBlock
+  codeTabs?: { label: string; language: string; code: string }[]
+  callout?: DocCallout
+  params?: DocParam[]
+  endpoints?: DocEndpoint[]
+  table?: DocTable
+}
+
 export interface DocSection {
   id: string
   title: string
   content?: string
-  code?: {
-    language: string
-    code: string
-  }
-  callout?: {
-    type: 'note' | 'tip' | 'important' | 'warning' | 'caution'
-    text: string
-  }
-  params?: {
-    name: string
-    type: string
-    defaultVal: string
-    range?: string
-    description: string
-    example?: string
-    note?: string
-  }[]
-  endpoints?: {
-    method: 'GET' | 'POST' | 'DELETE' | 'PUT'
-    path: string
-    auth: string
-    scopes?: string[]
-    description: string
-    requestBody?: string
-    responseBody?: string
-    notes?: string
-  }[]
-  table?: {
-    headers: string[]
-    rows: string[][]
-  }
+  code?: DocCodeBlock
+  /** Mutually exclusive labeled code samples (for example distro or shell). */
+  codeTabs?: { label: string; language: string; code: string }[]
+  callout?: DocCallout
+  params?: DocParam[]
+  endpoints?: DocEndpoint[]
+  table?: DocTable
+  /** Named content panels rendered as a tab strip. */
+  tabs?: DocTab[]
 }
 
 export interface DocArticle {
@@ -74,6 +103,19 @@ export const DOC_CATEGORIES: DocCategory[] = [
         slug: 'gamestream-migration',
         title: 'GameStream Migration',
         description: 'Migrate existing NVIDIA GameStream setups and library configurations to SolarFlare.',
+      },
+    ],
+  },
+  {
+    name: 'Operations',
+    description: 'Containers, packaging caveats, and host operations that sit beside day-to-day streaming.',
+    iconName: 'Boxes',
+    items: [
+      {
+        slug: 'docker',
+        title: 'Docker and containers',
+        badge: 'Ops',
+        description: 'Upstream Sunshine images, GPU passthrough caveats, and why SolarFlare prefers a native install.',
       },
     ],
   },
@@ -186,19 +228,60 @@ export const DOC_ARTICLES: Record<string, DocArticle> = {
         id: 'automated-install',
         title: 'Automated Linux Installation',
         content:
-          'The maintained, recommended installation path on Linux is the automated installer script. It checks your Linux distribution, resolves native dependencies, compiles SolarFlare with optimized flags, and provisions systemd services.',
+          'The maintained installation path on Linux is the installer script. It detects the distribution, installs packages, compiles SolarFlare, and sets up the systemd user service. Use the distro tabs for extra notes.',
         code: {
           language: 'bash',
-          code: `# Clone SolarFlare repository
-git clone https://github.com/vindeckyy/Solar-Flare.git
+          code: `git clone --recursive https://github.com/vindeckyy/Solar-Flare.git
 cd Solar-Flare
-
-# Run the automated multi-distro installer
-./scripts/linux-install.sh`,
+./scripts/linux-install.sh
+systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service`,
         },
+        tabs: [
+          {
+            id: 'arch',
+            label: 'Arch / CachyOS',
+            content:
+              'Uses pacman. GCC 14+ is typical. CachyOS can enable native CPU flags through the installer path. After install, confirm setcap on the sunshine binary.',
+            code: {
+              language: 'bash',
+              code: 'pacman -Q gcc cmake ninja pipewire libdrm',
+            },
+          },
+          {
+            id: 'debian',
+            label: 'Debian / Ubuntu',
+            content:
+              'Uses apt. Ubuntu 22.04 may need GCC 13 from the toolchain PPA. Installer pulls libpipewire and libva development packages.',
+            callout: {
+              type: 'note',
+              text: 'If cmake is older than 3.20, install a newer CMake before running the installer.',
+            },
+          },
+          {
+            id: 'fedora',
+            label: 'Fedora / Bazzite',
+            content:
+              'Uses dnf. Bazzite layers packages with rpm-ostree and may require a reboot, then re-run ./scripts/linux-install.sh --skip-deps.',
+          },
+          {
+            id: 'suse',
+            label: 'openSUSE',
+            content: 'Uses zypper. Pull ffmpeg-devel and pipewire-devel. Tumbleweed tracks current GCC.',
+          },
+          {
+            id: 'nixos',
+            label: 'NixOS',
+            content:
+              'Do not apt/dnf install. Enter the repo Nix shell and apply the declarative host block in the porting guide before starting the user service.',
+            callout: {
+              type: 'important',
+              text: 'See the Porting article for the NixOS module snippet. Installs land in ~/.local.',
+            },
+          },
+        ],
         callout: {
           type: 'tip',
-          text: 'The installer auto-detects Arch Linux, CachyOS, Debian, Ubuntu, Fedora, Nobara, and openSUSE systems.',
+          text: 'New hosts should always build with ./scripts/linux-install.sh. GitHub binaries are for updating an already working install.',
         },
       },
       {
@@ -239,19 +322,39 @@ journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -f`,
         id: 'firewall',
         title: 'Firewall & Network Ports',
         content:
-          'Ensure the following UDP and TCP ports are open on your host firewall:',
+          'Open the GameStream-compatible ports on the host firewall. The Web UI listens on TCP 47990. Video is typically UDP 47998.',
         table: {
           headers: ['Port / Range', 'Protocol', 'Purpose'],
           rows: [
-            ['47984', 'TCP', 'HTTPS Web UI & Admin API'],
-            ['47989', 'TCP', 'HTTP Web UI (redirects to HTTPS)'],
-            ['47990', 'TCP', 'Web UI default port'],
-            ['47998', 'UDP', 'Moonlight audio streaming'],
-            ['47999', 'UDP', 'Moonlight video streaming'],
-            ['48000', 'UDP', 'Moonlight control channel'],
-            ['48010', 'UDP', 'Moonlight RTSP signaling'],
+            ['47984-47990', 'TCP', 'Control, RTSP, HTTPS Web UI (47990)'],
+            ['48010', 'TCP', 'Additional control'],
+            ['47998-48000', 'UDP', 'Video and audio stream'],
           ],
         },
+        codeTabs: [
+          {
+            label: 'ufw',
+            language: 'bash',
+            code: `sudo ufw allow 47984:47990/tcp
+sudo ufw allow 48010/tcp
+sudo ufw allow 47998:48000/udp`,
+          },
+          {
+            label: 'firewalld',
+            language: 'bash',
+            code: `sudo firewall-cmd --permanent --add-port=47984-47990/tcp
+sudo firewall-cmd --permanent --add-port=48010/tcp
+sudo firewall-cmd --permanent --add-port=47998-48000/udp
+sudo firewall-cmd --reload`,
+          },
+          {
+            label: 'nftables',
+            language: 'bash',
+            code: `sudo nft add rule inet filter input tcp dport 47984-47990 accept
+sudo nft add rule inet filter input tcp dport 48010 accept
+sudo nft add rule inet filter input udp dport 47998-48000 accept`,
+          },
+        ],
       },
     ],
   },
@@ -275,116 +378,140 @@ journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -f`,
         id: 'host-tunables',
         title: 'Fork Host Tunables',
         content:
-          'SolarFlare exposes fork-specific network, scheduling, capture, and watchdog controls in sunshine.conf (see docs/CONFIGURATION.md for the full inventory):',
-        params: [
+          'Switch tabs to browse network, scheduling, capture, and access keys. Full prose lives in docs/CONFIGURATION.md.',
+        tabs: [
           {
-            name: 'busy_poll_us',
-            type: 'int',
-            defaultVal: '50',
-            range: '0 - 10000',
-            description: 'SO_BUSY_POLL in microseconds on the ENet UDP socket. Cuts receive-side wakeup latency on Wi-Fi.',
-            example: 'busy_poll_us = 50',
+            id: 'network',
+            label: 'Network',
+            params: [
+              {
+                name: 'busy_poll_us',
+                type: 'int',
+                defaultVal: '50',
+                range: '0 - 10000',
+                description: 'SO_BUSY_POLL in microseconds on the ENet UDP socket. 0 disables.',
+                example: 'busy_poll_us = 50',
+              },
+              {
+                name: 'rate_cap_pct',
+                type: 'int',
+                defaultVal: '80',
+                range: '50 - 95',
+                description: 'Percent of detected link speed used as the send pacer.',
+                example: 'rate_cap_pct = 80',
+              },
+              {
+                name: 'enet_4mib_buffer',
+                type: 'bool',
+                defaultVal: 'true',
+                description: 'Grow ENet UDP send and receive buffers to 4 MiB.',
+                example: 'enet_4mib_buffer = true',
+              },
+              {
+                name: 'dscp_qos',
+                type: 'bool',
+                defaultVal: 'true',
+                description: 'Tag streaming UDP with DSCP CS3 for router QoS.',
+                example: 'dscp_qos = true',
+              },
+            ],
           },
           {
-            name: 'rate_cap_pct',
-            type: 'int',
-            defaultVal: '80',
-            range: '50 - 95',
-            description: 'Percentage of auto-detected network link speed used as the video send pacer limit.',
-            example: 'rate_cap_pct = 80',
+            id: 'scheduling',
+            label: 'CPU / GPU',
+            params: [
+              {
+                name: 'cpu_pinning',
+                type: 'bool',
+                defaultVal: 'true',
+                description: 'SCHED_RR capture thread on a non-IRQ physical core.',
+                example: 'cpu_pinning = true',
+              },
+              {
+                name: 'gpu_governor',
+                type: 'bool',
+                defaultVal: 'true',
+                description: 'Raise AMD DRM cards to performance during capture; restore auto on stop.',
+                example: 'gpu_governor = true',
+              },
+              {
+                name: 'latency_mode',
+                type: 'string',
+                defaultVal: 'safe',
+                range: 'safe | aggressive',
+                description: 'safe keeps quality; aggressive tightens audio queue and software scaler.',
+                example: 'latency_mode = aggressive',
+              },
+            ],
           },
           {
-            name: 'enet_4mib_buffer',
-            type: 'bool',
-            defaultVal: 'true',
-            description: 'Grow ENet UDP socket send/receive buffers to 4 MiB to eliminate socket drop under heavy bursts.',
-            example: 'enet_4mib_buffer = true',
+            id: 'capture',
+            label: 'Capture',
+            params: [
+              {
+                name: 'pipewire_latency_ms',
+                type: 'int',
+                defaultVal: '8',
+                range: '1 - 40',
+                description: 'PW_KEY_NODE_LATENCY hint for PipeWire capture.',
+                example: 'pipewire_latency_ms = 8',
+              },
+              {
+                name: 'headless_virtual_display',
+                type: 'bool',
+                defaultVal: 'false',
+                description: 'Create a virtual xrandr output when no physical display is found.',
+                example: 'headless_virtual_display = true',
+              },
+              {
+                name: 'skip_wayland_correlation',
+                type: 'bool',
+                defaultVal: 'false',
+                description: 'Skip Wayland-to-KMS correlation if the compositor omits output metadata.',
+                example: 'skip_wayland_correlation = false',
+              },
+              {
+                name: 'idle_timeout_min',
+                type: 'int',
+                defaultVal: '0',
+                range: '0 - 600',
+                description: 'Stop the stream after N minutes without client input. 0 disables.',
+                example: 'idle_timeout_min = 15',
+              },
+            ],
           },
           {
-            name: 'pipewire_latency_ms',
-            type: 'int',
-            defaultVal: '8',
-            range: '1 - 40',
-            description: 'PW_KEY_NODE_LATENCY hint passed to the PipeWire compositor for low-latency audio grab.',
-            example: 'pipewire_latency_ms = 8',
-          },
-          {
-            name: 'cpu_pinning',
-            type: 'bool',
-            defaultVal: 'true',
-            description: 'Push capture thread to SCHED_RR real-time policy and pin to a dedicated non-IRQ core.',
-            example: 'cpu_pinning = true',
-          },
-          {
-            name: 'dscp_qos',
-            type: 'bool',
-            defaultVal: 'true',
-            description: 'Tag outgoing UDP packets with DSCP CS3 for QoS prioritization across managed routers.',
-            example: 'dscp_qos = true',
-          },
-          {
-            name: 'gpu_governor',
-            type: 'bool',
-            defaultVal: 'true',
-            description: 'Raise AMD GPU power profile to performance during streaming; restores auto upon stream stop.',
-            example: 'gpu_governor = true',
-          },
-          {
-            name: 'headless_virtual_display',
-            type: 'bool',
-            defaultVal: 'false',
-            description: 'Automatically create an xrandr virtual output (VIRTUAL1) if no physical displays are detected.',
-            example: 'headless_virtual_display = true',
-          },
-          {
-            name: 'skip_wayland_correlation',
-            type: 'bool',
-            defaultVal: 'false',
-            description: 'Skip Wayland-to-KMS connector correlation if compositor fails to report output metadata.',
-            example: 'skip_wayland_correlation = false',
-          },
-          {
-            name: 'latency_mode',
-            type: 'string',
-            defaultVal: 'safe',
-            range: 'safe | aggressive',
-            description: 'Select bounded safe defaults or tighter latency-first media and fast-bilinear scaling behavior.',
-            example: 'latency_mode = aggressive',
-          },
-          {
-            name: 'idle_timeout_min',
-            type: 'int',
-            defaultVal: '0',
-            range: '0 - 600',
-            description: 'Automatically stop stream after N minutes of no client input. 0 disables the watchdog.',
-            example: 'idle_timeout_min = 15',
-          },
-          {
-            name: 'nvenc_tuning_preset',
-            type: 'int',
-            defaultVal: '-1',
-            range: '-1 to 2',
-            description: 'NVENC profile: -1 manual, 0 latency, 1 balanced, 2 quality. Per-app overrides in apps.json.',
-            example: 'nvenc_tuning_preset = 0',
-          },
-          {
-            name: 'trusted_subnets',
-            type: 'string',
-            defaultVal: '""',
-            description: 'Comma-separated CIDR subnets for LAN auto-pairing policy (use with trusted_subnet_auto_pairing).',
-            example: 'trusted_subnets = 192.168.1.0/24',
-          },
-          {
-            name: 'webhook_url_0',
-            type: 'string',
-            defaultVal: '""',
-            description: 'HTTPS endpoint notified on stream start/stop. Numbered keys webhook_url_0, webhook_url_1, …',
-            example: 'webhook_url_0 = https://hooks.example.com/sf',
+            id: 'access',
+            label: 'Access',
+            params: [
+              {
+                name: 'nvenc_tuning_preset',
+                type: 'int',
+                defaultVal: '-1',
+                range: '-1 to 2',
+                description: 'NVENC profile: -1 manual, 0 latency, 1 balanced, 2 quality.',
+                example: 'nvenc_tuning_preset = 0',
+              },
+              {
+                name: 'trusted_subnets',
+                type: 'string',
+                defaultVal: '""',
+                description: 'Comma-separated CIDR list used with trusted_subnet_auto_pairing.',
+                example: 'trusted_subnets = 192.168.1.0/24',
+              },
+              {
+                name: 'webhook_url_0',
+                type: 'string',
+                defaultVal: '""',
+                description: 'HTTPS endpoint notified on stream start and stop.',
+                example: 'webhook_url_0 = https://hooks.example.com/sf',
+              },
+            ],
           },
         ],
         callout: {
           type: 'important',
-          text: 'Full fork key reference: docs/CONFIGURATION.md. Inherited upstream options: docs/configuration.md.',
+          text: 'Inherited upstream keys are in docs/configuration.md. Fork keys are in docs/CONFIGURATION.md.',
         },
       },
       {
@@ -530,9 +657,82 @@ client_profile_LivingRoomTV_hevc_mode = 2`,
     sections: [
       {
         id: 'linux-tuning',
-        title: 'Linux Host Performance Tuning',
+        title: 'Ready-made profiles',
         content:
-          'SolarFlare includes built-in subsystem tuners to eliminate frame pacing jitter, micro-stutters, and audio delay.',
+          'Copy one profile into ~/.config/sunshine/sunshine.conf, then tune Moonlight bitrate to the link. Measure with the client overlay before changing more keys.',
+        tabs: [
+          {
+            id: 'competitive',
+            label: 'Competitive',
+            content: 'Wired NVIDIA, 1080p120 or 1440p120.',
+            code: {
+              language: 'ini',
+              code: `busy_poll_us = 50
+rate_cap_pct = 90
+enet_4mib_buffer = true
+dscp_qos = true
+cpu_pinning = true
+gpu_governor = true
+latency_mode = aggressive
+pipewire_latency_ms = 4
+nvenc_tuning_preset = 0`,
+            },
+          },
+          {
+            id: 'quality',
+            label: '4K quality',
+            content: 'Wired HEVC, single-player.',
+            code: {
+              language: 'ini',
+              code: `busy_poll_us = 50
+rate_cap_pct = 80
+enet_4mib_buffer = true
+latency_mode = safe
+pipewire_latency_ms = 8
+nvenc_tuning_preset = 2`,
+            },
+          },
+          {
+            id: 'wifi',
+            label: 'Wi-Fi',
+            content: 'Cap Moonlight bitrate below the iperf3 result. DSCP helps only if the AP honors WMM.',
+            code: {
+              language: 'ini',
+              code: `busy_poll_us = 100
+rate_cap_pct = 70
+enet_4mib_buffer = true
+dscp_qos = true
+latency_mode = safe
+pipewire_latency_ms = 8`,
+            },
+          },
+          {
+            id: 'shared',
+            label: 'Shared LAN',
+            content: 'Leave headroom for other household traffic.',
+            code: {
+              language: 'ini',
+              code: `busy_poll_us = 0
+rate_cap_pct = 60
+enet_4mib_buffer = true
+pipewire_latency_ms = 12
+latency_mode = safe`,
+            },
+          },
+          {
+            id: 'headless',
+            label: 'Headless',
+            content: 'Requires KMS capabilities. Set width/height/refresh to match the client.',
+            code: {
+              language: 'ini',
+              code: `headless_virtual_display = true
+headless_width = 1920
+headless_height = 1080
+headless_refresh = 120
+capture = kms`,
+            },
+          },
+        ],
       },
       {
         id: 'cpu-governor',
@@ -626,94 +826,165 @@ net.ipv4.tcp_congestion_control = bbr`,
       {
         id: 'tokens-api',
         title: 'Scoped API Tokens Endpoints',
-        endpoints: [
+        content: 'Mint, list, and revoke automation tokens. The plaintext token is returned only on create.',
+        tabs: [
           {
-            method: 'GET',
-            path: '/api/tokens',
-            auth: 'Admin or tokens:manage',
-            description: 'List all active automation tokens with their assigned scopes (hashes/salts omitted).',
-            responseBody: `{\n  "status": true,\n  "status_code": 200,\n  "tokens": [\n    {\n      "name": "home-assistant",\n      "scopes": ["stream:control", "logs:get"]\n    }\n  ]\n}`,
+            id: 'list',
+            label: 'GET /api/tokens',
+            endpoints: [
+              {
+                method: 'GET',
+                path: '/api/tokens',
+                auth: 'Admin or tokens:manage',
+                scopes: ['tokens:manage'],
+                description: 'List active automation tokens with assigned scopes (hashes omitted).',
+                responseBody: `{\n  "status": true,\n  "status_code": 200,\n  "tokens": [\n    {\n      "name": "home-assistant",\n      "scopes": ["stream:control", "logs:get"]\n    }\n  ]\n}`,
+              },
+            ],
           },
           {
-            method: 'POST',
-            path: '/api/tokens',
-            auth: 'Admin or tokens:manage',
-            description: 'Mint a new scoped API token. The plaintext token is returned once.',
-            requestBody: `{\n  "name": "ci-monitor",\n  "scopes": ["logs:get", "stream:stats"]\n}`,
-            responseBody: `{\n  "status": true,\n  "status_code": 200,\n  "name": "ci-monitor",\n  "plaintext": "sf_tok_abc123...",\n  "scopes": ["logs:get", "stream:stats"]\n}`,
+            id: 'create',
+            label: 'POST /api/tokens',
+            endpoints: [
+              {
+                method: 'POST',
+                path: '/api/tokens',
+                auth: 'Admin or tokens:manage',
+                scopes: ['tokens:manage'],
+                description: 'Mint a scoped API token. Store the plaintext immediately.',
+                requestBody: `{\n  "name": "ci-monitor",\n  "scopes": ["logs:get", "stream:stats"]\n}`,
+                responseBody: `{\n  "status": true,\n  "status_code": 200,\n  "name": "ci-monitor",\n  "plaintext": "sf_tok_abc123...",\n  "scopes": ["logs:get", "stream:stats"]\n}`,
+              },
+            ],
           },
           {
-            method: 'DELETE',
-            path: '/api/tokens/{name}',
-            auth: 'Admin or tokens:manage',
-            description: 'Revoke and delete a named API token.',
-            responseBody: `{\n  "status": true,\n  "status_code": 200\n}`,
+            id: 'revoke',
+            label: 'DELETE /api/tokens/{name}',
+            endpoints: [
+              {
+                method: 'DELETE',
+                path: '/api/tokens/{name}',
+                auth: 'Admin or tokens:manage',
+                scopes: ['tokens:manage'],
+                description: 'Revoke and delete a named API token.',
+                responseBody: `{\n  "status": true,\n  "status_code": 200\n}`,
+              },
+            ],
           },
         ],
       },
       {
         id: 'stream-telemetry',
         title: 'Stream Telemetry & Adaptive Bitrate',
-        endpoints: [
+        content: 'Host-side latency, bitrate bounds, client network feedback, and error counters.',
+        tabs: [
           {
-            method: 'GET',
-            path: '/api/stream/latency',
-            auth: 'logs:get scope',
-            description: 'Return host-side latency breakdown (capture, convert, encode, send, RTT) in milliseconds.',
-            responseBody: `{\n  "status": true,\n  "capture_ms": { "min": 0.8, "max": 2.1, "avg": 1.1, "samples": 300 },\n  "encode_ms": { "min": 1.2, "max": 3.4, "avg": 1.8, "samples": 300 },\n  "network_total_ms": { "min": 2.5, "max": 6.1, "avg": 3.2, "samples": 300 },\n  "rtt_ms": { "min": 1.1, "max": 4.2, "avg": 1.9, "samples": 300 }\n}`,
+            id: 'latency',
+            label: 'Latency',
+            endpoints: [
+              {
+                method: 'GET',
+                path: '/api/stream/latency',
+                auth: 'logs:get',
+                description: 'Host-side latency breakdown in milliseconds.',
+                responseBody: `{\n  "status": true,\n  "capture_ms": { "min": 0.8, "max": 2.1, "avg": 1.1, "samples": 300 },\n  "encode_ms": { "min": 1.2, "max": 3.4, "avg": 1.8, "samples": 300 }\n}`,
+              },
+            ],
           },
           {
-            method: 'GET',
-            path: '/api/stream/bitrate',
-            auth: 'config:get scope',
-            description: 'Return current adaptive bitrate parameters and bounds.',
-            responseBody: `{\n  "status": true,\n  "status_code": 200,\n  "adaptive_bitrate_enabled": true,\n  "adaptive_bitrate_min_kbps": 5000,\n  "adaptive_bitrate_max_kbps": 60000\n}`,
+            id: 'bitrate',
+            label: 'Bitrate',
+            endpoints: [
+              {
+                method: 'GET',
+                path: '/api/stream/bitrate',
+                auth: 'config:get',
+                description: 'Adaptive bitrate parameters and bounds.',
+                responseBody: `{\n  "status": true,\n  "adaptive_bitrate_enabled": true,\n  "adaptive_bitrate_min_kbps": 5000,\n  "adaptive_bitrate_max_kbps": 60000\n}`,
+              },
+            ],
           },
           {
-            method: 'POST',
-            path: '/api/stream/network-stats',
-            auth: 'logs:get scope',
-            description: 'Ingest client network feedback (packet loss percentage and RTT) into the bitrate pacing queue.',
-            requestBody: `{\n  "packet_loss_pct": 0.5,\n  "rtt_ms": 18.2\n}`,
-            responseBody: `{\n  "status": true,\n  "status_code": 200\n}`,
+            id: 'netstats',
+            label: 'Network stats',
+            endpoints: [
+              {
+                method: 'POST',
+                path: '/api/stream/network-stats',
+                auth: 'logs:get',
+                description: 'Ingest client packet loss and RTT into the bitrate pacer.',
+                requestBody: `{\n  "packet_loss_pct": 0.5,\n  "rtt_ms": 18.2\n}`,
+              },
+            ],
           },
           {
-            method: 'GET',
-            path: '/api/errors',
-            auth: 'logs:get scope',
-            description: 'Retrieve categorized error counts across host subsystems.',
-            responseBody: `{\n  "status": true,\n  "encoder": 0,\n  "capture": 0,\n  "network": 0,\n  "session": 0,\n  "total": 0\n}`,
+            id: 'errors',
+            label: 'Errors',
+            endpoints: [
+              {
+                method: 'GET',
+                path: '/api/errors',
+                auth: 'logs:get',
+                description: 'Categorized error counts across encoder, capture, network, and session.',
+                responseBody: `{\n  "status": true,\n  "encoder": 0,\n  "capture": 0,\n  "network": 0,\n  "session": 0,\n  "total": 0\n}`,
+              },
+            ],
           },
         ],
       },
       {
         id: 'updater-api',
         title: 'Host Self-Updater Endpoints',
-        endpoints: [
+        content: 'Linux in-app updater. Active streams block apply until idle unless forced.',
+        tabs: [
           {
-            method: 'GET',
-            path: '/api/update',
-            auth: 'config:get scope',
-            description: 'Query updater state (idle, downloading, ready, waiting_idle, installing, error), progress, and release notes.',
+            id: 'status',
+            label: 'Status',
+            endpoints: [
+              {
+                method: 'GET',
+                path: '/api/update',
+                auth: 'config:get',
+                description: 'Query updater state, progress, and release notes.',
+              },
+            ],
           },
           {
-            method: 'POST',
-            path: '/api/update/start',
-            auth: 'admin scope',
-            description: 'Start background download and SHA-256 checksum verification of the latest SolarFlare Linux release payload.',
+            id: 'start',
+            label: 'Start',
+            endpoints: [
+              {
+                method: 'POST',
+                path: '/api/update/start',
+                auth: 'admin',
+                description: 'Download and checksum the latest solarflare-linux-x86_64.tar.gz.',
+              },
+            ],
           },
           {
-            method: 'POST',
-            path: '/api/update/apply',
-            auth: 'admin scope',
-            description: 'Apply the downloaded release archive immediately or wait until active streams disconnect.',
-            requestBody: `{\n  "when_idle": true\n}`,
+            id: 'apply',
+            label: 'Apply',
+            endpoints: [
+              {
+                method: 'POST',
+                path: '/api/update/apply',
+                auth: 'admin',
+                description: 'Install the staged archive now or when streams go idle.',
+                requestBody: `{\n  "when_idle": true\n}`,
+              },
+            ],
           },
           {
-            method: 'POST',
-            path: '/api/update/cancel',
-            auth: 'config:set scope',
-            description: 'Cancel a pending when-idle update apply.',
+            id: 'cancel',
+            label: 'Cancel',
+            endpoints: [
+              {
+                method: 'POST',
+                path: '/api/update/cancel',
+                auth: 'config:set',
+                description: 'Cancel a pending when-idle apply.',
+              },
+            ],
           },
         ],
       },
@@ -771,8 +1042,43 @@ net.ipv4.tcp_congestion_control = bbr`,
       {
         id: 'distro-quirks',
         title: 'Distribution-Specific Details',
-        content:
-          '### Arch / CachyOS\n- Arch provides bleeding-edge GCC 14+ and kernel 6.x+ with full BBRv3 support.\n- \`scripts/cachyos-build.sh\` provides direct optimization for CachyOS x86-64-v3 / v4 builds.\n\n### Ubuntu / Debian\n- Ensure GCC 13+ is installed on older Ubuntu 22.04 LTS installations (\`gcc-13 g++-13\`).\n\n### Fedora / Nobara\n- Install \`vulkan-devel\` and \`shaderc\` for Vulkan encoder compilation.\n\n### openSUSE Tumbleweed\n- Use \`ffmpeg-devel\` for FFmpeg headers and \`libopenssl-3-devel\` for OpenSSL 3 support.',
+        content: 'Use the tabs for distro quirks. The matrix above lists package names.',
+        tabs: [
+          {
+            id: 'arch',
+            label: 'Arch / CachyOS',
+            content:
+              'Arch provides current GCC 14+ and kernel 6.x. scripts/cachyos-build.sh forwards to linux-install.sh. Confirm cap_sys_admin after install.',
+          },
+          {
+            id: 'debian',
+            label: 'Ubuntu / Debian',
+            content:
+              'Ubuntu 22.04 may need gcc-13 g++-13. Prefer CMake from the distro if it is at least 3.20.',
+          },
+          {
+            id: 'fedora',
+            label: 'Fedora / Nobara',
+            content: 'Install vulkan-devel and shaderc for Vulkan encode. RPM Fusion may be required for ffmpeg-devel.',
+          },
+          {
+            id: 'suse',
+            label: 'openSUSE',
+            content: 'Use ffmpeg-devel and libopenssl-3-devel. Tumbleweed tracks current toolchains.',
+          },
+          {
+            id: 'bazzite',
+            label: 'Bazzite',
+            content:
+              'rpm-ostree layering requires a reboot after the first installer pass. Re-run with --skip-deps to finish the build.',
+          },
+          {
+            id: 'nixos',
+            label: 'NixOS',
+            content:
+              'Use the repository Nix shell and the declarative host settings in docs/PORTING.md. Do not mix apt/dnf packages.',
+          },
+        ],
       },
     ],
   },
@@ -794,13 +1100,51 @@ net.ipv4.tcp_congestion_control = bbr`,
       },
       {
         id: 'steam-bigpicture',
-        title: 'Steam Big Picture Mode',
-        content:
-          'Steam starts with a bootstrap updater process, so it should be launched as a detached command:',
-        code: {
-          language: 'json',
-          code: `{\n  "name": "Steam Big Picture",\n  "output": "",\n  "cmd": "",\n  "detached": [\n    "setsid steam steam://open/bigpicture"\n  ],\n  "prep-cmd": [\n    {\n      "do": "",\n      "undo": "setsid steam steam://close/bigpicture"\n    }\n  ],\n  "image-path": "steam.png"\n}`,
-        },
+        title: 'Launcher examples',
+        content: 'apps.json lives in ~/.config/sunshine/apps.json. Use the tabs for common launchers.',
+        tabs: [
+          {
+            id: 'steam',
+            label: 'Steam',
+            code: {
+              language: 'json',
+              code: `{\n  "name": "Steam Big Picture",\n  "cmd": "",\n  "detached": ["setsid steam steam://open/bigpicture"],\n  "prep-cmd": [{ "do": "", "undo": "setsid steam steam://close/bigpicture" }],\n  "image-path": "steam.png"\n}`,
+            },
+          },
+          {
+            id: 'appid',
+            label: 'Steam AppID',
+            code: {
+              language: 'json',
+              code: `{\n  "name": "Competitive",\n  "cmd": "steam steam://rungameid/730",\n  "encoder-preset": 0\n}`,
+            },
+          },
+          {
+            id: 'gamescope',
+            label: 'Gamescope',
+            code: {
+              language: 'json',
+              code: `{\n  "name": "Gamescope session",\n  "cmd": "gamescope -W 2560 -H 1440 -r 120 -- steam steam://rungameid/1091500"\n}`,
+            },
+          },
+          {
+            id: 'lutris',
+            label: 'Lutris',
+            code: {
+              language: 'json',
+              code: `{\n  "name": "Lutris game",\n  "cmd": "lutris lutris:rungameid/1"\n}`,
+            },
+          },
+          {
+            id: 'quality',
+            label: 'Quality preset',
+            content: 'encoder-preset: -1 host default, 0 latency, 1 balanced, 2 quality.',
+            code: {
+              language: 'json',
+              code: `{\n  "name": "Story title",\n  "cmd": "steam steam://rungameid/1174180",\n  "encoder-preset": 2\n}`,
+            },
+          },
+        ],
       },
       {
         id: 'encoder-preset',
@@ -842,9 +1186,44 @@ net.ipv4.tcp_congestion_control = bbr`,
       },
       {
         id: 'display-capture',
-        title: 'Wayland vs KMS Capture Diagnostics',
-        content:
-          '### Wayland Portal Capture\n- Ensure \`xdg-desktop-portal\` and your compositor portal (\`xdg-desktop-portal-kde\`, \`xdg-desktop-portal-gnome\`, \`xdg-desktop-portal-wlr\`) are active.\n- If streaming a black screen on GNOME/KDE, check that screen sharing permissions are granted.\n\n### KMS Grab\n- KMS grab requires \`setcap cap_sys_admin+p /usr/local/bin/sunshine\`.\n- On multi-monitor setups, if mouse coordinates land on the wrong monitor, ensure \`skip_wayland_correlation = false\`.',
+        title: 'Capture, audio, and network diagnostics',
+        content: 'Pick the symptom tab that matches the Moonlight overlay or host logs.',
+        tabs: [
+          {
+            id: 'video',
+            label: 'Black screen',
+            content:
+              'Confirm capture backend (kms, portal, x11). KMS needs cap_sys_admin. NVIDIA needs nvidia_drm.modeset=1. KWin overlays can break KMS on Plasma 6.5+ (KWIN_USE_OVERLAYS=0).',
+            code: {
+              language: 'bash',
+              code: 'getcap "$(command -v sunshine)"\njournalctl --user -u app-dev.lizardbyte.app.Sunshine.service -n 80 --no-pager',
+            },
+          },
+          {
+            id: 'audio',
+            label: 'No audio',
+            content:
+              'Confirm the default sink plays locally. Raise pipewire_latency_ms to 8-12 ms if you hear crackle. Check pavucontrol while a stream is active.',
+          },
+          {
+            id: 'network',
+            label: 'Stutter',
+            content:
+              'Run iperf3 UDP at the Moonlight bitrate. Keep packet loss under 5% and jitter under 1 ms. Lower rate_cap_pct on Wi-Fi. Enable enet_4mib_buffer for 4K.',
+          },
+          {
+            id: 'input',
+            label: 'Input',
+            content:
+              'Add the user to the input group and re-login. Steam should use Generic Gamepad, not Xbox/PS overlays. Disconnect unused physical pads so games do not grab them first.',
+          },
+          {
+            id: 'pairing',
+            label: 'Pairing',
+            content:
+              'Sync host time. Enter the PIN from the Web UI. Overly broad trusted_subnets can pair unexpected clients; a bad CIDR can block LAN clients.',
+          },
+        ],
       },
       {
         id: 'audio-issues',
@@ -873,20 +1252,34 @@ net.ipv4.tcp_congestion_control = bbr`,
       {
         id: 'build-steps',
         title: 'Standard Build Commands',
-        code: {
-          language: 'bash',
-          code: `# Configure build directory
-cmake -B cmake-build-release -G Ninja \\
+        content: 'Keep build directories under cmake-build-. Switch tabs for host OS prefixes.',
+        codeTabs: [
+          {
+            label: 'Linux',
+            language: 'bash',
+            code: `cmake -S . -B cmake-build-release -G Ninja \\
   -DCMAKE_BUILD_TYPE=Release \\
-  -DSUNSHINE_BUILD_WAYLAND=ON \\
-  -DSUNSHINE_TRAY=ON
-
-# Compile executable
-cmake --build cmake-build-release -j$(nproc)
-
-# Apply Linux capture capabilities
+  -DBUILD_TESTS=OFF \\
+  -DBUILD_DOCS=OFF
+cmake --build cmake-build-release --target sunshine web-ui -j2
 sudo setcap 'cap_sys_admin,cap_sys_nice+p' cmake-build-release/sunshine`,
-        },
+          },
+          {
+            label: 'Windows (MSYS2)',
+            language: 'bash',
+            code: `C:\\msys64\\msys2_shell.cmd -defterm -here -no-start -ucrt64 -c "cmake -S . -B cmake-build-release -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build cmake-build-release --target sunshine -j2"`,
+          },
+          {
+            label: 'Tests',
+            language: 'bash',
+            code: `cmake -S . -B cmake-build-tests -G Ninja \\
+  -DCMAKE_BUILD_TYPE=Debug \\
+  -DBUILD_TESTS=ON \\
+  -DBUILD_DOCS=OFF
+cmake --build cmake-build-tests --target test_sunshine -j2
+./cmake-build-tests/tests/test_sunshine --gtest_brief=1`,
+          },
+        ],
       },
       {
         id: 'running-tests',
@@ -1075,10 +1468,115 @@ cmake --build cmake-build-release --target test_sunshine -j$(nproc)
       {
         id: 'tagging-steps',
         title: 'Release Workflow Commands',
-        code: {
-          language: 'bash',
-          code: `# 1. Preview release version sync\n./scripts/release.sh 2026.824.1 1.2.2 --dry-run\n\n# 2. Apply version bump and create git tag\n./scripts/release.sh 2026.824.1 1.2.2 --no-push\n\n# 3. Build and package release archive\ncmake --build cmake-build-release --target sunshine -j$(nproc)\ntar -czvf solarflare-linux-x86_64.tar.gz sunshine-x86_64 assets/\nsha256sum sunshine-x86_64 solarflare-linux-x86_64.tar.gz > SHA256SUMS\n\n# 4. Publish release to GitHub\ngh release create v2026.824.1-solarflare \\\n  sunshine-x86_64 \\\n  solarflare-linux-x86_64.tar.gz \\\n  SHA256SUMS \\\n  --repo vindeckyy/Solar-Flare \\\n  --verify-tag \\\n  --latest \\\n  --title 'SolarFlare v1.2.2' \\\n  --notes-file release-notes.md`,
+        content: 'Use --dry-run first. Push only after local verification.',
+        tabs: [
+          {
+            id: 'dry',
+            label: 'Dry run',
+            code: {
+              language: 'bash',
+              code: './scripts/release.sh 2026.824.1 1.2.2 --dry-run',
+            },
+          },
+          {
+            id: 'tag',
+            label: 'Tag locally',
+            code: {
+              language: 'bash',
+              code: './scripts/release.sh 2026.824.1 1.2.2 --no-push',
+            },
+          },
+          {
+            id: 'publish',
+            label: 'Publish',
+            code: {
+              language: 'bash',
+              code: `gh release create v2026.824.1-solarflare \\
+  sunshine-x86_64 \\
+  solarflare-linux-x86_64.tar.gz \\
+  SHA256SUMS \\
+  --repo vindeckyy/Solar-Flare \\
+  --verify-tag \\
+  --latest \\
+  --title 'SolarFlare v1.2.2' \\
+  --notes-file release-notes.md`,
+            },
+          },
+        ],
+      },
+    ],
+  },
+
+  docker: {
+    slug: 'docker',
+    title: 'Docker and containers',
+    category: 'Operations',
+    badge: 'Ops',
+    description:
+      'SolarFlare does not publish a container image. This page covers upstream Sunshine images and experimental compose.',
+    readTime: '6 min read',
+    lastUpdated: 'August 2026',
+    sections: [
+      {
+        id: 'policy',
+        title: 'Supported path',
+        content:
+          'Build SolarFlare on the host with ./scripts/linux-install.sh. Upstream lizardbyte/sunshine images do not include fork tunables, the SolarFlare Web UI, or API token features.',
+        callout: {
+          type: 'caution',
+          text: 'KMS capture, SCHED_RR pinning, and GPU governors often fail inside namespaces. Expect portal or X11 capture in containers.',
         },
+      },
+      {
+        id: 'run',
+        title: 'Runtime examples',
+        content: 'Tags combine version and OS suffix, for example latest-ubuntu-24.04. Internal Web UI port stays 47990.',
+        tabs: [
+          {
+            id: 'compose',
+            label: 'Compose',
+            code: {
+              language: 'yaml',
+              code: `services:
+  sunshine:
+    image: lizardbyte/sunshine:latest-ubuntu-24.04
+    ipc: host
+    devices:
+      - /dev/dri/
+    ports:
+      - "47984-47990:47984-47990/tcp"
+      - "47998-48000:47998-48000/udp"
+    volumes:
+      - ./sunshine-config:/config`,
+            },
+          },
+          {
+            id: 'docker',
+            label: 'docker run',
+            code: {
+              language: 'bash',
+              code: `docker run -d --name sunshine --ipc=host \\
+  --device /dev/dri/ \\
+  -v /home/user/sunshine-config:/config \\
+  -p 47984-47990:47984-47990/tcp \\
+  -p 47998-48000:47998-48000/udp \\
+  lizardbyte/sunshine:latest-ubuntu-24.04`,
+            },
+          },
+          {
+            id: 'podman',
+            label: 'Podman',
+            content: 'Rootless Podman may not expose uinput or SYS_ADMIN. Software encode is the realistic fallback.',
+            code: {
+              language: 'bash',
+              code: `podman run -d --name sunshine --userns=keep-id \\
+  --device /dev/dri/ \\
+  -v /home/user/sunshine-config:/config \\
+  -p 47984-47990:47984-47990/tcp \\
+  lizardbyte/sunshine:latest-ubuntu-24.04`,
+            },
+          },
+        ],
       },
     ],
   },

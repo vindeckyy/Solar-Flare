@@ -1,11 +1,23 @@
 'use client'
 
 import Link from 'next/link'
-import { Search, GitFork, Menu, Home, ExternalLink } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { Search, GitFork, Menu, Home } from 'lucide-react'
 import { Logo } from '@/components/solarflare/logo'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { DOC_CATEGORIES } from '@/lib/docs-data'
 
 const REPO = 'https://github.com/vindeckyy/Solar-Flare'
+
+const CATEGORY_HREFS: Record<string, string> = {
+  'Getting Started': '/docs/getting-started',
+  Configuration: '/docs/configuration',
+  Optimization: '/docs/performance-tuning',
+  'Developer & API': '/docs/api',
+  Operations: '/docs/docker',
+  'Project & Release': '/docs/changelog',
+}
 
 interface DocsHeaderProps {
   onOpenSearch: () => void
@@ -13,10 +25,12 @@ interface DocsHeaderProps {
 }
 
 export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
+  const pathname = usePathname()
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/80 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[88rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {onToggleSidebar && (
             <button
               onClick={onToggleSidebar}
@@ -26,7 +40,7 @@ export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
               <Menu className="h-5 w-5" />
             </button>
           )}
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
             <Logo />
             <span className="rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary border border-primary/20">
               Docs
@@ -34,8 +48,29 @@ export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
           </Link>
         </div>
 
-        {/* Global Search Bar Trigger */}
-        <div className="flex-1 max-w-md mx-4 hidden md:block">
+        <nav className="hidden xl:flex items-center gap-1" aria-label="Documentation sections">
+          {DOC_CATEGORIES.map((cat) => {
+            const href = CATEGORY_HREFS[cat.name] || `/docs/${cat.items[0]?.slug || ''}`
+            const slugs = cat.items.map((item) => `/docs/${item.slug}`)
+            const active = slugs.includes(pathname)
+            return (
+              <Link
+                key={cat.name}
+                href={href}
+                className={cn(
+                  'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                  active
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {cat.name}
+              </Link>
+            )
+          })}
+        </nav>
+
+        <div className="flex-1 max-w-md mx-2 hidden md:block">
           <button
             onClick={onOpenSearch}
             className="flex w-full items-center justify-between rounded-lg border border-border bg-card/60 px-3.5 py-1.5 text-sm text-muted-foreground shadow-sm hover:border-primary/50 hover:text-foreground transition-all"
@@ -50,8 +85,7 @@ export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
           </button>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={onOpenSearch}
             className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
@@ -68,7 +102,7 @@ export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
             render={<Link href="/" />}
           >
             <Home className="h-4 w-4" />
-            Landing Page
+            Landing
           </Button>
 
           <Button
