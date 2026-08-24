@@ -60,7 +60,7 @@ export default async function DocArticlePage({ params }: PageProps) {
 
       {/* Right Column: Sticky Table of Contents */}
       <div className="hidden xl:block w-64 shrink-0">
-        <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto">
+        <div className="sticky top-[7rem] max-h-[calc(100vh-9rem)] overflow-y-auto rounded-2xl border border-border bg-card p-4 shadow-lg shadow-black/20">
           <DocsToc sections={article.sections} />
         </div>
       </div>

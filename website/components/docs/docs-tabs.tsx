@@ -32,7 +32,7 @@ export function DocsTabs({ tabs, defaultTab, ariaLabel, children }: DocsTabsProp
       <div
         role="tablist"
         aria-label={ariaLabel || 'Content tabs'}
-        className="flex flex-wrap gap-1.5 rounded-xl border border-border/80 bg-card/50 p-1.5 shadow-inner shadow-black/20"
+        className="flex flex-wrap gap-1 rounded-xl border border-border bg-background p-1"
       >
         {tabs.map((tab) => {
           const selected = active === tab.id

@@ -60,11 +60,11 @@ export function DocsSidebar({ onLinkClick }: DocsSidebarProps) {
                     href={itemHref}
                     onClick={onLinkClick}
                     className={cn(
-                      'group flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-all',
-                      isActive
-                        ? 'bg-primary/15 font-medium text-primary border-l-2 border-primary rounded-l-none pl-2.5'
-                        : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                    )}
+              'group flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm transition-all',
+              isActive
+                ? 'bg-primary text-primary-foreground font-semibold shadow-sm shadow-primary/30'
+                : 'text-foreground/75 hover:bg-muted hover:text-foreground',
+            )}
                   >
                     <span className="truncate flex-1">{item.title}</span>
                     {item.badge && (
@@ -72,8 +72,8 @@ export function DocsSidebar({ onLinkClick }: DocsSidebarProps) {
                         className={cn(
                           'text-[10px] font-mono px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 transition-colors',
                           isActive
-                            ? 'bg-primary/20 text-primary border-primary/40 font-semibold'
-                            : 'bg-muted/80 text-muted-foreground border-border group-hover:border-primary/30 group-hover:text-foreground',
+                            ? 'bg-primary-foreground/15 text-primary-foreground border-primary-foreground/30 font-semibold'
+                            : 'bg-muted text-muted-foreground border-border group-hover:border-primary/30 group-hover:text-foreground',
                         )}
                       >
                         {item.badge}

@@ -1347,22 +1347,47 @@ cmake --build cmake-build-release --target test_sunshine -j$(nproc)
     lastUpdated: 'August 2026',
     sections: [
       {
+        id: 'releases',
+        title: 'Release notes',
+        content: 'Select a version tab. Full GitHub compare links live on each release.',
+        tabs: [
+          {
+            id: 'v122',
+            label: 'v1.2.2',
+            content:
+              '**Build** `v2026.824.1-solarflare`\n\n- **Docs portal:** Next.js documentation at https://vindeckyy.github.io/Solar-Flare/docs\n- **REST API:** Scoped tokens (`/api/tokens`), game scanner (`/api/games/scan`), live telemetry\n- **NVENC:** Harmonized `nvenc_tuning_preset` latency / balanced / quality profiles\n- **Audio FX:** Documented AGC, VAD, ducking, and noise-gate tunables\n- **Doxygen:** Restored TOC navigation for fork settings',
+          },
+          {
+            id: 'v121',
+            label: 'v1.2.1',
+            content:
+              '**Build** `v2026.809.1-solarflare`\n\n- **Live telemetry:** `GET /api/stream/telemetry` for host CPU, RAM, and GPU\n- **Session history:** `GET /api/sessions` backed by `session_history.jsonl`\n- **Self-updater:** Staged apply with `/api/update` status\n- **Adaptive bitrate:** Client network feedback via `/api/stream/network-stats`',
+          },
+          {
+            id: 'v120',
+            label: 'v1.2.0',
+            content:
+              '**Build** `v2026.807.1-solarflare`\n\n- **Audio FX:** AGC, VAD, ducking, and noise gate before Opus\n- **Opus:** Application mode, VBR, and FEC knobs\n- **Porting:** Arch, Debian, Fedora, and openSUSE install paths\n- **Scheduling:** SCHED_RR capture worker and non-IRQ core pinning',
+          },
+        ],
+      },
+      {
         id: 'v1-2-2',
         title: 'SolarFlare v1.2.2 (Build 2026.824.1)',
         content:
-          '### Features & Improvements\n- **Comprehensive Docs Portal:** Introduced Next.js documentation portal at \`https://vindeckyy.github.io/Solar-Flare/docs\`.\n- **REST API Extensions:** Documented Scoped API Tokens (\`/api/tokens\`), Game Scanner (\`/api/games/scan\`), and live telemetry endpoints.\n- **NVENC & Video Synchronization:** Harmonized \`nvenc_tuning_preset\` one-click latency/balanced/quality profiles across configuration files.\n- **Audio FX Subsystem:** Documented all 10 float sub-tunables for AGC, VAD, Ducking, and Noise Gate.\n- **Doxygen Layout:** Restored full TOC navigation enclosure for SolarFlare fork settings.',
+          '### Features and improvements\n\n- **Comprehensive docs portal:** Next.js documentation portal at `https://vindeckyy.github.io/Solar-Flare/docs`.\n- **REST API extensions:** Scoped API tokens (`/api/tokens`), game scanner (`/api/games/scan`), and live telemetry endpoints.\n- **NVENC and video:** Harmonized `nvenc_tuning_preset` one-click latency, balanced, and quality profiles.\n- **Audio FX subsystem:** Documented float tunables for AGC, VAD, ducking, and noise gate.\n- **Doxygen layout:** Restored TOC navigation for SolarFlare fork settings.',
       },
       {
         id: 'v1-2-1',
         title: 'SolarFlare v1.2.1 (Build 2026.809.1)',
         content:
-          '### Features & Improvements\n- **Live Telemetry:** Added \`GET /api/stream/telemetry\` for host CPU/RAM/GPU time series.\n- **Session History:** Added \`GET /api/sessions\` queryable endpoint backed by \`session_history.jsonl\`.\n- **Self-Updater Staging:** Implemented staged update workflow with \`/api/update\` status reporting.\n- **Adaptive Bitrate Pacing:** Added real-time network feedback queue (\`/api/stream/network-stats\`).',
+          '### Features and improvements\n\n- **Live telemetry:** Added `GET /api/stream/telemetry` for host CPU, RAM, and GPU time series.\n- **Session history:** Added `GET /api/sessions` backed by `session_history.jsonl`.\n- **Self-updater staging:** Staged update workflow with `/api/update` status reporting.\n- **Adaptive bitrate pacing:** Real-time network feedback queue (`/api/stream/network-stats`).',
       },
       {
         id: 'v1-2-0',
         title: 'SolarFlare v1.2.0 (Build 2026.807.1)',
         content:
-          '### Features & Improvements\n- **Audio FX Signal Chain:** Added AGC, VAD speech detection, game audio ducking, and noise gate DSP.\n- **Opus Low-Delay Controls:** Added application mode, variable bitrate (VBR), and forward error correction (FEC) knobs.\n- **Multi-Distro Porting:** Added comprehensive build support for openSUSE, Fedora, and Debian.\n- **CPU Real-Time Scheduling:** Added SCHED_RR capture worker priority and non-IRQ core pinning.',
+          '### Features and improvements\n\n- **Audio FX signal chain:** AGC, VAD speech detection, game audio ducking, and noise gate DSP.\n- **Opus low-delay controls:** Application mode, variable bitrate, and forward error correction knobs.\n- **Multi-distro porting:** Build support for openSUSE, Fedora, and Debian.\n- **CPU real-time scheduling:** SCHED_RR capture worker priority and non-IRQ core pinning.',
       },
     ],
   },

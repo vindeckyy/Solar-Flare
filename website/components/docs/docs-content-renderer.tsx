@@ -26,6 +26,7 @@ import {
   DOC_CATEGORIES,
 } from '@/lib/docs-data'
 import { DocsTabs } from '@/components/docs/docs-tabs'
+import { DocsMarkdown } from '@/components/docs/docs-markdown'
 
 interface DocsContentRendererProps {
   article: DocArticle
@@ -38,13 +39,13 @@ export function DocsContentRenderer({ article }: DocsContentRendererProps) {
   const nextItem = currentIndex < allItems.length - 1 ? allItems[currentIndex + 1] : null
 
   return (
-    <article className="max-w-none space-y-10">
-      <header className="relative overflow-hidden rounded-2xl border border-border bg-card/40 p-6 sm:p-8">
+    <article className="max-w-none space-y-6">
+      <header className="relative overflow-hidden rounded-2xl border border-primary/25 bg-card p-6 sm:p-8 shadow-[0_0_40px_-12px_color-mix(in_oklch,var(--primary)_45%,transparent)]">
         <div
-          className="pointer-events-none absolute inset-0 opacity-70"
+          className="pointer-events-none absolute inset-0"
           style={{
             background:
-              'radial-gradient(600px circle at 0% 0%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 55%)',
+              'radial-gradient(720px circle at 0% 0%, color-mix(in oklch, var(--primary) 28%, transparent), transparent 58%)',
           }}
         />
         <div className="relative space-y-3">
@@ -63,7 +64,7 @@ export function DocsContentRenderer({ article }: DocsContentRendererProps) {
             {article.title}
           </h1>
 
-          <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-3xl">
+          <p className="text-base sm:text-lg text-foreground/80 leading-relaxed max-w-3xl">
             {article.description}
           </p>
 
@@ -81,10 +82,15 @@ export function DocsContentRenderer({ article }: DocsContentRendererProps) {
         </div>
       </header>
 
-      <div className="space-y-14">
+      <div className="space-y-5">
         {article.sections.map((section) => (
-          <section key={section.id} id={section.id} className="scroll-mt-28 space-y-4">
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground border-b border-border/50 pb-2">
+          <section
+            key={section.id}
+            id={section.id}
+            className="scroll-mt-32 rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-lg shadow-black/20 space-y-4"
+          >
+            <h2 className="flex items-center gap-3 text-xl font-semibold tracking-tight text-foreground">
+              <span className="h-6 w-1 rounded-full bg-primary shadow-[0_0_12px_color-mix(in_oklch,var(--primary)_70%,transparent)]" />
               <a href={`#${section.id}`} className="hover:text-primary transition-colors">
                 {section.title}
               </a>
@@ -128,11 +134,7 @@ export function DocsContentRenderer({ article }: DocsContentRendererProps) {
 function SectionBody({ section }: { section: DocSection | DocTab }) {
   return (
     <>
-      {section.content && (
-        <div className="text-sm sm:text-base leading-relaxed text-muted-foreground whitespace-pre-line">
-          {section.content}
-        </div>
-      )}
+      {section.content && <DocsMarkdown text={section.content} />}
 
       {section.callout && <CalloutBox type={section.callout.type} text={section.callout.text} />}
 
@@ -162,7 +164,7 @@ function SectionBody({ section }: { section: DocSection | DocTab }) {
           {(activeId) => {
             const tab = section.tabs!.find((t) => t.id === activeId) || section.tabs![0]
             return (
-              <div className="space-y-3 rounded-xl border border-border/70 bg-card/30 p-4 sm:p-5">
+              <div className="space-y-3 rounded-xl border border-border bg-background/50 p-4 sm:p-5">
                 <SectionBody section={tab} />
               </div>
             )
@@ -302,7 +304,7 @@ function CalloutBox({ type, text }: { type: DocCallout['type'] | string; text: s
       <Icon className={`h-5 w-5 shrink-0 ${s.textCol} mt-0.5`} />
       <div className="space-y-1">
         <p className={`font-semibold ${s.textCol}`}>{s.title}</p>
-        <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed">{text}</p>
+        <DocsMarkdown text={text} />
       </div>
     </div>
   )
@@ -323,7 +325,7 @@ function ParamCard({ param }: { param: DocParam }) {
           )}
         </div>
       </div>
-      <p className="text-sm text-muted-foreground leading-relaxed">{param.description}</p>
+      <DocsMarkdown text={param.description} />
       {param.example && (
         <code className="block rounded bg-[#0f0e0c] px-3 py-1.5 font-mono text-xs text-[#e8dfd1] border border-border/40">
           {param.example}
@@ -360,7 +362,7 @@ function EndpointCard({ endpoint }: { endpoint: DocEndpoint }) {
         </span>
       </div>
 
-      <p className="text-sm text-muted-foreground">{endpoint.description}</p>
+      <DocsMarkdown text={endpoint.description} />
       {endpoint.scopes && endpoint.scopes.length > 0 && (
         <p className="text-xs font-mono text-muted-foreground">Scopes: {endpoint.scopes.join(', ')}</p>
       )}

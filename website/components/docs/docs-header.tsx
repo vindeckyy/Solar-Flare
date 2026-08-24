@@ -28,8 +28,8 @@ export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
   const pathname = usePathname()
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-[88rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md">
+      <div className="mx-auto flex h-14 max-w-[88rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 min-w-0">
           {onToggleSidebar && (
             <button
@@ -42,38 +42,16 @@ export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
           )}
           <Link href="/" className="flex items-center gap-2 shrink-0">
             <Logo />
-            <span className="rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary border border-primary/20">
+            <span className="rounded-md bg-primary px-2 py-0.5 font-mono text-[11px] font-bold uppercase tracking-wider text-primary-foreground">
               Docs
             </span>
           </Link>
         </div>
 
-        <nav className="hidden xl:flex items-center gap-1" aria-label="Documentation sections">
-          {DOC_CATEGORIES.map((cat) => {
-            const href = CATEGORY_HREFS[cat.name] || `/docs/${cat.items[0]?.slug || ''}`
-            const slugs = cat.items.map((item) => `/docs/${item.slug}`)
-            const active = slugs.includes(pathname)
-            return (
-              <Link
-                key={cat.name}
-                href={href}
-                className={cn(
-                  'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
-                  active
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
-              >
-                {cat.name}
-              </Link>
-            )
-          })}
-        </nav>
-
-        <div className="flex-1 max-w-md mx-2 hidden md:block">
+        <div className="flex-1 max-w-xl mx-2 hidden md:block">
           <button
             onClick={onOpenSearch}
-            className="flex w-full items-center justify-between rounded-lg border border-border bg-card/60 px-3.5 py-1.5 text-sm text-muted-foreground shadow-sm hover:border-primary/50 hover:text-foreground transition-all"
+            className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-3.5 py-2 text-sm text-muted-foreground shadow-inner hover:border-primary/60 hover:text-foreground transition-all"
           >
             <span className="flex items-center gap-2">
               <Search className="h-4 w-4 text-primary" />
@@ -115,6 +93,36 @@ export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
             <span className="hidden sm:inline">GitHub</span>
           </Button>
         </div>
+      </div>
+
+      <div className="border-t border-border bg-card/80">
+        <nav
+          className="mx-auto flex max-w-[88rem] items-stretch gap-0 overflow-x-auto px-2 sm:px-4 lg:px-8"
+          aria-label="Documentation sections"
+        >
+          {DOC_CATEGORIES.map((cat) => {
+            const href = CATEGORY_HREFS[cat.name] || `/docs/${cat.items[0]?.slug || ''}`
+            const slugs = cat.items.map((item) => `/docs/${item.slug}`)
+            const active = pathname === '/docs' ? cat.name === 'Getting Started' : slugs.includes(pathname)
+            return (
+              <Link
+                key={cat.name}
+                href={href}
+                className={cn(
+                  'relative shrink-0 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors',
+                  active
+                    ? 'text-primary'
+                    : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+                )}
+              >
+                {cat.name}
+                {active && (
+                  <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-primary shadow-[0_0_10px_var(--primary)]" />
+                )}
+              </Link>
+            )
+          })}
+        </nav>
       </div>
     </header>
   )

@@ -66,12 +66,12 @@ const HIGHLIGHTS = [
 export default function DocsPortalPage() {
   return (
     <div className="space-y-12">
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-card/40 p-8 sm:p-10">
+      <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-card p-8 sm:p-10 shadow-[0_0_50px_-14px_color-mix(in_oklch,var(--primary)_50%,transparent)]">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              'radial-gradient(700px circle at 10% 0%, color-mix(in oklch, var(--primary) 16%, transparent), transparent 55%)',
+              'radial-gradient(700px circle at 10% 0%, color-mix(in oklch, var(--primary) 28%, transparent), transparent 55%)',
           }}
         />
         <div className="relative space-y-4">
@@ -130,7 +130,7 @@ export default function DocsPortalPage() {
             <Link
               key={card.href}
               href={card.href}
-              className="group relative flex flex-col justify-between rounded-xl border border-border bg-card/40 p-6 hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/5"
+              className="group relative flex flex-col justify-between rounded-2xl border border-border bg-card p-6 hover:border-primary/60 transition-all hover:shadow-[0_0_32px_-10px_color-mix(in_oklch,var(--primary)_55%,transparent)]"
             >
               <div className="space-y-3">
                 <div className="w-fit rounded-lg bg-primary/10 p-2.5 text-primary border border-primary/20">
@@ -161,7 +161,7 @@ export default function DocsPortalPage() {
 
         <div className="grid gap-6 md:grid-cols-2">
           {DOC_CATEGORIES.map((cat) => (
-            <div key={cat.name} className="rounded-xl border border-border bg-card/30 p-6 space-y-4">
+            <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-lg shadow-black/20">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-base font-semibold text-foreground">{cat.name}</h3>
                 <span className="text-xs font-mono text-muted-foreground">
