@@ -1583,7 +1583,7 @@ namespace config {
       }
     }
     if (csrf_invalid_config) {
-      BOOST_LOG(warning) << "Please refer to: https://github.com/vindeckyy/Solar-Flare#all-config-settings"sv;
+      BOOST_LOG(warning) << "Please refer to: https://github.com/vindeckyy/Solar-Flare#configuration"sv;
     }
 
     int to = -1;

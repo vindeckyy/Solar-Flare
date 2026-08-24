@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { GitFork } from 'lucide-react'
+import { GitFork, BookOpen } from 'lucide-react'
 import { Logo } from './logo'
 import { Button } from '@/components/ui/button'
 
@@ -36,6 +36,17 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-2">
           <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            className="gap-1.5 border-border hover:border-primary/50 text-foreground font-medium"
+            render={<Link href="/docs" />}
+          >
+            <BookOpen className="h-4 w-4 text-primary" aria-hidden="true" />
+            Docs
+          </Button>
+
+          <Button
             variant="ghost"
             size="sm"
             nativeButton={false}
@@ -46,6 +57,7 @@ export function SiteHeader() {
           >
             Releases
           </Button>
+
           <Button
             size="sm"
             nativeButton={false}
@@ -53,10 +65,11 @@ export function SiteHeader() {
             render={<a href={REPO} target="_blank" rel="noreferrer" />}
           >
             <GitFork className="h-4 w-4" aria-hidden="true" />
-            Star on GitHub
+            <span className="hidden sm:inline">Star on </span>GitHub
           </Button>
         </div>
       </div>
     </header>
   )
 }
+

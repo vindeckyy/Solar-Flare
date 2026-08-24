@@ -62,8 +62,8 @@ installer is [`scripts/linux-install.sh`](../scripts/linux-install.sh); see
 [Porting SolarFlare](PORTING.md) for per-distro package translation.
 `scripts/cachyos-build.sh` is a compatibility wrapper for that installer.
 Upstream's
-[linux_build.sh](https://github.com/LizardByte/Sunshine/blob/master/scripts/linux_build.sh)
-(also present here as `scripts/linux_build.sh`) remains a useful reference for
+[linux_build.sh](../scripts/linux_build.sh)
+remains a useful reference for
 inherited Debian-, Fedora-, and Arch-family dependency lists used by Docker/CI
 packaging. It is not the default end-user install path.
 

@@ -11,6 +11,7 @@ const TUNABLES = [
   { key: 'headless_virtual_display', def: 'false', desc: 'Create a virtual xrandr output when no display exists.' },
   { key: 'skip_wayland_correlation', def: 'false', desc: 'Skip KMS/Wayland correlation; leave false unless your compositor omits output metadata.' },
   { key: 'latency_mode', def: 'safe', desc: 'safe or aggressive latency-first media behavior.' },
+  { key: 'idle_timeout_min', def: '0', desc: 'Automatically stop stream after N minutes without client input. 0 disables.' },
 ]
 
 export function Configuration() {
@@ -28,7 +29,7 @@ export function Configuration() {
             Change host settings without rebuilding
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
-            Ten SolarFlare settings live in the same{' '}
+            Eleven SolarFlare host settings live in the same{' '}
             <code className="rounded bg-background px-1.5 py-0.5 font-mono text-sm text-primary">
               ~/.config/sunshine/sunshine.conf
             </code>{' '}

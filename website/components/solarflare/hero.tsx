@@ -17,7 +17,7 @@ export function Hero() {
       {/* corona backdrop */}
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         <Image
-          src="/solar-corona.png"
+          src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/solar-corona.png`}
           alt=""
           fill
           priority

@@ -78,7 +78,7 @@ The columns below mirror the case blocks in
 | X11 / Xfixes / Xrandr| `libx11 libxfixes libxrandr libxcb libxkbcommon` | `libx11-dev libxfixes-dev libxrandr-dev libxcb1-dev libxkbcommon-dev` | `libX11-devel libXfixes-devel libXrandr-devel libxcb-devel libxkbcommon-devel` | `libX11-devel libXfixes-devel libXrandr-devel libxcb-devel libxkbcommon-devel` |
 | evdev                | `libevdev`            | `libevdev-dev`                 | `libevdev-devel`             | `libevdev-devel`        |
 | Opus                 | `opus`                | `libopus-dev`                  | `opus-devel`                 | `opus-devel`            |
-| FFmpeg               | `ffmpeg`              | `ffmpeg`                       | `ffmpeg-devel`               | `ffmpeg-4-devel`        |
+| FFmpeg               | `ffmpeg`              | `ffmpeg`                       | `ffmpeg-devel`               | `ffmpeg-devel`          |
 
 ### Capture / streaming
 

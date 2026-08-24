@@ -91,9 +91,6 @@ CUDA is used for NVFBC capture.
         <td>sunshine-ubuntu-24.04-{arch}.deb</td>
     </tr>
     <tr>
-        <td>sunshine-ubuntu-26.04-{arch}.deb</td>
-    </tr>
-    <tr>
         <td>sunshine-debian-trixie-{arch}.deb</td>
     </tr>
     <tr>
@@ -156,8 +153,8 @@ pacman -S sunshine
 ##### Install PKGBUILD Archive
 Open terminal and run the following command.
 ```bash
-wget https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.pkg.tar.gz
-tar -xvf sunshine.pkg.tar.gz
+wget https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.pkg.tar.zst
+tar -xvf sunshine.pkg.tar.zst
 cd sunshine
 
 # install optional dependencies
@@ -682,13 +679,13 @@ Tutorial videos are available [here](https://www.youtube.com/playlist?list=PLMYr
 Guides are available [here](guides.md).
 
 @admonition{Community! |
-Tutorials and Guides are community generated. Want to contribute? Reach out to us on our discord server.}
+Tutorials and Guides are community generated. Want to contribute? Check out our [Contributing Guide](contributing.md) or open an issue on [GitHub](https://github.com/vindeckyy/Solar-Flare/issues).}
 
 <div class="section_buttons">
 
-| Previous                 |                      Next |
-|:-------------------------|--------------------------:|
-| [Overview](../README.md) | [Changelog](changelog.md) |
+| Previous                 |                                            Next |
+|:-------------------------|------------------------------------------------:|
+| [Overview](../README.md) | [Changelog](CHANGELOG-SolarFlare.md) |
 
 </div>
 

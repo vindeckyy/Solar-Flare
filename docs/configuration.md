@@ -389,7 +389,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="3">Choices</td>
+        <td rowspan="4">Choices</td>
         <td>auto</td>
         <td colspan="2">Detect KWin and prefer krfb-virtualmonitor, falling back to
             labwc for other Wayland compositors.</td>
@@ -401,6 +401,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>krfb</td>
         <td colspan="2">Use krfb-virtualmonitor backend for KWin environments.</td>
+    </tr>
+    <tr>
+        <td>gamescope</td>
+        <td colspan="2">Use gamescope nested micro-compositor for sandboxed game rendering.</td>
     </tr>
 </table>
 
@@ -4117,19 +4121,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-<div class="section_buttons">
-
-| Previous          |                            Next |
-|:------------------|--------------------------------:|
-| [Legal](legal.md) | [App Examples](app_examples.md) |
-
-</div>
-
-<details style="display: none;">
-  <summary></summary>
-  [TOC]
-</details>
-
 ## SolarFlare Fork
 
 @admonition{ Fork-only | These options exist only in the SolarFlare fork
@@ -4444,6 +4435,41 @@ identical to a build without this configuration section. }
     </tr>
 </table>
 
+### latency_mode
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Select bounded safe defaults or tighter latency-first media and scaling behavior.
+            `safe` keeps latency reductions that do not trade visual quality; `aggressive`
+            tightens the audio capture queue and uses fast-bilinear software scaling.
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            safe
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="2">Choices</td>
+        <td>safe</td>
+        <td>Bounded, quality-preserving defaults.</td>
+    </tr>
+    <tr>
+        <td>aggressive</td>
+        <td>Tighter audio queues and faster scaler tradeoffs.</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            latency_mode = aggressive
+            @endcode</td>
+    </tr>
+</table>
+
 ### idle_timeout_min
 
 <table>
@@ -4496,6 +4522,58 @@ identical to a build without this configuration section. }
         <td>Example</td>
         <td colspan="2">@code{}
             webhook_secret = change-me
+            @endcode</td>
+    </tr>
+</table>
+
+### webhook_url_<n>
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Numbered webhook destination URLs notified on stream start and stop events.
+            SolarFlare POSTs a JSON lifecycle payload to each configured endpoint.
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            (empty)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            webhook_url_0 = https://example.com/hooks/stream
+            @endcode</td>
+    </tr>
+</table>
+
+### client_profile_<name>_<field>
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Per-client streaming profiles keyed by Moonlight client device name (`uniqueid`).
+            Supported fields include `max_bitrate` (kbps), `hevc_mode`, `av1_mode`, and
+            `latency_mode` (`safe` or `aggressive`). A value of `0` falls back to the global setting.
+            @note{This option only exists in the SolarFlare fork.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            (empty)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            client_profile_Phone_max_bitrate = 15000
+            client_profile_Phone_latency_mode = aggressive
             @endcode</td>
     </tr>
 </table>
@@ -4554,6 +4632,174 @@ identical to a build without this configuration section. }
     </tr>
 </table>
 
+### sf_audio_agc_target_db
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Target RMS loudness for automatic gain control in dBFS.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -20
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-40 to -6</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_target_db = -18
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_max_gain_db
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Maximum boost in dB that automatic gain control can apply.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            12
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0 to 30</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_max_gain_db = 15
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_min_gain_db
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Maximum cut in dB that automatic gain control can apply.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -12
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-30 to 0</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_min_gain_db = -10
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_attack_ms
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Attack time in milliseconds for automatic gain control to ramp gain up.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            10
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1 to 500</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_attack_ms = 8
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_hold_ms
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Hold duration in milliseconds before automatic gain control starts releasing.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            200
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0 to 5000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_hold_ms = 150
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_agc_release_ms
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Release time in milliseconds for automatic gain control to ramp gain back down.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_agc](#sf_audio_agc).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            100
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1 to 5000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_agc_release_ms = 80
+            @endcode</td>
+    </tr>
+</table>
+
 ### sf_audio_vad
 
 <table>
@@ -4575,6 +4821,118 @@ identical to a build without this configuration section. }
         <td>Example</td>
         <td colspan="2">@code{}
             sf_audio_vad = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_vad_threshold_db
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Voice activity detection threshold in dBFS.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -45
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-80 to -10</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_vad_threshold_db = -40
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_vad_hysteresis_db
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Hysteresis band in dB around VAD threshold to prevent rapid fluttering.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            6
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0 to 30</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_vad_hysteresis_db = 5
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_vad_min_speech_ms
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Minimum speech duration in milliseconds before triggering voice-active state.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            100
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">10 to 2000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_vad_min_speech_ms = 80
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_vad_min_silence_ms
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Minimum silence duration in milliseconds before releasing voice-active state.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_vad](#sf_audio_vad).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            200
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">10 to 5000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_vad_min_silence_ms = 150
             @endcode</td>
     </tr>
 </table>
@@ -4605,6 +4963,90 @@ identical to a build without this configuration section. }
     </tr>
 </table>
 
+### sf_audio_ducker_attenuation_db
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Game audio attenuation in dB applied when ducking is triggered.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_ducking](#sf_audio_ducking).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -12
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-40 to 0</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_ducker_attenuation_db = -15
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_ducker_attack_ms
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Ramp-down speed in milliseconds when speech starts.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_ducking](#sf_audio_ducking).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            50
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1 to 2000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_ducker_attack_ms = 40
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_ducker_release_ms
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Ramp-up recovery speed in milliseconds when speech ends.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_ducking](#sf_audio_ducking).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            500
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1 to 5000</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_ducker_release_ms = 400
+            @endcode</td>
+    </tr>
+</table>
+
 ### sf_audio_noise_gate
 
 <table>
@@ -4627,6 +5069,34 @@ identical to a build without this configuration section. }
         <td>Example</td>
         <td colspan="2">@code{}
             sf_audio_noise_gate = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### sf_audio_noise_gate_db
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Noise gate threshold in dBFS. Audio power below this level is muted.
+            @note{This option only exists in the SolarFlare fork. Requires [sf_audio_noise_gate](#sf_audio_noise_gate).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            -55
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">-90 to -10</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            sf_audio_noise_gate_db = -50
             @endcode</td>
     </tr>
 </table>
@@ -4796,3 +5266,16 @@ identical to a build without this configuration section. }
             @endcode</td>
     </tr>
 </table>
+
+<div class="section_buttons">
+
+| Previous          |                            Next |
+|:------------------|--------------------------------:|
+| [Legal](legal.md) | [App Examples](app_examples.md) |
+
+</div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

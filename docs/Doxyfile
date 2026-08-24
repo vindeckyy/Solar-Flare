@@ -39,12 +39,15 @@ PREDEFINED += SUNSHINE_TRAY=1
 USE_MDFILE_AS_MAINPAGE = ../README.md
 INPUT = ../README.md \
         getting_started.md \
+        CHANGELOG-SolarFlare.md \
         changelog.md \
         ../DOCKER_README.md \
         third_party_packages.md \
         gamestream_migration.md \
         legal.md \
+        CONFIGURATION.md \
         configuration.md \
+        PORTING.md \
         app_examples.md \
         awesome_sunshine.md \
         guides.md \

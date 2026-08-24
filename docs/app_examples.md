@@ -30,7 +30,7 @@ and applications to SolarFlare.
     \| Field                        \| Value                                                \|
     \|------------------------------\|------------------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
-    \| Command Preporations -> Undo \| @code{}setsid steam steam://close/bigpicture@endcode \|
+    \| Command Preparations -> Undo \| @code{}setsid steam steam://close/bigpicture@endcode \|
     \| Detached Commands            \| @code{}setsid steam steam://open/bigpicture@endcode  \|
     \| Image                        \| @code{}steam.png@endcode                             \|
   }
@@ -38,7 +38,7 @@ and applications to SolarFlare.
     \| Field                        \| Value                                                \|
     \|------------------------------\|------------------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
-    \| Command Preporations -> Undo \| @code{}setsid steam steam://close/bigpicture@endcode \|
+    \| Command Preparations -> Undo \| @code{}setsid steam steam://close/bigpicture@endcode \|
     \| Detached Commands            \| @code{}setsid steam steam://open/bigpicture@endcode  \|
     \| Image                        \| @code{}steam.png@endcode                             \|
   }
@@ -46,7 +46,7 @@ and applications to SolarFlare.
     \| Field                        \| Value                                          \|
     \|------------------------------\|------------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode               \|
-    \| Command Preporations -> Undo \| @code{}open steam://close/bigpicture@endcode   \|
+    \| Command Preparations -> Undo \| @code{}open steam://close/bigpicture@endcode   \|
     \| Detached Commands            \| @code{}open steam://open/bigpicture@endcode    \|
     \| Image                        \| @code{}steam.png@endcode                       \|
   }
@@ -54,7 +54,7 @@ and applications to SolarFlare.
     \| Field                        \| Value                                     \|
     \|------------------------------\|-------------------------------------------\|
     \| Application Name             \| @code{}Steam Big Picture@endcode          \|
-    \| Command Preporations -> Undo \| @code{}steam://close/bigpicture@endcode   \|
+    \| Command Preparations -> Undo \| @code{}steam://close/bigpicture@endcode   \|
     \| Detached Commands            \| @code{}steam://open/bigpicture@endcode    \|
     \| Image                        \| @code{}steam.png@endcode                  \|
   }
@@ -76,7 +76,7 @@ and applications to SolarFlare.
   }
 }
 
-#### Binary (w/ working directory
+#### Binary (w/ working directory)
 @tabs{
   @tab{Windows | <!-- -->
     \| Field             \| Value                                                      \|
@@ -131,28 +131,28 @@ and applications to SolarFlare.
   }
 }
 
-#### Binary (w/ working directory
+#### Binary (w/ working directory)
 @tabs{
   @tab{FreeBSD | <!-- -->
-    \| Field             \| Value                                                        \|
-    \|-------------------\|--------------------------------------------------------------\|
-    \| Application Name  \| @code{}Surviving Mars@endcode                                \|
-    \| Command           \| @code{}MarsSteam@endcode                                     \|
-    \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
+    \| Field             \| Value                                                         \|
+    \|-------------------\|---------------------------------------------------------------\|
+    \| Application Name  \| @code{}Surviving Mars@endcode                                 \|
+    \| Command           \| @code{}MarsSteam@endcode                                      \|
+    \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Surviving Mars@endcode \|
   }
   @tab{Linux | <!-- -->
-    \| Field             \| Value                                                        \|
-    \|-------------------\|--------------------------------------------------------------\|
-    \| Application Name  \| @code{}Surviving Mars@endcode                                \|
-    \| Command           \| @code{}MarsSteam@endcode                                     \|
-    \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
+    \| Field             \| Value                                                         \|
+    \|-------------------\|---------------------------------------------------------------\|
+    \| Application Name  \| @code{}Surviving Mars@endcode                                 \|
+    \| Command           \| @code{}MarsSteam@endcode                                      \|
+    \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Surviving Mars@endcode \|
   }
   @tab{macOS | <!-- -->
-    \| Field             \| Value                                                        \|
-    \|-------------------\|--------------------------------------------------------------\|
-    \| Application Name  \| @code{}Surviving Mars@endcode                                \|
-    \| Command           \| @code{}MarsSteam@endcode                                     \|
-    \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
+    \| Field             \| Value                                                         \|
+    \|-------------------\|---------------------------------------------------------------\|
+    \| Application Name  \| @code{}Surviving Mars@endcode                                 \|
+    \| Command           \| @code{}MarsSteam@endcode                                      \|
+    \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Surviving Mars@endcode \|
   }
   @tab{Windows | <!-- -->
     \| Field             \| Value                                                                         \|
@@ -166,22 +166,22 @@ and applications to SolarFlare.
 #### Binary (w/o working directory)
 @tabs{
   @tab{FreeBSD | <!-- -->
-    \| Field             \| Value                                                                  \|
-    \|-------------------\|------------------------------------------------------------------------\|
-    \| Application Name  \| @code{}Surviving Mars@endcode                                          \|
-    \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
+    \| Field             \| Value                                                                   \|
+    \|-------------------\|-------------------------------------------------------------------------\|
+    \| Application Name  \| @code{}Surviving Mars@endcode                                           \|
+    \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Surviving Mars/MarsSteam@endcode \|
   }
   @tab{Linux | <!-- -->
-    \| Field             \| Value                                                                  \|
-    \|-------------------\|------------------------------------------------------------------------\|
-    \| Application Name  \| @code{}Surviving Mars@endcode                                          \|
-    \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
+    \| Field             \| Value                                                                   \|
+    \|-------------------\|-------------------------------------------------------------------------\|
+    \| Application Name  \| @code{}Surviving Mars@endcode                                           \|
+    \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Surviving Mars/MarsSteam@endcode \|
   }
   @tab{macOS | <!-- -->
-    \| Field             \| Value                                                                  \|
-    \|-------------------\|------------------------------------------------------------------------\|
-    \| Application Name  \| @code{}Surviving Mars@endcode                                          \|
-    \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
+    \| Field             \| Value                                                                   \|
+    \|-------------------\|-------------------------------------------------------------------------\|
+    \| Application Name  \| @code{}Surviving Mars@endcode                                           \|
+    \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Surviving Mars/MarsSteam@endcode \|
   }
   @tab{Windows | <!-- -->
     \| Field             \| Value                                                                                       \|
@@ -381,6 +381,26 @@ UAC prompt.
     }
   ],
   "image-path": ""
+}
+```
+
+## Per-Application Encoder Preset
+
+SolarFlare allows configuring an application-specific NVENC encoder tuning preset via the `encoder-preset` field in `apps.json`:
+
+- `-1`: Inherit host default configuration (`nvenc_tuning_preset`).
+- `0`: Latency (low-delay, zero B-frames).
+- `1`: Balanced (balanced performance/quality trade-off).
+- `2`: Quality (2-pass high visual quality).
+
+**Example**
+```json
+{
+  "name": "Competitive Fast Shooter",
+  "output": "",
+  "cmd": "shootergamelauncher",
+  "encoder-preset": 0,
+  "image-path": "shooter.png"
 }
 ```
 

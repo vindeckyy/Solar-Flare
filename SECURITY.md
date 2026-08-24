@@ -41,9 +41,9 @@ maintainer will coordinate with upstream as needed.
 
 | Version | Supported |
 |---|---|
-| Latest `1.0.x` release | Yes |
+| Latest `1.2.x` release | Yes |
 | `master` | Yes |
-| Older `1.0.x` releases | Best effort until the next release |
+| Older `1.x` releases | Best effort until the next release |
 | Pre-`1.0` tags | No |
 
 There is no LTS branch and no `release/X` long-term-support branches. If you

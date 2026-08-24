@@ -19,7 +19,7 @@ const USES = [
 
 const STATS = [
   { n: '0', label: 'cloud services in the stream path' },
-  { n: '34', label: 'fork-specific tunables (10 host + 24 audio)' },
+  { n: '35', label: 'fork-specific tunables (11 host + 24 audio)' },
   { n: '6', label: 'Linux distro families auto-detected' },
 ]
 

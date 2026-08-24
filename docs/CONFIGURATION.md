@@ -31,6 +31,10 @@ still supported.
 | `idle_timeout_min`    | int | 0   | 0-600   | Automatically stop a stream after this many minutes without client input. 0 disables the watchdog. |
 | `skip_wayland_correlation` | bool | false | -    | Skip Wayland monitor correlation during KMS display enumeration. Only needed if the compositor still fails to report output metadata; leaving it `false` preserves absolute mouse coordinates. |
 | `latency_mode`        | string | safe | safe/aggressive | Select bounded safe defaults or tighter latency-first media/scaling behavior. |
+| `nvenc_tuning_preset` | int    | -1   | -1 to 2 | One-click NVENC profile: -1 (manual), 0 (latency), 1 (balanced), 2 (quality). |
+| `trusted_subnets`     | string | ""   | -       | Comma-separated CIDR subnets allowed for auto-pairing without PIN (e.g. `10.0.0.0/8,192.168.1.0/24`). |
+| `trusted_subnet_auto_pairing` | bool | false | - | Automatically pair clients connecting from `trusted_subnets`. |
+| `api_tokens`          | string | ""   | -       | Scoped automation API tokens (`name\thash\tsalt\tscopes\|...`). Managed via Web UI or `/api/tokens`. |
 | `webhook_secret`      | string | "" | -      | HMAC-SHA256 secret used to sign webhook payloads (`X-Solarflare-Signature` header). |
 | `webhook_url_<n>`     | string | "" | -      | A webhook URL notified on stream start/stop. Numbered keys, e.g. `webhook_url_0`. |
 
@@ -197,7 +201,7 @@ to set an explicit mode; without them `xrandr --auto` reports a
 
 Linux-only, requires an X11 display server running (Xorg or XWayland).
 
-### `headless_width` / `headless_height` / `headless_refresh`
+### `headless_width` / `headless_height` / `headless_refresh` <a id="headless_width"></a><a id="headless_height"></a><a id="headless_refresh"></a>
 
 Override the resolution and refresh rate of the headless virtual display
 instead of always following the client's requested mode. Applied both to the
@@ -423,6 +427,36 @@ gamepad), freeing the capture/encode pipeline and letting other clients
 connect. The watchdog checks every few seconds and logs a distinct
 "Idle timeout" reason. The key is hot-reloadable via the config watcher.
 
+## NVENC tuning presets
+
+`nvenc_tuning_preset` provides single-knob tuning for NVIDIA NVENC encoders without manually tweaking individual low-level parameters:
+
+- `-1` (default): Manual / driver defaults.
+- `0` (Latency): Configures low-latency rate control, disabled B-frames, and zerolatency tuning.
+- `1` (Balanced): Balanced rate control and multi-pass encoding.
+- `2` (Quality): High-quality 2-pass encoding with spatial adaptive quantization (`spatial_aq`).
+
+## Trusted subnets and auto-pairing
+
+Configure CIDR subnets allowed to connect and pair without requiring a PIN:
+
+```bash
+trusted_subnets = 192.168.1.0/24,10.0.0.0/8
+trusted_subnet_auto_pairing = enabled
+```
+
+When `trusted_subnet_auto_pairing` is enabled, Moonlight clients originating from any address within `trusted_subnets` are automatically paired on first connection.
+
+## Scoped API tokens
+
+External scripts and automation tools can authenticate to the REST API using scoped bearer tokens configured in `sunshine.conf` or minted via `POST /api/tokens`:
+
+```bash
+api_tokens = home-assistant	$2b$12$...	salt123	stream:control,logs:get|dashboard	$2b$12$...	salt456	stream:stats
+```
+
+Tokens use pipe-separated entries with tab-separated fields: `name\thash\tsalt\tscopes`. Available scopes: `admin`, `stream:control`, `stream:stats`, `logs:get`, `config:read`, `config:write`.
+
 ## A quick A/B test
 
 To verify the fork keys are working, run:
@@ -488,7 +522,7 @@ After installing a new SolarFlare build:
 2. Confirm the installed binary contains the fork identity with
    `strings /usr/local/bin/sunshine | grep -m1 SolarFlare`.
 3. Open `https://localhost:47990`. Audio FX and Opus controls should appear in
-   the Audio/Video tab. The ten lower-level network, scheduling, and capture
+   the Audio/Video tab. The lower-level network, scheduling, and capture
    tunables remain file-only controls in `~/.config/sunshine/sunshine.conf`.
 4. Run `tests/unit/test_config_fork_keys.cpp` through `test_sunshine` when
    changing these keys; the test owns the source/default/documentation

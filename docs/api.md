@@ -123,7 +123,56 @@ Linux-only; other platforms return an object with only `window_s`.
 ## GET /api/health
 @copydoc confighttp::getHealth()
 
-Unauthenticated. Returns `{ "status": "ok", "status_code": 200, "version": "2026.809.1", "uptime": <seconds> }` where `version` is `PROJECT_VERSION` and `uptime` is seconds since the confighttp server started. Use for load-balancer and container health checks.
+Unauthenticated. Returns `{ "status": "ok", "status_code": 200, "version": "2026.824.1", "uptime": <seconds> }` where `version` is `PROJECT_VERSION` and `uptime` is seconds since the confighttp server started. Use for load-balancer and container health checks.
+
+## GET /api/games/scan
+@copydoc confighttp::scanGames()
+
+Requires authentication. API tokens need the `apps:get` scope.
+
+Scans the local Linux host for installed Steam, Lutris, and Heroic games and returns a list of discovered titles, executable paths, and launcher sources.
+
+## GET /api/stream/bitrate
+@copydoc confighttp::getBitrate()
+
+Requires authentication. API tokens need the `config:get` scope.
+
+Returns the current state and bounds of the adaptive bitrate controller (`adaptive_bitrate_enabled`, `adaptive_bitrate_min_kbps`, `adaptive_bitrate_max_kbps`).
+
+## POST /api/stream/network-stats
+@copydoc confighttp::postNetworkStats()
+
+Requires authentication. API tokens need the `logs:get` scope.
+
+Ingests real-time network feedback from client applications (`packet_loss_pct`, `rtt_ms`) into the adaptive bitrate pacing queue.
+
+## GET /api/errors
+@copydoc confighttp::getErrors()
+
+Requires authentication. API tokens need the `logs:get` scope.
+
+Returns categorized error counters across host subsystems (`encoder`, `capture`, `network`, `session`, `process`, `config`, `crypto`, `unknown`, `total`).
+
+## GET /api/tokens
+@copydoc confighttp::listTokens()
+
+Requires authentication (admin / `tokens:manage` scope).
+
+Returns the list of active automation API tokens and their granted scopes. Hashes and salts are never returned.
+
+## POST /api/tokens
+@copydoc confighttp::createToken()
+
+Requires authentication (admin / `tokens:manage` scope).
+
+Mints a new scoped API token. The plaintext secret token is returned in the response body exactly once.
+
+## DELETE /api/tokens/{name}
+@copydoc confighttp::deleteToken()
+
+Requires authentication (admin / `tokens:manage` scope).
+
+Revokes and removes a named API token from active authorization.
 
 ## GET /api/sessions
 @copydoc confighttp::getSessions()
@@ -137,6 +186,27 @@ Query parameters: `limit` (default 100), `app` (substring filter),
 `app_name`, `client_name`, `client_address`, `codec`, `width`, `height`,
 `fps`, `avg_bitrate_kbps`, `avg_rtt_ms`, `avg_encode_ms`, `dropped_frames`,
 and `error` (end reason, empty for a clean stop).
+
+## GET /api/update
+@copydoc confighttp::getUpdateStatus()
+
+Requires authentication. API tokens need the `config:get` scope.
+
+Returns current self-update status, lifecycle phase (`idle`, `downloading`, `ready`, `waiting_idle`, `installing`, `error`), percentage, release notes, and staging logs.
+
+## POST /api/update/start
+@copydoc confighttp::startUpdate()
+
+Requires authentication and CSRF validation for browser clients (`*` scope).
+
+Initiates background download and SHA-256 checksum verification of the latest SolarFlare Linux release payload from GitHub.
+
+## POST /api/update/apply
+@copydoc confighttp::applyUpdate()
+
+Requires authentication and CSRF validation for browser clients (`*` scope).
+
+Applies a downloaded release archive immediately (`when_idle: false`) or queues installation to run once all active streaming sessions disconnect (`when_idle: true`).
 
 ## POST /api/update/cancel
 @copydoc confighttp::cancelUpdate()

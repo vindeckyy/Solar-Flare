@@ -239,7 +239,7 @@ namespace config {
       bool headless_mode = false;  ///< Master switch for private compositor streaming
       bool use_cage_compositor = false;  ///< Route games into labwc nested compositor
       bool prefer_gpu_native_capture = false;  ///< Prefer DMA-BUF even if windowed labwc needed
-      std::string compositor_backend = "auto";  ///< Headless backend: "auto", "labwc", or "krfb"
+      std::string compositor_backend = "auto";  ///< Headless backend: "auto", "labwc", "krfb", or "gamescope"
 
       /// Override the virtual display resolution used by the headless
       /// compositor. 0 = follow the client's requested resolution.

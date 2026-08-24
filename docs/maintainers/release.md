@@ -8,9 +8,9 @@ Two version identifiers are retained intentionally. Examples below use the
 *next* release identifiers so the commands stay copy-paste templates:
 
 - The public release title uses chronological SemVer, such as
-  `SolarFlare v1.2.0`.
+  `SolarFlare v1.2.2`.
 - The compatibility build tag uses `v<YYYY>.<MDD>.<revision>-solarflare`, such
-  as `v2026.807.1-solarflare`. The executable reports this build version.
+  as `v2026.824.1-solarflare`. The executable reports this build version.
 
 The current published release is documented in the repository README.
 
@@ -34,13 +34,15 @@ version never carries a `-dirty` suffix.
 Preview the release transaction:
 
 ```bash
-./scripts/release.sh 2026.807.1 1.2.0 --dry-run
+./scripts/release.sh <build-version> <semver> --dry-run
+# Example: ./scripts/release.sh 2026.824.1 1.2.2 --dry-run
 ```
 
 Create the synchronized version commit and compatibility tag without pushing:
 
 ```bash
-./scripts/release.sh 2026.807.1 1.2.0 --no-push
+./scripts/release.sh <build-version> <semver> --no-push
+# Example: ./scripts/release.sh 2026.824.1 1.2.2 --no-push
 ```
 
 The script updates `CMakeLists.txt`, `pyproject.toml`, `uv.lock`, the README
@@ -84,21 +86,24 @@ Push the release commit and compatibility tag only after local verification:
 
 ```bash
 git push origin master
-git push origin v2026.807.1-solarflare
+git push origin v<build-version>-solarflare
+# Example: git push origin v2026.824.1-solarflare
 ```
 
 Create the GitHub release manually and upload the three verified local files:
 
 ```bash
-gh release create v2026.807.1-solarflare \
+gh release create v<build-version>-solarflare \
   sunshine-x86_64 \
   solarflare-linux-x86_64.tar.gz \
   SHA256SUMS \
   --repo vindeckyy/Solar-Flare \
   --verify-tag \
   --latest \
-  --title 'SolarFlare v1.2.0' \
+  --title 'SolarFlare v<semver>' \
   --notes-file release-notes.md
+# Example:
+# gh release create v2026.824.1-solarflare sunshine-x86_64 solarflare-linux-x86_64.tar.gz SHA256SUMS --repo vindeckyy/Solar-Flare --verify-tag --latest --title 'SolarFlare v1.2.2' --notes-file release-notes.md
 ```
 
 Download the published assets into a clean directory and rerun

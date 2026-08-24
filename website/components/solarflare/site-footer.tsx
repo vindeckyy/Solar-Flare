@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { GitFork, ArrowRight } from 'lucide-react'
 import { Logo } from './logo'
 import { Button } from '@/components/ui/button'
@@ -5,12 +6,15 @@ import { Button } from '@/components/ui/button'
 const REPO = 'https://github.com/vindeckyy/Solar-Flare'
 
 const LINKS = [
-  { label: 'Configuration', href: `${REPO}/blob/master/docs/CONFIGURATION.md` },
-  { label: 'Changelog', href: `${REPO}/blob/master/docs/CHANGELOG-SolarFlare.md` },
-  { label: 'Porting guide', href: `${REPO}/blob/master/docs/PORTING.md` },
-  { label: 'API', href: `${REPO}/blob/master/docs/api.md` },
-  { label: 'Security', href: `${REPO}/blob/master/SECURITY.md` },
-  { label: 'Releases', href: `${REPO}/releases/latest` },
+  { label: 'Documentation', href: '/docs', internal: true },
+  { label: 'Quickstart', href: '/docs/getting-started', internal: true },
+  { label: 'Configuration', href: '/docs/configuration', internal: true },
+  { label: 'Performance', href: '/docs/performance-tuning', internal: true },
+  { label: 'API Reference', href: '/docs/api', internal: true },
+  { label: 'Porting Guide', href: '/docs/porting', internal: true },
+  { label: 'Security', href: '/docs/security', internal: true },
+  { label: 'Changelog', href: '/docs/changelog', internal: true },
+  { label: 'Releases', href: `${REPO}/releases/latest`, internal: false },
 ]
 
 export function SiteFooter() {
@@ -39,13 +43,7 @@ export function SiteFooter() {
               variant="outline"
               nativeButton={false}
               className="h-11 gap-2 border-border px-5 text-sm font-medium"
-              render={
-                <a
-                  href={`${REPO}/blob/master/docs/CONFIGURATION.md`}
-                  target="_blank"
-                  rel="noreferrer"
-                />
-              }
+              render={<Link href="/docs" />}
             >
               Read the docs
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -66,17 +64,27 @@ export function SiteFooter() {
             </p>
           </div>
           <nav className="grid grid-cols-2 gap-x-12 gap-y-2 sm:grid-cols-3" aria-label="Footer">
-            {LINKS.map((l) => (
-              <a
-                key={l.label}
-                href={l.href}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {l.label}
-              </a>
-            ))}
+            {LINKS.map((l) =>
+              l.internal ? (
+                <Link
+                  key={l.label}
+                  href={l.href}
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {l.label}
+                </Link>
+              ) : (
+                <a
+                  key={l.label}
+                  href={l.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {l.label}
+                </a>
+              )
+            )}
           </nav>
         </div>
         <div className="mt-10 flex flex-col gap-2 border-t border-border pt-6 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
