@@ -7,6 +7,7 @@ import { Logo } from '@/components/solarflare/logo'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { DOC_CATEGORIES } from '@/lib/docs-data'
+import { ModKbdLabel } from '@/components/docs/mod-kbd-label'
 
 const REPO = 'https://github.com/vindeckyy/Solar-Flare'
 
@@ -28,7 +29,7 @@ export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
   const pathname = usePathname()
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md print:hidden">
       <div className="mx-auto flex h-14 max-w-[88rem] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 min-w-0">
           {onToggleSidebar && (
@@ -58,7 +59,7 @@ export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
               <span>Search docs, settings, APIs...</span>
             </span>
             <kbd className="inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-              ⌘K
+              <ModKbdLabel />
             </kbd>
           </button>
         </div>
@@ -108,6 +109,7 @@ export function DocsHeader({ onOpenSearch, onToggleSidebar }: DocsHeaderProps) {
               <Link
                 key={cat.name}
                 href={href}
+                aria-current={active ? 'page' : undefined}
                 className={cn(
                   'relative shrink-0 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors',
                   active

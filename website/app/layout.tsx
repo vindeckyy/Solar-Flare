@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || 'https://vindeckyy.github.io/Solar-Flare'
+  ),
   title: 'SolarFlare: a game-streaming host for Moonlight',
   description:
     'SolarFlare is a self-hosted game-streaming server for Moonlight with Linux capture, local-network tuning, and a Web UI for host control.',
@@ -59,6 +62,7 @@ export const metadata: Metadata = {
     description:
       'A Linux game-streaming host for Moonlight, built for local networks.',
     type: 'website',
+    images: [`${basePath}/sf-web-ui-featured.png`],
   },
 }
 

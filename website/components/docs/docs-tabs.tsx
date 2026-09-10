@@ -33,6 +33,17 @@ export function DocsTabs({ tabs, defaultTab, ariaLabel, children }: DocsTabsProp
         role="tablist"
         aria-label={ariaLabel || 'Content tabs'}
         className="flex flex-wrap gap-1 rounded-xl border border-border bg-background p-1"
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+          e.preventDefault()
+          const idx = tabs.findIndex((t) => t.id === active)
+          const next =
+            e.key === 'ArrowRight'
+              ? (idx + 1) % tabs.length
+              : (idx - 1 + tabs.length) % tabs.length
+          setActive(tabs[next].id)
+          document.getElementById(`${groupId}-${tabs[next].id}`)?.focus()
+        }}
       >
         {tabs.map((tab) => {
           const selected = active === tab.id
@@ -44,6 +55,7 @@ export function DocsTabs({ tabs, defaultTab, ariaLabel, children }: DocsTabsProp
               role="tab"
               aria-selected={selected}
               aria-controls={`${groupId}-panel-${tab.id}`}
+              tabIndex={selected ? 0 : -1}
               disabled={tab.disabled}
               onClick={() => setActive(tab.id)}
               className={cn(

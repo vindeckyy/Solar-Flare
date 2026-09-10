@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { DocSection } from '@/lib/docs-data'
-import { AlignLeft, MessageSquare, ExternalLink } from 'lucide-react'
+import { AlignLeft, MessageSquare, ExternalLink, Pencil } from 'lucide-react'
 
 interface DocsTocProps {
   sections: DocSection[]
@@ -14,13 +14,20 @@ export function DocsToc({ sections }: DocsTocProps) {
   const [activeId, setActiveId] = useState<string>(sections[0]?.id || '')
 
   useEffect(() => {
+    const visible = new Set<string>()
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            setActiveId(entry.target.id)
+            visible.add(entry.target.id)
+          } else {
+            visible.delete(entry.target.id)
           }
         })
+        const topmost = sections.find((sec) => visible.has(sec.id))
+        if (topmost) {
+          setActiveId(topmost.id)
+        }
       },
       {
         rootMargin: '0px 0px -60% 0px',
@@ -67,6 +74,16 @@ export function DocsToc({ sections }: DocsTocProps) {
       </div>
 
       <div className="border-t border-border pt-4 space-y-2">
+        <a
+          href={`${REPO}/edit/master/website/lib/docs-data.ts`}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Pencil className="h-3.5 w-3.5 text-primary" />
+          <span>Edit this page</span>
+          <ExternalLink className="h-3 w-3 opacity-60 ml-auto" />
+        </a>
         <a
           href={`${REPO}/issues/new/choose`}
           target="_blank"

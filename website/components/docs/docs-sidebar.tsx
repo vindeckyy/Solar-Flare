@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Rocket, Sliders, Zap, Code2, Shield, Boxes, ChevronRight } from 'lucide-react'
@@ -21,9 +22,15 @@ interface DocsSidebarProps {
 
 export function DocsSidebar({ onLinkClick }: DocsSidebarProps) {
   const pathname = usePathname()
+  const asideRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const active = asideRef.current?.querySelector('[aria-current="page"]')
+    active?.scrollIntoView({ block: 'nearest' })
+  }, [pathname])
 
   return (
-    <aside className="w-full h-full py-6 pr-3 space-y-7 overflow-y-auto">
+    <aside ref={asideRef} className="w-full h-full py-6 pr-3 space-y-7 overflow-y-auto">
       <div>
         <Link
           href="/docs"
@@ -59,6 +66,7 @@ export function DocsSidebar({ onLinkClick }: DocsSidebarProps) {
                     key={item.slug}
                     href={itemHref}
                     onClick={onLinkClick}
+                    aria-current={isActive ? 'page' : undefined}
                     className={cn(
               'group flex items-center justify-between gap-2 rounded-md px-3 py-2 text-sm transition-all',
               isActive

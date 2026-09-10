@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { DocsHeader } from '@/components/docs/docs-header'
 import { DocsSidebar } from '@/components/docs/docs-sidebar'
 import { DocsSearchModal } from '@/components/docs/docs-search-modal'
@@ -9,12 +10,20 @@ import { X } from 'lucide-react'
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+  const pathname = usePathname()
+
+  useEffect(() => {
+    setIsMobileSidebarOpen(false)
+  }, [pathname])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setIsSearchOpen((open) => !open)
+      }
+      if (e.key === 'Escape') {
+        setIsMobileSidebarOpen(false)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -41,12 +50,18 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
       />
 
       {isMobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
+        <div className="fixed inset-0 z-50 flex lg:hidden print:hidden">
           <div
             className="fixed inset-0 bg-background/80 backdrop-blur-sm"
             onClick={() => setIsMobileSidebarOpen(false)}
+            aria-hidden="true"
           />
-          <div className="relative flex w-full max-w-xs flex-1 flex-col bg-card border-r border-border p-5 shadow-xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Documentation navigation"
+            className="relative flex w-full max-w-xs flex-1 flex-col bg-card border-r border-border p-5 shadow-xl"
+          >
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <span className="font-mono text-sm font-semibold text-primary uppercase tracking-wider">
                 Documentation
@@ -67,7 +82,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
 
       <div className="flex-1 mx-auto w-full max-w-[88rem]">
         <div className="flex">
-          <div className="hidden lg:block w-72 xl:w-[19rem] shrink-0 border-r border-border bg-card/70 min-h-[calc(100vh-6.5rem)]">
+          <div className="hidden lg:block w-72 xl:w-[19rem] shrink-0 border-r border-border bg-card/70 min-h-[calc(100vh-6.5rem)] print:hidden">
             <div className="sticky top-[6.5rem] h-[calc(100vh-6.5rem)] overflow-y-auto px-3">
               <DocsSidebar />
             </div>

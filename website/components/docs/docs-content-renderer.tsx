@@ -1,10 +1,8 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
-  Check,
-  Copy,
   Info,
   Lightbulb,
   AlertTriangle,
@@ -19,6 +17,7 @@ import {
   DocArticle,
   DocCallout,
   DocEndpoint,
+  DocImage,
   DocParam,
   DocSection,
   DocTab,
@@ -27,6 +26,7 @@ import {
 } from '@/lib/docs-data'
 import { DocsTabs } from '@/components/docs/docs-tabs'
 import { DocsMarkdown } from '@/components/docs/docs-markdown'
+import { DocsCodeBlock } from '@/components/docs/docs-code-block'
 
 interface DocsContentRendererProps {
   article: DocArticle
@@ -91,8 +91,14 @@ export function DocsContentRenderer({ article }: DocsContentRendererProps) {
           >
             <h2 className="flex items-center gap-3 text-xl font-semibold tracking-tight text-foreground">
               <span className="h-6 w-1 rounded-full bg-primary shadow-[0_0_12px_color-mix(in_oklch,var(--primary)_70%,transparent)]" />
-              <a href={`#${section.id}`} className="hover:text-primary transition-colors">
+              <a
+                href={`#${section.id}`}
+                className="group/anchor hover:text-primary transition-colors"
+              >
                 {section.title}
+                <span className="ml-1.5 font-mono text-sm text-primary opacity-0 transition-opacity group-hover/anchor:opacity-70">
+                  #
+                </span>
               </a>
             </h2>
             <SectionBody section={section} />
@@ -138,6 +144,8 @@ function SectionBody({ section }: { section: DocSection | DocTab }) {
 
       {section.callout && <CalloutBox type={section.callout.type} text={section.callout.text} />}
 
+      {section.image && <DocFigure image={section.image} />}
+
       {section.codeTabs && section.codeTabs.length > 0 ? (
         <DocsTabs
           tabs={section.codeTabs.map((tab, i) => ({
@@ -149,11 +157,11 @@ function SectionBody({ section }: { section: DocSection | DocTab }) {
           {(activeId) => {
             const tab =
               section.codeTabs!.find((t, i) => `${t.label}-${i}` === activeId) || section.codeTabs![0]
-            return <CodeBlockWithCopy code={tab.code} language={tab.language} />
+            return <DocsCodeBlock code={tab.code} language={tab.language} />
           }}
         </DocsTabs>
       ) : (
-        section.code && <CodeBlockWithCopy code={section.code.code} language={section.code.language} />
+        section.code && <DocsCodeBlock code={section.code.code} language={section.code.language} />
       )}
 
       {'tabs' in section && section.tabs && section.tabs.length > 0 && (
@@ -222,41 +230,22 @@ function DataTable({ table }: { table: DocTable }) {
   )
 }
 
-function CodeBlockWithCopy({ code, language }: { code: string; language: string }) {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
+function DocFigure({ image }: { image: DocImage }) {
   return (
-    <div className="relative group my-2 rounded-xl border border-border bg-[#0d0c0a] overflow-hidden shadow-lg shadow-black/20">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border/40 bg-muted/20 text-xs font-mono text-muted-foreground">
-        <span>{language}</span>
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-1 rounded bg-muted/40 hover:bg-muted text-foreground transition-colors"
-          aria-label="Copy code"
-        >
-          {copied ? (
-            <>
-              <Check className="h-3.5 w-3.5 text-green-500" />
-              <span className="text-green-500 text-[11px]">Copied</span>
-            </>
-          ) : (
-            <>
-              <Copy className="h-3.5 w-3.5" />
-              <span className="text-[11px]">Copy</span>
-            </>
-          )}
-        </button>
-      </div>
-      <pre className="p-4 overflow-x-auto text-xs sm:text-sm font-mono text-[#f3ede2] leading-relaxed">
-        <code>{code}</code>
-      </pre>
-    </div>
+    <figure className="my-3 overflow-hidden rounded-xl border border-border bg-card/60 shadow-lg shadow-black/20">
+      <Image
+        src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}${image.src}`}
+        alt={image.alt}
+        width={1440}
+        height={900}
+        className="w-full h-auto"
+      />
+      {image.caption && (
+        <figcaption className="border-t border-border/60 px-4 py-2.5 text-xs font-mono text-muted-foreground">
+          {image.caption}
+        </figcaption>
+      )}
+    </figure>
   )
 }
 
@@ -370,18 +359,14 @@ function EndpointCard({ endpoint }: { endpoint: DocEndpoint }) {
       {endpoint.requestBody && (
         <div className="space-y-1">
           <p className="font-mono text-xs text-muted-foreground font-semibold">Request Body</p>
-          <pre className="rounded-lg bg-[#0d0c0a] p-3 font-mono text-xs text-[#f3ede2] overflow-x-auto border border-border/40">
-            <code>{endpoint.requestBody}</code>
-          </pre>
+          <DocsCodeBlock code={endpoint.requestBody} language="json" />
         </div>
       )}
 
       {endpoint.responseBody && (
         <div className="space-y-1">
           <p className="font-mono text-xs text-muted-foreground font-semibold">Response Example</p>
-          <pre className="rounded-lg bg-[#0d0c0a] p-3 font-mono text-xs text-[#f3ede2] overflow-x-auto border border-border/40">
-            <code>{endpoint.responseBody}</code>
-          </pre>
+          <DocsCodeBlock code={endpoint.responseBody} language="json" />
         </div>
       )}
     </div>

@@ -35,6 +35,17 @@ export interface DocTable {
 }
 
 /**
+ * @brief A screenshot or figure embedded in a section.
+ * @remarks `src` is resolved relative to the website `public/` directory;
+ * the site base path is prepended automatically at render time.
+ */
+export interface DocImage {
+  src: string
+  alt: string
+  caption?: string
+}
+
+/**
  * @brief One panel inside a DocsTabs group.
  */
 export interface DocTab {
@@ -47,6 +58,7 @@ export interface DocTab {
   params?: DocParam[]
   endpoints?: DocEndpoint[]
   table?: DocTable
+  image?: DocImage
 }
 
 export interface DocSection {
@@ -62,6 +74,7 @@ export interface DocSection {
   table?: DocTable
   /** Named content panels rendered as a tab strip. */
   tabs?: DocTab[]
+  image?: DocImage
 }
 
 export interface DocArticle {
@@ -249,6 +262,11 @@ export const DOC_ARTICLES: Record<string, DocArticle> = {
         title: 'Overview',
         content:
           'SolarFlare is a low-latency self-hosted game-streaming server for Moonlight clients. It runs on Linux hosts with native KMS/Wayland capture, hardware-accelerated NVENC, VA-API, and Vulkan encoding, and fine-grained host tunables.',
+        image: {
+          src: '/sf-web-ui-featured.png',
+          alt: 'SolarFlare Web UI featured applications view',
+          caption: 'The SolarFlare Web UI landing view after sign-in.',
+        },
       },
       {
         id: 'automated-install',
@@ -337,12 +355,22 @@ journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -f`,
           type: 'important',
           text: 'On first launch, the Web UI prompts you to create an administrator username and password. Keep these credentials safe!',
         },
+        image: {
+          src: '/sf-web-ui-home.png',
+          alt: 'SolarFlare Web UI home page',
+          caption: 'Web UI home after the first-run credential setup.',
+        },
       },
       {
         id: 'pairing',
         title: 'Pairing Moonlight Clients',
         content:
           '1. Open the Moonlight client on your client device (PC, phone, tablet, Apple TV, Steam Deck).\n2. Select your host computer from the list or enter your host LAN IP address.\n3. Moonlight will display a 4-digit PIN.\n4. Open the SolarFlare Web UI at https://localhost:47990/pin, enter the PIN, and click Pair.',
+        image: {
+          src: '/sf-web-ui-pin.png',
+          alt: 'SolarFlare Web UI PIN pairing form',
+          caption: 'Enter the 4-digit PIN shown by Moonlight to pair a client.',
+        },
       },
       {
         id: 'firewall',
@@ -485,6 +513,11 @@ sunshine --version 2>&1 | grep -m1 \'Fork: SolarFlare\'`,
         title: 'Configuration File Location',
         content:
           'SolarFlare settings live in \`~/.config/sunshine/sunshine.conf\`. You can edit this file directly or configure settings through the Web UI at https://localhost:47990/config.',
+        image: {
+          src: '/sf-web-ui-configuration.png',
+          alt: 'SolarFlare Web UI configuration page',
+          caption: 'The Web UI configuration editor mirrors sunshine.conf keys.',
+        },
       },
       {
         id: 'host-tunables',
@@ -1738,6 +1771,11 @@ sudo systemctl reboot
         title: 'Application Management in apps.json',
         content:
           'Applications and game shortcuts are stored in \`~/.config/sunshine/apps.json\`. You can manage apps through the Web UI Application tab or edit the JSON file directly.',
+        image: {
+          src: '/sf-web-ui-applications.png',
+          alt: 'SolarFlare Web UI applications editor',
+          caption: 'Manage launch commands and per-app overrides in the Applications tab.',
+        },
       },
       {
         id: 'steam-bigpicture',
@@ -1860,6 +1898,11 @@ sudo systemctl reboot
         title: 'Quick Diagnostic Checklist',
         content:
           'When encountering streaming issues, follow this verification flow:\n\n1. **Check Logs:** Open https://localhost:47990/logs or run \`journalctl --user -u app-dev.lizardbyte.app.Sunshine.service -n 100\`.\n2. **Check Port Bindings:** Verify UDP 47998-48010 and TCP 47984/47990 are listening (\`ss -tulwn | grep -E "4798|4799|4800|4801"\`).\n3. **Inspect Subsystem Errors:** Query \`/api/errors\` to check if encoder or capture counters are incrementing.',
+        image: {
+          src: '/sf-web-ui-troubleshooting.png',
+          alt: 'SolarFlare Web UI troubleshooting page',
+          caption: 'The Troubleshooting tab surfaces logs and recent errors in the Web UI.',
+        },
       },
       {
         id: 'display-capture',

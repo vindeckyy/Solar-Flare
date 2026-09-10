@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { type ReactNode } from 'react'
+import { DocsCodeBlock } from '@/components/docs/docs-code-block'
 
 function isSafeHref(href: string): boolean {
   return (
@@ -106,12 +107,7 @@ export function DocsMarkdown({ text }: { text: string }) {
         i += 1
       }
       blocks.push(
-        <pre
-          key={`fence-${block}`}
-          className="overflow-x-auto rounded-lg border border-border bg-[#0d0c0a] p-3 font-mono text-xs text-[#f3ede2]"
-        >
-          <code data-language={lang}>{body.join('\n')}</code>
-        </pre>,
+        <DocsCodeBlock key={`fence-${block}`} code={body.join('\n')} language={lang} />,
       )
       block += 1
       continue

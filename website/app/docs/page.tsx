@@ -10,7 +10,8 @@ import {
   Boxes,
   Shield,
 } from 'lucide-react'
-import { DOC_CATEGORIES } from '@/lib/docs-data'
+import { DOC_ARTICLES, DOC_CATEGORIES } from '@/lib/docs-data'
+import { ModKbdLabel } from '@/components/docs/mod-kbd-label'
 
 export const metadata = {
   title: 'Documentation | SolarFlare Game-Streaming Host',
@@ -79,7 +80,9 @@ export default function DocsPortalPage() {
             <span className="rounded-md bg-primary/10 border border-primary/20 px-2.5 py-1 font-mono text-xs font-semibold text-primary uppercase tracking-wider">
               Official Documentation
             </span>
-            <span className="text-xs font-mono text-muted-foreground">v1.3.0 · Linux Host</span>
+            <span className="text-xs font-mono text-muted-foreground">
+              v1.3.0 · Linux Host · {Object.keys(DOC_ARTICLES).length} articles
+            </span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-foreground text-balance">
@@ -87,7 +90,8 @@ export default function DocsPortalPage() {
           </h1>
 
           <p className="text-base sm:text-xl text-muted-foreground max-w-3xl leading-relaxed">
-            Install, pair, tune, and automate a Linux Moonlight host. Use the category tabs in the header, the sidebar, or search with ⌘K.
+            Install, pair, tune, and automate a Linux Moonlight host. Use the category tabs in the
+            header, the sidebar, or search with <ModKbdLabel />.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -155,13 +159,19 @@ export default function DocsPortalPage() {
           <h2 className="text-2xl font-bold tracking-tight text-foreground">Documentation Directory</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Browse every article, or search with{' '}
-            <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-mono">⌘K</kbd>.
+            <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-mono">
+              <ModKbdLabel />
+            </kbd>
+            .
           </p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
           {DOC_CATEGORIES.map((cat) => (
-            <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-lg shadow-black/20">
+            <div
+              key={cat.name}
+              className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-lg shadow-black/20"
+            >
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-base font-semibold text-foreground">{cat.name}</h3>
                 <span className="text-xs font-mono text-muted-foreground">
@@ -185,6 +195,11 @@ export default function DocsPortalPage() {
                         {item.badge && (
                           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
                             {item.badge}
+                          </span>
+                        )}
+                        {DOC_ARTICLES[item.slug]?.readTime && (
+                          <span className="hidden sm:inline text-[10px] font-mono text-muted-foreground/70">
+                            {DOC_ARTICLES[item.slug].readTime}
                           </span>
                         )}
                       </div>
