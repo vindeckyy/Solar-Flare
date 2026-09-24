@@ -1,3 +1,12 @@
+> [!IMPORTANT]
+> ## End of Life — September 2026
+>
+> **SolarFlare is no longer maintained.** This repository has reached its end of life and is now archived in read-only mode. No further releases, updates, bug fixes, or security patches will be published.
+>
+> Users are encouraged to migrate to [Sunshine](https://github.com/LizardByte/Sunshine), the upstream project from which SolarFlare was forked, which remains actively maintained.
+>
+> Thank you to everyone who used, tested, and contributed to this project.
+
 <div align="center">
   <img src="docs/images/solarflare-mark-1024.png" width="192" alt="SolarFlare logo">
   <h1>SolarFlare</h1>
