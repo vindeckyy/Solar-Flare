@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
+import { EolBanner } from '@/components/solarflare/eol-banner'
 
 const geistSans = Geist({
   subsets: ['latin'],
@@ -79,6 +80,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
       <body className="antialiased bg-background font-sans">
+        <EolBanner />
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

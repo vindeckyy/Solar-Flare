@@ -2257,6 +2257,12 @@ git diff --check`,
         content: 'Select a version tab. Full GitHub compare links live on each release.',
         tabs: [
           {
+            id: 'eol',
+            label: 'End of life',
+            content:
+              '**SolarFlare reached end of life in September 2026.**\\n\\n- **No further releases, updates, bug fixes, or security patches will be published.**\\n- The repository is archived and read-only.\\n- This documentation site is kept for reference only.\\n- Users are encouraged to migrate to [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine), the upstream project from which SolarFlare was forked, which remains actively maintained.\\n\\nThank you to everyone who used, tested, and contributed to this project.',
+          },
+          {
             id: 'v130',
             label: 'v1.3.0',
             content:
