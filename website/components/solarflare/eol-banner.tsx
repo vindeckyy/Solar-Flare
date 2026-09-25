@@ -26,13 +26,13 @@ export function EolBanner() {
             to{' '}
           </span>
           <a
-            href="https://github.com/LizardByte/Sunshine"
+            href="https://github.com/vindeckyy/slipstream"
             className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
           >
-            LizardByte/Sunshine
+            Slipstream
           </a>
           <span className="text-muted-foreground">
-            , the upstream project, which remains actively maintained.
+            , the successor project, which remains actively maintained.
           </span>
         </p>
       </div>

@@ -5,9 +5,10 @@
 >
 > **SolarFlare is no longer maintained.** This repository is archived and
 > read-only. No further releases, bug fixes, or security patches will be
-> published, and reported vulnerabilities will not be actioned. Issues that
-> affect stock Sunshine should be reported to
-> [LizardByte/Sunshine](https://github.com/LizardByte/Sunshine/security/advisories/new).
+> published, and reported vulnerabilities will not be actioned. Users should
+> migrate to [Slipstream](https://github.com/vindeckyy/slipstream), the
+> successor project, and report issues to its
+> [security advisories](https://github.com/vindeckyy/slipstream/security/advisories/new).
 
 This document describes the SolarFlare fork's security posture, supported
 versions, vulnerability reporting process, and threat model. For upstream
